@@ -21,7 +21,7 @@ scrape_configs:
     static_configs:
       - targets: ['otel-collector:8888']
 
-  - job_name: 'isis-tracer-metrics'
+  - job_name: 'nexs-tracer-metrics'
     static_configs:
       - targets: ['example-app:8080']
     metrics_path: /tracer/metrics

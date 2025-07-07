@@ -58,13 +58,13 @@ coverage.html
 coverage.out
 
 # Generated code output (for testing)
-/pgx-goose/
+/nexs-lib/
 /generated/
 
 # Log files
 *.log
 
 # Config files with sensitive data
-pgx-goose-conf.local.yaml
-pgx-goose-conf.local.json
+nexs-lib-conf.local.yaml
+nexs-lib-conf.local.json
 config.local.*

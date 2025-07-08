@@ -2,12 +2,8 @@ package postgresql
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/fsvxavier/nexs-lib/db/postgresql/common"
-	"github.com/fsvxavier/nexs-lib/db/postgresql/gorm"
-	"github.com/fsvxavier/nexs-lib/db/postgresql/pgx"
-	"github.com/fsvxavier/nexs-lib/db/postgresql/pq"
 )
 
 // ProviderType define o tipo de provider PostgreSQL a ser utilizado
@@ -23,45 +19,21 @@ const (
 )
 
 // NewConnection cria uma nova conexão PostgreSQL usando o provider especificado
+// Utiliza o padrão Factory com Strategy para flexibilidade e extensibilidade
 func NewConnection(ctx context.Context, providerType ProviderType, config *common.Config) (common.IConn, error) {
-	switch providerType {
-	case PGX:
-		return pgx.NewConn(ctx, config)
-	case PQ:
-		return pq.NewConn(ctx, config)
-	case GORM:
-		return gorm.NewConn(ctx, config)
-	default:
-		return nil, fmt.Errorf("provider não suportado: %s", providerType)
-	}
+	return GetFactory().CreateConnection(ctx, providerType, config)
 }
 
 // NewPool cria um novo pool de conexões PostgreSQL usando o provider especificado
+// Utiliza o padrão Factory com Strategy para flexibilidade e extensibilidade
 func NewPool(ctx context.Context, providerType ProviderType, config *common.Config) (common.IPool, error) {
-	switch providerType {
-	case PGX:
-		return pgx.NewPool(ctx, config)
-	case PQ:
-		return pq.NewPool(ctx, config)
-	case GORM:
-		return gorm.NewPool(ctx, config)
-	default:
-		return nil, fmt.Errorf("provider não suportado: %s", providerType)
-	}
+	return GetFactory().CreatePool(ctx, providerType, config)
 }
 
 // NewBatch cria um novo lote de consultas usando o provider especificado
+// Utiliza o padrão Factory com Strategy para flexibilidade e extensibilidade
 func NewBatch(providerType ProviderType) (common.IBatch, error) {
-	switch providerType {
-	case PGX:
-		return pgx.NewBatch(), nil
-	case PQ:
-		return pq.NewBatch(), nil
-	case GORM:
-		return gorm.NewBatch(), nil
-	default:
-		return nil, fmt.Errorf("provider não suportado: %s", providerType)
-	}
+	return GetFactory().CreateBatch(providerType)
 }
 
 // IsEmptyResultError verifica se um erro indica ausência de resultados

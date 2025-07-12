@@ -190,7 +190,7 @@ func metricsCollectionExample() {
 			metrics.IncrementCounter("errors_total", 1, map[string]string{
 				"code":     err.Code(),
 				"type":     err.Type(),
-				"severity": string(err.Severity()),
+				"severity": err.Severity().String(),
 			})
 
 			metrics.RecordHistogram("error_duration", time.Since(start).Seconds(), map[string]string{
@@ -1490,7 +1490,7 @@ func (e *ErrorAggregator) GetWindowStats(window string) *WindowStats {
 	// Calculate distributions
 	for _, err := range data.Errors {
 		stats.ErrorCodeDistribution[err.Code()]++
-		stats.SeverityDistribution[string(err.Severity())]++
+		stats.SeverityDistribution[err.Severity().String()]++
 	}
 
 	// Find most common error

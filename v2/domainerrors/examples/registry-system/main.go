@@ -831,7 +831,7 @@ func (rm *RegistryMetrics) RecordError(category string, severity types.ErrorSeve
 
 	rm.data.TotalErrorsCreated++
 	rm.data.ErrorsByCategory[category]++
-	rm.data.ErrorsBySeverity[string(severity)]++
+	rm.data.ErrorsBySeverity[severity.String()]++
 	rm.data.totalCreationTime += duration
 	rm.data.AverageCreationTime = rm.data.totalCreationTime / time.Duration(rm.data.TotalErrorsCreated)
 }

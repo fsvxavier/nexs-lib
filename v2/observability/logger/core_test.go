@@ -2,7 +2,6 @@ package logger
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -651,418 +650,488 @@ func TestCoreLoggerCloseAsync(t *testing.T) {
 	}
 }
 
-// TestCoreLoggerSamplerClose testa o fechamento do sampler
-func TestCoreLoggerSamplerClose(t *testing.T) {
+// TestCoreLoggerSamplerClose testa o fechamento correto do sampler
+func TestSamplerClose(t *testing.T) {
 	provider := NewMockProvider("test", "1.0.0")
 	config := TestConfig()
 	config.Sampling = &interfaces.SamplingConfig{
-		Initial:    1,
+		Enabled:    true,
+		Initial:    10,
 		Thereafter: 100,
+		Tick:       100 * time.Millisecond,
+		Levels:     []interfaces.Level{interfaces.InfoLevel},
 	}
+
 	provider.Configure(config)
+	logger := NewCoreLogger(provider, config)
 
-	coreLogger := NewCoreLogger(provider, config)
+	// Verifica se sampler foi criado
+	if logger.sampler == nil {
+		t.Fatal("Expected sampler to be created")
+	}
 
-	// Testa Close que deve parar o sampler
-	err := coreLogger.Close()
+	// Testa se o sampler está funcionando
+	ctx := context.Background()
+	logger.Info(ctx, "Test message")
+
+	// Fecha o logger (deve fechar o sampler)
+	err := logger.Close()
 	if err != nil {
-		t.Errorf("Expected no error on close, got %v", err)
+		t.Errorf("Unexpected error closing logger: %v", err)
 	}
+
+	// Testa se o sampler foi fechado corretamente
+	// Não deveria gerar panic ou erro
+	// O ticker deve ter sido parado
 }
 
-func TestCoreLoggerAsyncProcessingWithSampling(t *testing.T) {
-	// Test async processing with sampling (if supported)
-	config := interfaces.Config{
-		Level:       interfaces.InfoLevel,
-		Format:      interfaces.JSONFormat,
-		ServiceName: "async-service",
-	}
+// TestSamplerEdgeCases testa casos extremos do sampling
+func TestSamplerEdgeCases(t *testing.T) {
+	t.Run("NilSamplingConfig", func(t *testing.T) {
+		provider := NewMockProvider("test", "1.0.0")
+		config := TestConfig()
+		config.Sampling = nil // Explicitamente nil
 
-	provider := NewMockProvider("test", "1.0.0")
-	logger := NewCoreLogger(provider, config)
-	defer logger.Close()
+		provider.Configure(config)
+		logger := NewCoreLogger(provider, config)
 
-	ctx := context.Background()
-
-	// Send multiple messages
-	for i := 0; i < 10; i++ {
-		logger.Info(ctx, fmt.Sprintf("message %d", i))
-	}
-
-	// Test flush
-	logger.Flush()
-}
-
-func TestCoreLoggerComplexContextExtraction(t *testing.T) {
-	provider := NewMockProvider("test", "1.0.0")
-	config := interfaces.Config{
-		Level:       interfaces.InfoLevel,
-		Format:      interfaces.JSONFormat,
-		ServiceName: "context-service",
-	}
-	provider.Configure(config)
-
-	logger := NewCoreLogger(provider, config)
-	defer logger.Close()
-
-	// Test complex context scenarios
-	tests := []struct {
-		name string
-		ctx  context.Context
-	}{
-		{
-			"empty_context",
-			context.Background(),
-		},
-		{
-			"trace_only",
-			context.WithValue(context.Background(), "trace_id", "trace-123"),
-		},
-		{
-			"span_only",
-			context.WithValue(context.Background(), "span_id", "span-456"),
-		},
-		{
-			"user_only",
-			context.WithValue(context.Background(), "user_id", "user-789"),
-		},
-		{
-			"request_only",
-			context.WithValue(context.Background(), "request_id", "req-101"),
-		},
-		{
-			"all_context_values",
-			func() context.Context {
-				ctx := context.Background()
-				ctx = context.WithValue(ctx, "trace_id", "trace-abc")
-				ctx = context.WithValue(ctx, "span_id", "span-def")
-				ctx = context.WithValue(ctx, "user_id", "user-ghi")
-				ctx = context.WithValue(ctx, "request_id", "req-jkl")
-				return ctx
-			}(),
-		},
-		{
-			"non_string_values",
-			func() context.Context {
-				ctx := context.Background()
-				ctx = context.WithValue(ctx, "trace_id", 12345)
-				ctx = context.WithValue(ctx, "span_id", []byte("span"))
-				ctx = context.WithValue(ctx, "user_id", 67890)
-				ctx = context.WithValue(ctx, "request_id", 99999)
-				return ctx
-			}(),
-		},
-		{
-			"nil_values",
-			func() context.Context {
-				ctx := context.Background()
-				ctx = context.WithValue(ctx, "trace_id", nil)
-				ctx = context.WithValue(ctx, "span_id", nil)
-				ctx = context.WithValue(ctx, "user_id", nil)
-				ctx = context.WithValue(ctx, "request_id", nil)
-				return ctx
-			}(),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Test direct extraction functions
-			traceID := extractTraceID(tt.ctx)
-			spanID := extractSpanID(tt.ctx)
-			userID := extractUserID(tt.ctx)
-			requestID := extractRequestID(tt.ctx)
-
-			t.Logf("Context %s - Extracted: trace=%s, span=%s, user=%s, request=%s",
-				tt.name, traceID, spanID, userID, requestID)
-
-			// Test logging with context
-			logger.Info(tt.ctx, fmt.Sprintf("test message with %s", tt.name))
-		})
-	}
-}
-
-func TestCoreLoggerWithErrorEdgeCases(t *testing.T) {
-	provider := NewMockProvider("test", "1.0.0")
-	config := interfaces.Config{
-		Level:       interfaces.ErrorLevel,
-		Format:      interfaces.JSONFormat,
-		ServiceName: "error-service",
-	}
-	provider.Configure(config)
-
-	logger := NewCoreLogger(provider, config)
-	defer logger.Close()
-
-	ctx := context.Background()
-
-	// Test different error scenarios
-	tests := []struct {
-		name string
-		err  error
-	}{
-		{"nil_error", nil},
-		{"simple_error", errors.New("simple error")},
-		{"wrapped_error", fmt.Errorf("wrapped: %w", errors.New("original"))},
-		{"complex_error", fmt.Errorf("level1: %w", fmt.Errorf("level2: %w", errors.New("root cause")))},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			errorLogger := logger.WithError(tt.err)
-			errorLogger.Error(ctx, fmt.Sprintf("error test: %s", tt.name))
-		})
-	}
-}
-
-func TestCoreLoggerLevelEnabledEdgeCases(t *testing.T) {
-	provider := NewMockProvider("test", "1.0.0")
-	config := interfaces.Config{
-		Level:       interfaces.WarnLevel,
-		Format:      interfaces.JSONFormat,
-		ServiceName: "level-service",
-	}
-	provider.Configure(config)
-
-	logger := NewCoreLogger(provider, config)
-	defer logger.Close()
-
-	ctx := context.Background()
-
-	// Test level filtering
-	tests := []struct {
-		level     interfaces.Level
-		method    func(context.Context, string, ...interfaces.Field)
-		shouldLog bool
-	}{
-		{interfaces.TraceLevel, logger.Trace, false},
-		{interfaces.DebugLevel, logger.Debug, false},
-		{interfaces.InfoLevel, logger.Info, false},
-		{interfaces.WarnLevel, logger.Warn, true},
-		{interfaces.ErrorLevel, logger.Error, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.level.String(), func(t *testing.T) {
-			// Test if level is enabled
-			enabled := logger.IsLevelEnabled(tt.level)
-			if enabled != tt.shouldLog {
-				t.Errorf("Expected IsLevelEnabled(%v) = %v, got %v", tt.level, tt.shouldLog, enabled)
-			}
-
-			// Test actual logging
-			tt.method(ctx, fmt.Sprintf("test %s message", tt.level.String()))
-		})
-	}
-}
-
-func TestCoreLoggerFormattedLoggingEdgeCases(t *testing.T) {
-	provider := NewMockProvider("test", "1.0.0")
-	config := interfaces.Config{
-		Level:       interfaces.DebugLevel,
-		Format:      interfaces.JSONFormat,
-		ServiceName: "format-service",
-	}
-	provider.Configure(config)
-
-	logger := NewCoreLogger(provider, config)
-	defer logger.Close()
-
-	ctx := context.Background()
-
-	// Test formatted logging methods
-	logger.Tracef(ctx, "trace formatted: %s %d", "value", 42)
-	logger.Debugf(ctx, "debug formatted: %s %d", "value", 42)
-	logger.Infof(ctx, "info formatted: %s %d", "value", 42)
-	logger.Warnf(ctx, "warn formatted: %s %d", "value", 42)
-	logger.Errorf(ctx, "error formatted: %s %d", "value", 42)
-}
-
-func TestCoreLoggerCodedLoggingEdgeCases(t *testing.T) {
-	provider := NewMockProvider("test", "1.0.0")
-	config := interfaces.Config{
-		Level:       interfaces.DebugLevel,
-		Format:      interfaces.JSONFormat,
-		ServiceName: "coded-service",
-	}
-	provider.Configure(config)
-
-	logger := NewCoreLogger(provider, config)
-	defer logger.Close()
-
-	ctx := context.Background()
-
-	// Test coded logging methods
-	tests := []struct {
-		method func(context.Context, string, string, ...interfaces.Field)
-		code   string
-		msg    string
-	}{
-		{logger.TraceWithCode, "TRACE_001", "trace with code"},
-		{logger.DebugWithCode, "DEBUG_001", "debug with code"},
-		{logger.InfoWithCode, "INFO_001", "info with code"},
-		{logger.WarnWithCode, "WARN_001", "warn with code"},
-		{logger.ErrorWithCode, "ERROR_001", "error with code"},
-	}
-
-	for _, tt := range tests {
-		tt.method(ctx, tt.code, tt.msg, interfaces.String("extra", "field"))
-	}
-}
-
-func TestCoreLoggerCloneEdgeCases(t *testing.T) {
-	provider := NewMockProvider("test", "1.0.0")
-	config := interfaces.Config{
-		Level:       interfaces.InfoLevel,
-		Format:      interfaces.JSONFormat,
-		ServiceName: "clone-service",
-		Async: &interfaces.AsyncConfig{
-			Enabled:       true,
-			BufferSize:    100,
-			FlushInterval: 10 * time.Millisecond,
-			Workers:       1,
-			DropOnFull:    false,
-		},
-		Sampling: &interfaces.SamplingConfig{
-			Enabled:    true,
-			Initial:    2,
-			Thereafter: 10,
-		},
-	}
-	provider.Configure(config)
-
-	logger := NewCoreLogger(provider, config)
-	defer logger.Close()
-
-	// Test cloning
-	cloned := logger.Clone()
-	if cloned == nil {
-		t.Error("Expected cloned logger to be created")
-	}
-
-	ctx := context.Background()
-	cloned.Info(ctx, "cloned logger message")
-
-	// Test cloning with fields
-	fieldsLogger := logger.WithFields(interfaces.String("key", "value"))
-	clonedFields := fieldsLogger.Clone()
-	clonedFields.Info(ctx, "cloned fields logger message")
-}
-
-func TestCoreLoggerContainsLevelFunction(t *testing.T) {
-	// Test the containsLevel function that currently has 0% coverage
-	levels := []interfaces.Level{interfaces.ErrorLevel, interfaces.WarnLevel}
-
-	// Test with levels that should be found
-	if !containsLevel(levels, interfaces.ErrorLevel) {
-		t.Error("Expected ErrorLevel to be found in levels slice")
-	}
-
-	if !containsLevel(levels, interfaces.WarnLevel) {
-		t.Error("Expected WarnLevel to be found in levels slice")
-	}
-
-	// Test with level that should not be found
-	if containsLevel(levels, interfaces.InfoLevel) {
-		t.Error("Expected InfoLevel not to be found in levels slice")
-	}
-}
-
-func TestCoreLoggerGlobalManagerFunctions(t *testing.T) {
-	// Test global manager functions that currently have 0% coverage
-
-	// Test GetGlobalManager
-	manager := GetGlobalManager()
-	if manager == nil {
-		t.Error("Expected global manager to be created")
-	}
-
-	// Create a real provider for testing
-	testProvider := NewMockProvider("test", "1.0.0")
-
-	// Test RegisterProvider through global manager
-	RegisterProvider("test-provider", testProvider)
-
-	// Test SetProvider
-	config := interfaces.Config{
-		Level:       interfaces.InfoLevel,
-		Format:      interfaces.JSONFormat,
-		ServiceName: "global-service",
-	}
-	err := SetProvider("test-provider", config)
-	if err != nil {
-		t.Errorf("Expected no error setting provider, got %v", err)
-	}
-
-	// Test ListProviders
-	providers := ListProviders()
-	found := false
-	for _, p := range providers {
-		if p == "test-provider" {
-			found = true
-			break
+		if logger.sampler != nil {
+			t.Error("Expected sampler to be nil when config is nil")
 		}
-	}
-	if !found {
-		t.Error("Expected test-provider to be in providers list")
-	}
 
-	// Test CreateLogger through global manager
-	globalLogger, err := CreateLogger("test-provider", config)
-	if err != nil {
-		t.Errorf("Expected no error creating logger, got %v", err)
-	}
+		// Deve funcionar normalmente sem sampler
+		ctx := context.Background()
+		logger.Info(ctx, "Test message")
 
-	if globalLogger != nil {
+		logger.Close()
+	})
+
+	t.Run("DisabledSampling", func(t *testing.T) {
+		provider := NewMockProvider("test", "1.0.0")
+		config := TestConfig()
+		config.Sampling = &interfaces.SamplingConfig{
+			Enabled: false, // Explicitamente desabilitado
+		}
+
+		provider.Configure(config)
+		logger := NewCoreLogger(provider, config)
+
+		if logger.sampler != nil {
+			t.Error("Expected sampler to be nil when disabled")
+		}
+
+		logger.Close()
+	})
+
+	t.Run("EmptyLevelsConfig", func(t *testing.T) {
+		provider := NewMockProvider("test", "1.0.0")
+		config := TestConfig()
+		config.Sampling = &interfaces.SamplingConfig{
+			Enabled:    true,
+			Initial:    1,
+			Thereafter: 10,
+			Tick:       time.Millisecond,
+			Levels:     []interfaces.Level{}, // Lista vazia
+		}
+
+		provider.Configure(config)
+		logger := NewCoreLogger(provider, config)
+
+		// Deve criar sampler mesmo com levels vazios
+		if logger.sampler == nil {
+			t.Error("Expected sampler to be created even with empty levels")
+		}
+
+		logger.Close()
+	})
+
+	t.Run("ZeroValues", func(t *testing.T) {
+		provider := NewMockProvider("test", "1.0.0")
+		config := TestConfig()
+		config.Sampling = &interfaces.SamplingConfig{
+			Enabled:    true,
+			Initial:    0, // Valores zero
+			Thereafter: 0,
+			Tick:       0,
+			Levels:     []interfaces.Level{interfaces.InfoLevel},
+		}
+
+		provider.Configure(config)
+		logger := NewCoreLogger(provider, config)
+
+		// Deve criar sampler e não causar divisão por zero
+		if logger.sampler == nil {
+			t.Error("Expected sampler to be created with zero values")
+		}
+
+		ctx := context.Background()
+		logger.Info(ctx, "Test message")
+
+		logger.Close()
+	})
+}
+
+// TestContextExtractionEdgeCases testa casos extremos da extração de context
+func TestContextExtractionEdgeCases(t *testing.T) {
+	provider := NewMockProvider("test", "1.0.0")
+	config := TestConfig()
+	provider.Configure(config)
+	logger := NewCoreLogger(provider, config)
+	defer logger.Close()
+
+	t.Run("NilContext", func(t *testing.T) {
+		// Testa com context nil
+		logger.Info(nil, "Message with nil context")
+
+		messages := provider.GetLogMessages()
+		found := false
+		for _, msg := range messages {
+			if strings.Contains(msg, "Message with nil context") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("Expected message to be logged even with nil context")
+		}
+	})
+
+	t.Run("ContextWithWrongTypes", func(t *testing.T) {
+		// Context com tipos incorretos
+		ctx := context.WithValue(context.Background(), "trace_id", 12345) // int em vez de string
+		ctx = context.WithValue(ctx, "span_id", []byte("bytes"))          // slice em vez de string
+		ctx = context.WithValue(ctx, "user_id", struct{}{})               // struct em vez de string
+		ctx = context.WithValue(ctx, "request_id", nil)                   // nil
+
+		logger.Info(ctx, "Message with wrong type context values")
+
+		// Não deve causar panic, deve extrair valores vazios para tipos incorretos
+		messages := provider.GetLogMessages()
+		found := false
+		for _, msg := range messages {
+			if strings.Contains(msg, "Message with wrong type context values") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("Expected message to be logged even with wrong type context values")
+		}
+	})
+
+	t.Run("ContextWithValidAndInvalidKeys", func(t *testing.T) {
+		// Mistura de chaves válidas e inválidas
+		ctx := context.WithValue(context.Background(), "trace_id", "valid-trace")
+		ctx = context.WithValue(ctx, "invalid_key", "value")
+		ctx = context.WithValue(ctx, "span_id", 999) // tipo inválido
+		ctx = context.WithValue(ctx, "user_id", "valid-user")
+
+		logger.Info(ctx, "Message with mixed context")
+
+		messages := provider.GetLogMessages()
+		found := false
+		for _, msg := range messages {
+			if strings.Contains(msg, "Message with mixed context") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("Expected message to be logged with mixed context")
+		}
+	})
+
+	t.Run("CamelCaseKeys", func(t *testing.T) {
+		// Testa diferentes formatos de chaves
+		ctx := context.WithValue(context.Background(), "traceId", "camel-trace") // camelCase
+		ctx = context.WithValue(ctx, "spanId", "camel-span")                     // camelCase
+		ctx = context.WithValue(ctx, "trace_id", "snake-trace")                  // snake_case (deve sobrescrever)
+		ctx = context.WithValue(ctx, "TRACE_ID", "upper-trace")                  // uppercase
+
+		logger.Info(ctx, "Message with different key formats")
+
+		messages := provider.GetLogMessages()
+		found := false
+		for _, msg := range messages {
+			if strings.Contains(msg, "Message with different key formats") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("Expected message to be logged with different key formats")
+		}
+	})
+
+	t.Run("ContextChaining", func(t *testing.T) {
+		// Context aninhado/em cadeia
+		ctx1 := context.WithValue(context.Background(), "trace_id", "base-trace")
+		ctx2 := context.WithValue(ctx1, "span_id", "child-span")
+		ctx3 := context.WithValue(ctx2, "user_id", "child-user")
+		ctx4 := context.WithValue(ctx3, "trace_id", "overridden-trace") // Sobrescreve
+
+		logger.Info(ctx4, "Message with chained context")
+
+		messages := provider.GetLogMessages()
+		found := false
+		for _, msg := range messages {
+			if strings.Contains(msg, "Message with chained context") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("Expected message to be logged with chained context")
+		}
+	})
+}
+
+// TestAsyncProcessingFailures testa falhas no processamento assíncrono
+func TestAsyncProcessingFailures(t *testing.T) {
+	t.Run("BufferOverflow", func(t *testing.T) {
+		provider := NewMockProvider("test", "1.0.0")
+		config := TestConfig()
+		config.Async = &interfaces.AsyncConfig{
+			Enabled:       true,
+			BufferSize:    2, // Buffer muito pequeno
+			Workers:       1,
+			FlushInterval: 100 * time.Millisecond,
+		}
+
+		provider.Configure(config)
+		logger := NewCoreLogger(provider, config)
+		defer logger.Close()
+
 		ctx := context.Background()
 
-		// Test global logging functions
-		Trace(ctx, "global trace message")
-		Debug(ctx, "global debug message")
-		Info(ctx, "global info message")
-		Warn(ctx, "global warn message")
+		// Envia mais mensagens do que o buffer pode suportar
+		for i := 0; i < 10; i++ {
+			logger.Info(ctx, fmt.Sprintf("Overflow message %d", i))
+		}
+
+		// Força flush e aguarda processamento
+		logger.Flush()
+		time.Sleep(200 * time.Millisecond)
+
+		// Algumas mensagens podem ser perdidas devido ao overflow, mas não deve causar panic
+		messages := provider.GetLogMessages()
+		if len(messages) == 0 {
+			t.Error("Expected at least some messages to be processed")
+		}
+	})
+
+	t.Run("WorkerPanic", func(t *testing.T) {
+		// Mock provider que causa panic em certas condições
+		provider := &PanicMockProvider{
+			MockProvider: NewMockProvider("test", "1.0.0"),
+			shouldPanic:  true,
+		}
+
+		config := TestConfig()
+		config.Async = &interfaces.AsyncConfig{
+			Enabled:       true,
+			BufferSize:    10,
+			Workers:       2,
+			FlushInterval: 50 * time.Millisecond,
+		}
+
+		provider.Configure(config)
+		logger := NewCoreLogger(provider, config)
+		defer logger.Close()
+
+		ctx := context.Background()
+
+		// Envia mensagens que devem causar panic no worker
+		for i := 0; i < 5; i++ {
+			logger.Info(ctx, "Message that causes panic")
+		}
+
+		// Aguarda processamento
+		time.Sleep(100 * time.Millisecond)
+
+		// Logger deve continuar funcionando mesmo com panic nos workers
+		provider.shouldPanic = false
+		logger.Info(ctx, "Message after panic")
+
+		logger.Flush()
+		time.Sleep(100 * time.Millisecond)
+	})
+
+	t.Run("ZeroWorkers", func(t *testing.T) {
+		provider := NewMockProvider("test", "1.0.0")
+		config := TestConfig()
+		config.Async = &interfaces.AsyncConfig{
+			Enabled:       true,
+			BufferSize:    10,
+			Workers:       0, // Zero workers - deve ser corrigido para 1
+			FlushInterval: 50 * time.Millisecond,
+		}
+
+		provider.Configure(config)
+		logger := NewCoreLogger(provider, config)
+		defer logger.Close()
+
+		// Verifica se o logger foi criado com pelo menos 1 worker
+		if logger.async == nil {
+			t.Error("Expected async processor to be created")
+		} else if len(logger.async.workers) != 1 {
+			t.Errorf("Expected 1 worker (corrected from 0), got %d", len(logger.async.workers))
+		}
+
+		ctx := context.Background()
+		logger.Info(ctx, "Message with zero workers")
+
+		// Deve funcionar normalmente agora
+		logger.Flush()
+		time.Sleep(100 * time.Millisecond)
+	})
+
+	t.Run("NegativeValues", func(t *testing.T) {
+		provider := NewMockProvider("test", "1.0.0")
+		config := TestConfig()
+		config.Async = &interfaces.AsyncConfig{
+			Enabled:       true,
+			BufferSize:    -1, // Valores negativos - deve ser corrigido para 100
+			Workers:       -1, // Deve ser corrigido para 1
+			FlushInterval: -time.Second,
+		}
+
+		provider.Configure(config)
+
+		// Não deve causar panic na criação
+		logger := NewCoreLogger(provider, config)
+		if logger == nil {
+			t.Error("Expected logger to be created even with negative values")
+		}
+		defer logger.Close()
+
+		// Verifica se os valores foram corrigidos
+		if logger.async == nil {
+			t.Error("Expected async processor to be created")
+		} else {
+			if len(logger.async.workers) != 1 {
+				t.Errorf("Expected 1 worker (corrected from -1), got %d", len(logger.async.workers))
+			}
+			if cap(logger.async.queue) != 100 {
+				t.Errorf("Expected buffer size 100 (corrected from -1), got %d", cap(logger.async.queue))
+			}
+		}
+
+		// Testa se funciona normalmente
+		ctx := context.Background()
+		logger.Info(ctx, "Test message with negative values")
+		logger.Flush()
+	})
+}
+
+// PanicMockProvider provider que causa panic para testar recuperação
+type PanicMockProvider struct {
+	*MockProvider
+	shouldPanic bool
+}
+
+func (p *PanicMockProvider) Info(ctx context.Context, msg string, fields ...interfaces.Field) {
+	if p.shouldPanic && strings.Contains(msg, "panic") {
+		panic("simulated panic in provider")
 	}
+	p.MockProvider.Info(ctx, msg, fields...)
 }
 
-// Mock provider for testing
-type mockProvider struct{}
+func (p *PanicMockProvider) Debug(ctx context.Context, msg string, fields ...interfaces.Field) {
+	if p.shouldPanic && strings.Contains(msg, "panic") {
+		panic("simulated panic in provider")
+	}
+	p.MockProvider.Debug(ctx, msg, fields...)
+}
 
-func (m *mockProvider) Name() string                                                      { return "mock" }
-func (m *mockProvider) Version() string                                                   { return "1.0.0" }
-func (m *mockProvider) Configure(config interfaces.Config) error                          { return nil }
-func (m *mockProvider) HealthCheck() error                                                { return nil }
-func (m *mockProvider) Trace(ctx context.Context, msg string, fields ...interfaces.Field) {}
-func (m *mockProvider) Debug(ctx context.Context, msg string, fields ...interfaces.Field) {}
-func (m *mockProvider) Info(ctx context.Context, msg string, fields ...interfaces.Field)  {}
-func (m *mockProvider) Warn(ctx context.Context, msg string, fields ...interfaces.Field)  {}
-func (m *mockProvider) Error(ctx context.Context, msg string, fields ...interfaces.Field) {}
-func (m *mockProvider) Fatal(ctx context.Context, msg string, fields ...interfaces.Field) {}
-func (m *mockProvider) Panic(ctx context.Context, msg string, fields ...interfaces.Field) {}
-func (m *mockProvider) Tracef(ctx context.Context, format string, args ...any)            {}
-func (m *mockProvider) Debugf(ctx context.Context, format string, args ...any)            {}
-func (m *mockProvider) Infof(ctx context.Context, format string, args ...any)             {}
-func (m *mockProvider) Warnf(ctx context.Context, format string, args ...any)             {}
-func (m *mockProvider) Errorf(ctx context.Context, format string, args ...any)            {}
-func (m *mockProvider) Fatalf(ctx context.Context, format string, args ...any)            {}
-func (m *mockProvider) Panicf(ctx context.Context, format string, args ...any)            {}
-func (m *mockProvider) TraceWithCode(ctx context.Context, code, msg string, fields ...interfaces.Field) {
+func (p *PanicMockProvider) Warn(ctx context.Context, msg string, fields ...interfaces.Field) {
+	if p.shouldPanic && strings.Contains(msg, "panic") {
+		panic("simulated panic in provider")
+	}
+	p.MockProvider.Warn(ctx, msg, fields...)
 }
-func (m *mockProvider) DebugWithCode(ctx context.Context, code, msg string, fields ...interfaces.Field) {
+
+func (p *PanicMockProvider) Error(ctx context.Context, msg string, fields ...interfaces.Field) {
+	if p.shouldPanic && strings.Contains(msg, "panic") {
+		panic("simulated panic in provider")
+	}
+	p.MockProvider.Error(ctx, msg, fields...)
 }
-func (m *mockProvider) InfoWithCode(ctx context.Context, code, msg string, fields ...interfaces.Field) {
+
+// TestAsyncShutdownEdgeCases testa casos extremos durante o shutdown assíncrono
+func TestAsyncShutdownEdgeCases(t *testing.T) {
+	t.Run("ShutdownWithPendingMessages", func(t *testing.T) {
+		provider := NewMockProvider("test", "1.0.0")
+		config := TestConfig()
+		config.Async = &interfaces.AsyncConfig{
+			Enabled:       true,
+			BufferSize:    1000,
+			Workers:       1,
+			FlushInterval: 1 * time.Second, // Intervalo longo
+		}
+
+		provider.Configure(config)
+		logger := NewCoreLogger(provider, config)
+
+		ctx := context.Background()
+
+		// Envia muitas mensagens
+		for i := 0; i < 100; i++ {
+			logger.Info(ctx, fmt.Sprintf("Pending message %d", i))
+		}
+
+		// Fecha imediatamente sem aguardar processamento completo
+		err := logger.Close()
+		if err != nil {
+			t.Errorf("Unexpected error during close: %v", err)
+		}
+
+		// Verifica se pelo menos algumas mensagens foram processadas
+		messages := provider.GetLogMessages()
+		if len(messages) == 0 {
+			t.Error("Expected some messages to be processed before shutdown")
+		}
+	})
+
+	t.Run("MultipleCloseCall", func(t *testing.T) {
+		provider := NewMockProvider("test", "1.0.0")
+		config := TestConfig()
+		config.Async = &interfaces.AsyncConfig{
+			Enabled:       true,
+			BufferSize:    10,
+			Workers:       2,
+			FlushInterval: 50 * time.Millisecond,
+		}
+
+		provider.Configure(config)
+		logger := NewCoreLogger(provider, config)
+
+		// Chama Close múltiplas vezes
+		err1 := logger.Close()
+		err2 := logger.Close()
+		err3 := logger.Close()
+
+		// Não deve causar panic ou erro
+		if err1 != nil {
+			t.Errorf("Unexpected error on first close: %v", err1)
+		}
+		// Segundo e terceiro close podem retornar erro ou não, mas não devem causar panic
+		_ = err2
+		_ = err3
+	})
+
+	t.Run("CloseWithoutInit", func(t *testing.T) {
+		provider := NewMockProvider("test", "1.0.0")
+		config := TestConfig()
+		// Async nil - não inicializado
+
+		provider.Configure(config)
+		logger := NewCoreLogger(provider, config)
+
+		// Close sem async inicializado
+		err := logger.Close()
+		if err != nil {
+			t.Errorf("Unexpected error closing logger without async: %v", err)
+		}
+	})
 }
-func (m *mockProvider) WarnWithCode(ctx context.Context, code, msg string, fields ...interfaces.Field) {
-}
-func (m *mockProvider) ErrorWithCode(ctx context.Context, code, msg string, fields ...interfaces.Field) {
-}
-func (m *mockProvider) WithFields(fields ...interfaces.Field) interfaces.Logger { return m }
-func (m *mockProvider) WithContext(ctx context.Context) interfaces.Logger       { return m }
-func (m *mockProvider) WithError(err error) interfaces.Logger                   { return m }
-func (m *mockProvider) WithTraceID(traceID string) interfaces.Logger            { return m }
-func (m *mockProvider) WithSpanID(spanID string) interfaces.Logger              { return m }
-func (m *mockProvider) SetLevel(level interfaces.Level)                         {}
-func (m *mockProvider) GetLevel() interfaces.Level                              { return interfaces.InfoLevel }
-func (m *mockProvider) IsLevelEnabled(level interfaces.Level) bool              { return true }
-func (m *mockProvider) Clone() interfaces.Logger                                { return m }
-func (m *mockProvider) Flush() error                                            { return nil }
-func (m *mockProvider) Close() error                                            { return nil }

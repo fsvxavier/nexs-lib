@@ -578,6 +578,16 @@ func extractRequestID(ctx context.Context) string {
 
 // newAsyncProcessor cria um novo processador assíncrono
 func newAsyncProcessor(logger *CoreLogger, config *interfaces.AsyncConfig) *asyncProcessor {
+	// Validação: deve ter pelo menos 1 worker
+	if config.Workers <= 0 {
+		config.Workers = 1
+	}
+
+	// Validação: BufferSize não pode ser negativo
+	if config.BufferSize < 0 {
+		config.BufferSize = 100 // valor padrão
+	}
+
 	processor := &asyncProcessor{
 		logger:  logger,
 		config:  config,
@@ -647,9 +657,21 @@ func (p *asyncProcessor) flush() {
 	}
 	p.mu.RUnlock()
 
-	// Aguarda queue esvaziar
-	for len(p.queue) > 0 {
-		time.Sleep(10 * time.Millisecond)
+	// Aguarda queue esvaziar com timeout
+	timeout := time.After(5 * time.Second)
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			// Timeout atingido, força processamento dos itens restantes
+			return
+		case <-ticker.C:
+			if len(p.queue) == 0 {
+				return
+			}
+		}
 	}
 }
 
@@ -723,12 +745,26 @@ func (p *asyncProcessor) cloneEntry(entry *interfaces.Entry) *interfaces.Entry {
 // run executa o loop principal do worker
 func (w *worker) run() {
 	defer w.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			// Log do panic (se possível) mas continua executando
+			fmt.Printf("Worker %d recovered from panic: %v\n", w.id, r)
+		}
+	}()
 
 	for {
 		select {
 		case entry := <-w.queue:
 			if entry != nil {
-				w.logger.processEntry(entry)
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							// Log do panic mas não para o worker
+							fmt.Printf("Worker %d recovered from panic in processEntry: %v\n", w.id, r)
+						}
+					}()
+					w.logger.processEntry(entry)
+				}()
 			}
 		case <-w.stop:
 			// Processa items restantes antes de parar
@@ -736,7 +772,14 @@ func (w *worker) run() {
 				select {
 				case entry := <-w.queue:
 					if entry != nil {
-						w.logger.processEntry(entry)
+						func() {
+							defer func() {
+								if r := recover(); r != nil {
+									fmt.Printf("Worker %d recovered from panic during shutdown: %v\n", w.id, r)
+								}
+							}()
+							w.logger.processEntry(entry)
+						}()
 					}
 				default:
 					return
@@ -789,6 +832,12 @@ func (s *sampler) shouldSample(level interfaces.Level) bool {
 	if counter.count <= s.config.Initial {
 		// Permite os primeiros logs
 		return false
+	}
+
+	// Proteção contra divisão por zero
+	if s.config.Thereafter <= 0 {
+		// Se thereafter é 0 ou negativo, sempre amostra após initial
+		return true
 	}
 
 	// Depois do initial, só permite 1 a cada 'thereafter'

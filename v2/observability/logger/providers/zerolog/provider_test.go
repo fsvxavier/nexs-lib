@@ -1,14 +1,17 @@
 package zerolog
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/fsvxavier/nexs-lib/v2/observability/logger/interfaces"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewProvider(t *testing.T) {
@@ -526,180 +529,129 @@ func TestProviderConvertLevelFromZerolog(t *testing.T) {
 }
 
 func TestProviderAddFieldToEventEdgeCases(t *testing.T) {
-	provider := NewProvider()
-	config := interfaces.Config{
-		Level:       interfaces.InfoLevel,
-		Format:      interfaces.JSONFormat,
-		ServiceName: "test-service",
-	}
-	provider.Configure(config)
-
-	// Create a zerolog event
-	event := provider.logger.Info()
-
 	tests := []struct {
 		name  string
 		field interfaces.Field
 	}{
-		{"string", interfaces.String("key", "value")},
-		{"int", interfaces.Int("key", 42)},
-		{"int64", interfaces.Int64("key", int64(42))},
-		{"float64", interfaces.Float64("key", 42.5)},
-		{"bool", interfaces.Bool("key", true)},
-		{"time", interfaces.Time("timestamp", time.Now())},
-		{"duration", interfaces.Duration("elapsed", time.Second)},
-		{"error", interfaces.Error(errors.New("test error"))},
-		{"nil_error", interfaces.Error(nil)},
-		{"object", interfaces.Object("obj", map[string]interface{}{"nested": "value"})},
-		{"array", interfaces.Array("arr", []interface{}{1, 2, 3})},
-		{"unknown", interfaces.Field{Key: "unknown", Type: interfaces.FieldType(99), Value: "unknown"}},
+		{
+			"string_with_special_chars",
+			interfaces.String("special", "special\nchars\ttab\"quote"),
+		},
+		{
+			"large_int64",
+			interfaces.Int64("large", 9223372036854775807),
+		},
+		{
+			"small_int64",
+			interfaces.Int64("small", -9223372036854775808),
+		},
+		{
+			"float_precision",
+			interfaces.Float64("precision", 3.141592653589793238462643383279),
+		},
+		{
+			"time_with_nano",
+			interfaces.Time("nano_time", time.Date(2023, 12, 25, 12, 30, 45, 123456789, time.UTC)),
+		},
+		{
+			"duration_complex",
+			interfaces.Duration("complex_dur", 2*time.Hour+30*time.Minute+45*time.Second+123*time.Millisecond),
+		},
+		{
+			"error_with_stack",
+			interfaces.Error(fmt.Errorf("wrapped error: %w", fmt.Errorf("original error"))),
+		},
+		{
+			"error_key_special",
+			interfaces.Field{Key: "error", Type: interfaces.ErrorType, Value: fmt.Errorf("special error key")},
+		},
+		{
+			"error_as_string",
+			interfaces.Field{Key: "error_str", Type: interfaces.ErrorType, Value: "error as string"},
+		},
+		{
+			"unknown_field_type",
+			interfaces.Field{Key: "unknown", Type: interfaces.FieldType(99), Value: "unknown type"},
+		},
+		{
+			"complex_nested_object",
+			interfaces.Object("nested", map[string]interface{}{
+				"level1": map[string]interface{}{
+					"level2": map[string]interface{}{
+						"level3": "deep value",
+						"array":  []interface{}{1, "two", true, nil},
+					},
+					"simple": 42,
+				},
+				"top_level": "value",
+			}),
+		},
+		{
+			"array_with_objects",
+			interfaces.Array("object_array", []interface{}{
+				map[string]interface{}{"id": 1, "name": "first"},
+				map[string]interface{}{"id": 2, "name": "second"},
+				"string_item",
+				42,
+				true,
+				nil,
+			}),
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Test addFieldToEvent with various field types
-			addFieldToEvent(event, tt.field)
-			t.Logf("Field %s added to event", tt.name)
+			provider := NewProvider()
+			config := interfaces.Config{
+				Level:       interfaces.DebugLevel,
+				Format:      interfaces.JSONFormat,
+				ServiceName: "field-test-service",
+				Output:      os.Stdout,
+			}
+
+			err := provider.Configure(config)
+			if err != nil {
+				t.Fatalf("Expected no error, got %v", err)
+			}
+
+			ctx := context.Background()
+
+			// Test addFieldToEvent via Info logging
+			provider.Info(ctx, "field test", tt.field)
+
+			// Test addFieldToContext via WithFields
+			fieldsLogger := provider.WithFields(tt.field)
+			fieldsLogger.Info(ctx, "context field test")
 		})
 	}
 }
 
-func TestProviderAddFieldToContextEdgeCases(t *testing.T) {
-	provider := NewProvider()
-	config := interfaces.Config{
-		Level:       interfaces.InfoLevel,
-		Format:      interfaces.JSONFormat,
-		ServiceName: "test-service",
-	}
-	provider.Configure(config)
-
-	// Create a zerolog context
-	ctx := provider.logger.With()
-
+func TestProviderAddFieldToEventRemainingCases(t *testing.T) {
+	// Test remaining cases in addFieldToEvent for complete coverage
 	tests := []struct {
 		name  string
 		field interfaces.Field
 	}{
-		{"string", interfaces.String("key", "value")},
-		{"int", interfaces.Int("key", 42)},
-		{"int64", interfaces.Int64("key", int64(42))},
-		{"float64", interfaces.Float64("key", 42.5)},
-		{"bool", interfaces.Bool("key", true)},
-		{"time", interfaces.Time("timestamp", time.Now())},
-		{"duration", interfaces.Duration("elapsed", time.Second)},
-		{"error", interfaces.Error(errors.New("test error"))},
-		{"object", interfaces.Object("obj", map[string]interface{}{"nested": "value"})},
-		{"array", interfaces.Array("arr", []interface{}{1, 2, 3})},
-		{"unknown", interfaces.Field{Key: "unknown", Type: interfaces.FieldType(99), Value: "unknown"}},
+		{
+			"error_with_error_key",
+			interfaces.Field{Key: "error", Type: interfaces.ErrorType, Value: errors.New("error with error key")},
+		},
+		{
+			"error_as_string_value",
+			interfaces.Field{Key: "err_str", Type: interfaces.ErrorType, Value: "string error value"},
+		},
+		{
+			"error_type_non_error",
+			interfaces.Field{Key: "non_err", Type: interfaces.ErrorType, Value: 12345},
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Test addFieldToContext with various field types
-			addFieldToContext(ctx, tt.field)
-			t.Logf("Field %s added to context", tt.name)
-		})
-	}
-}
-
-func TestProviderAddContextToEventComplex(t *testing.T) {
 	provider := NewProvider()
 	config := interfaces.Config{
-		Level:       interfaces.InfoLevel,
+		Level:       interfaces.DebugLevel,
 		Format:      interfaces.JSONFormat,
-		ServiceName: "test-service",
-	}
-	provider.Configure(config)
-
-	// Create a zerolog event
-	event := provider.logger.Info()
-
-	tests := []struct {
-		name string
-		ctx  context.Context
-	}{
-		{"empty", context.Background()},
-		{"with_trace", context.WithValue(context.Background(), "trace_id", "trace-123")},
-		{"with_span", context.WithValue(context.Background(), "span_id", "span-456")},
-		{"with_user", context.WithValue(context.Background(), "user_id", "user-789")},
-		{"with_request", context.WithValue(context.Background(), "request_id", "req-101")},
-		{"with_multiple", func() context.Context {
-			ctx := context.Background()
-			ctx = context.WithValue(ctx, "trace_id", "trace-123")
-			ctx = context.WithValue(ctx, "span_id", "span-456")
-			ctx = context.WithValue(ctx, "user_id", "user-789")
-			ctx = context.WithValue(ctx, "request_id", "req-101")
-			return ctx
-		}()},
-		{"with_non_string_values", func() context.Context {
-			ctx := context.Background()
-			ctx = context.WithValue(ctx, "trace_id", 123)           // Non-string value
-			ctx = context.WithValue(ctx, "span_id", []byte("span")) // Byte slice
-			return ctx
-		}()},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Test addContextToEvent with various context types
-			addContextToEvent(event, tt.ctx)
-			t.Logf("Context %s added to event", tt.name)
-		})
-	}
-}
-
-func TestProviderExtractContextFunctions(t *testing.T) {
-	tests := []struct {
-		name string
-		ctx  context.Context
-	}{
-		{"empty", context.Background()},
-		{"with_trace", context.WithValue(context.Background(), "trace_id", "trace-123")},
-		{"with_span", context.WithValue(context.Background(), "span_id", "span-456")},
-		{"with_user", context.WithValue(context.Background(), "user_id", "user-789")},
-		{"with_request", context.WithValue(context.Background(), "request_id", "req-101")},
-		{"with_all", func() context.Context {
-			ctx := context.Background()
-			ctx = context.WithValue(ctx, "trace_id", "trace-123")
-			ctx = context.WithValue(ctx, "span_id", "span-456")
-			ctx = context.WithValue(ctx, "user_id", "user-789")
-			ctx = context.WithValue(ctx, "request_id", "req-101")
-			return ctx
-		}()},
-		{"with_non_string_values", func() context.Context {
-			ctx := context.Background()
-			ctx = context.WithValue(ctx, "trace_id", 123)
-			ctx = context.WithValue(ctx, "span_id", []byte("span"))
-			ctx = context.WithValue(ctx, "user_id", 456)
-			ctx = context.WithValue(ctx, "request_id", 789)
-			return ctx
-		}()},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Test all extraction functions
-			traceID := extractTraceID(tt.ctx)
-			spanID := extractSpanID(tt.ctx)
-			userID := extractUserID(tt.ctx)
-			requestID := extractRequestID(tt.ctx)
-
-			t.Logf("Extracted - Trace: %s, Span: %s, User: %s, Request: %s",
-				traceID, spanID, userID, requestID)
-		})
-	}
-}
-
-func TestProviderConfigureComplexOptions(t *testing.T) {
-	provider := NewProvider()
-	config := interfaces.Config{
-		Level:         interfaces.TraceLevel,
-		Format:        interfaces.ConsoleFormat,
-		ServiceName:   "test-service",
-		AddCaller:     true,
-		AddStacktrace: true,
-		AddSource:     true,
-		TimeFormat:    "2006-01-02T15:04:05.000Z07:00",
+		ServiceName: "add-field-service",
+		Output:      os.Stdout,
 	}
 
 	err := provider.Configure(config)
@@ -707,9 +659,605 @@ func TestProviderConfigureComplexOptions(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	// Test that all options were applied
-	ctx := context.Background()
-	provider.Trace(ctx, "trace message with all options")
-	provider.Debug(ctx, "debug message with all options")
-	provider.Error(ctx, "error message with all options")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			provider.Info(ctx, "add field test", tt.field)
+		})
+	}
+}
+
+func TestProviderAddFieldToContextRemainingCases(t *testing.T) {
+	// Test remaining cases in addFieldToContext for complete coverage
+	tests := []struct {
+		name  string
+		field interfaces.Field
+	}{
+		{
+			"context_error_with_error_key",
+			interfaces.Field{Key: "error", Type: interfaces.ErrorType, Value: errors.New("context error with error key")},
+		},
+		{
+			"context_error_as_string",
+			interfaces.Field{Key: "err_str", Type: interfaces.ErrorType, Value: "context string error"},
+		},
+		{
+			"context_error_type_non_error",
+			interfaces.Field{Key: "non_err", Type: interfaces.ErrorType, Value: 67890},
+		},
+	}
+
+	provider := NewProvider()
+	config := interfaces.Config{
+		Level:       interfaces.DebugLevel,
+		Format:      interfaces.JSONFormat,
+		ServiceName: "add-context-service",
+		Output:      os.Stdout,
+	}
+
+	err := provider.Configure(config)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Test addFieldToContext via WithFields
+			fieldsLogger := provider.WithFields(tt.field)
+			fieldsLogger.Info(ctx, "context field test")
+		})
+	}
+}
+
+func TestProviderExtractContextFunctionsRemainingCases(t *testing.T) {
+	// Test remaining cases in extract functions
+	tests := []struct {
+		name string
+		ctx  context.Context
+	}{
+		{
+			"extract_with_traceId_key",
+			context.WithValue(context.Background(), "traceId", "traceId-value"),
+		},
+		{
+			"extract_with_spanId_key",
+			context.WithValue(context.Background(), "spanId", "spanId-value"),
+		},
+		{
+			"extract_with_non_string_trace",
+			context.WithValue(context.Background(), "trace_id", 99999),
+		},
+		{
+			"extract_with_non_string_span",
+			context.WithValue(context.Background(), "span_id", 88888),
+		},
+		{
+			"extract_with_non_string_user",
+			context.WithValue(context.Background(), "user_id", 77777),
+		},
+		{
+			"extract_with_non_string_request",
+			context.WithValue(context.Background(), "request_id", 66666),
+		},
+	}
+
+	provider := NewProvider()
+	config := interfaces.Config{
+		Level:       interfaces.DebugLevel,
+		Format:      interfaces.JSONFormat,
+		ServiceName: "extract-service",
+		Output:      os.Stdout,
+	}
+
+	err := provider.Configure(config)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test extraction via logging (addContextToEvent)
+			provider.Info(tt.ctx, "extract test")
+
+			// Test extraction via WithContext
+			contextLogger := provider.WithContext(tt.ctx)
+			contextLogger.Info(context.Background(), "with context test")
+		})
+	}
+}
+
+func TestProviderConvertLevelDefaultCase(t *testing.T) {
+	// Test the default case in convertLevel for complete coverage
+	provider := NewProvider()
+
+	// Test with unknown level that should default to InfoLevel
+	unknownLevel := interfaces.Level(99)
+	provider.SetLevel(unknownLevel)
+
+	// Should default to InfoLevel
+	currentLevel := provider.GetLevel()
+	if currentLevel != interfaces.InfoLevel {
+		t.Errorf("Expected InfoLevel for unknown level, got %v", currentLevel)
+	}
+}
+
+func TestProviderAddContextToEventEdgeCases(t *testing.T) {
+	provider := NewProvider()
+	config := interfaces.Config{
+		Level:       interfaces.DebugLevel,
+		Format:      interfaces.JSONFormat,
+		ServiceName: "context-edge-service",
+		Output:      os.Stdout,
+	}
+
+	err := provider.Configure(config)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	// Test addContextToEvent with context that has some values but not others
+	partialCtx := context.Background()
+	partialCtx = context.WithValue(partialCtx, "trace_id", "partial-trace")
+	// Missing span_id, user_id, request_id to test specific branches
+
+	provider.Info(partialCtx, "partial context test")
+
+	// Test with context that has user_id and request_id but not trace/span
+	userCtx := context.Background()
+	userCtx = context.WithValue(userCtx, "user_id", "test-user")
+	userCtx = context.WithValue(userCtx, "request_id", "test-request")
+
+	provider.Info(userCtx, "user context test")
+}
+
+func TestProviderFatalMethodDirect(t *testing.T) {
+	// Teste para aumentar cobertura dos métodos Fatal
+	provider := NewProvider()
+	config := interfaces.Config{
+		Level:       interfaces.FatalLevel,
+		Format:      interfaces.JSONFormat,
+		ServiceName: "fatal-test-service",
+		Output:      os.Stdout,
+	}
+
+	err := provider.Configure(config)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	// Test que os métodos Fatal existem e são implementados
+	// Não chamamos diretamente para evitar os.Exit()
+	t.Log("Fatal and Fatalf methods are implemented and would call os.Exit")
+}
+
+// TestProviderConfigureTimeFormatEmpty testa Configure com TimeFormat vazio
+func TestProviderConfigureTimeFormatEmpty(t *testing.T) {
+	provider := &Provider{}
+
+	config := interfaces.Config{
+		Level:      interfaces.InfoLevel,
+		Format:     interfaces.JSONFormat,
+		TimeFormat: "", // TimeFormat vazio para testar a linha if config.TimeFormat != ""
+		Output:     &bytes.Buffer{},
+	}
+
+	err := provider.Configure(config)
+	assert.NoError(t, err)
+	assert.NotNil(t, provider.logger)
+}
+
+// TestProviderConfigureWithoutAddCaller testa Configure sem AddCaller
+func TestProviderConfigureWithoutAddCaller(t *testing.T) {
+	provider := &Provider{}
+
+	config := interfaces.Config{
+		Level:     interfaces.InfoLevel,
+		Format:    interfaces.JSONFormat,
+		AddCaller: false, // AddCaller false para testar a linha if config.AddCaller
+		Output:    &bytes.Buffer{},
+	}
+
+	err := provider.Configure(config)
+	assert.NoError(t, err)
+	assert.NotNil(t, provider.logger)
+}
+
+// TestProviderConfigureWithoutGlobalFields testa Configure sem GlobalFields
+func TestProviderConfigureWithoutGlobalFields(t *testing.T) {
+	provider := &Provider{}
+
+	config := interfaces.Config{
+		Level:        interfaces.InfoLevel,
+		Format:       interfaces.JSONFormat,
+		GlobalFields: nil, // GlobalFields vazio para testar a linha if len(config.GlobalFields) > 0
+		Output:       &bytes.Buffer{},
+	}
+
+	err := provider.Configure(config)
+	assert.NoError(t, err)
+	assert.NotNil(t, provider.logger)
+}
+
+// TestProviderConfigureWithoutServiceInfo testa Configure sem informações de serviço
+func TestProviderConfigureWithoutServiceInfo(t *testing.T) {
+	provider := &Provider{}
+
+	config := interfaces.Config{
+		Level:          interfaces.InfoLevel,
+		Format:         interfaces.JSONFormat,
+		ServiceName:    "", // ServiceName vazio
+		ServiceVersion: "", // ServiceVersion vazio
+		Environment:    "", // Environment vazio
+		Output:         &bytes.Buffer{},
+	}
+
+	err := provider.Configure(config)
+	assert.NoError(t, err)
+	assert.NotNil(t, provider.logger)
+}
+
+// TestProviderConfigureWithPartialServiceInfo testa Configure com informações parciais do serviço
+func TestProviderConfigureWithPartialServiceInfo(t *testing.T) {
+	tests := []struct {
+		name   string
+		config interfaces.Config
+	}{
+		{
+			name: "only service name",
+			config: interfaces.Config{
+				Level:          interfaces.InfoLevel,
+				Format:         interfaces.JSONFormat,
+				ServiceName:    "test-service",
+				ServiceVersion: "", // vazio
+				Environment:    "", // vazio
+				Output:         &bytes.Buffer{},
+			},
+		},
+		{
+			name: "only service version",
+			config: interfaces.Config{
+				Level:          interfaces.InfoLevel,
+				Format:         interfaces.JSONFormat,
+				ServiceName:    "", // vazio
+				ServiceVersion: "1.0.0",
+				Environment:    "", // vazio
+				Output:         &bytes.Buffer{},
+			},
+		},
+		{
+			name: "only environment",
+			config: interfaces.Config{
+				Level:          interfaces.InfoLevel,
+				Format:         interfaces.JSONFormat,
+				ServiceName:    "", // vazio
+				ServiceVersion: "", // vazio
+				Environment:    "production",
+				Output:         &bytes.Buffer{},
+			},
+		},
+		{
+			name: "service name and version only",
+			config: interfaces.Config{
+				Level:          interfaces.InfoLevel,
+				Format:         interfaces.JSONFormat,
+				ServiceName:    "test-service",
+				ServiceVersion: "1.0.0",
+				Environment:    "", // vazio
+				Output:         &bytes.Buffer{},
+			},
+		},
+		{
+			name: "service name and environment only",
+			config: interfaces.Config{
+				Level:          interfaces.InfoLevel,
+				Format:         interfaces.JSONFormat,
+				ServiceName:    "test-service",
+				ServiceVersion: "", // vazio
+				Environment:    "production",
+				Output:         &bytes.Buffer{},
+			},
+		},
+		{
+			name: "version and environment only",
+			config: interfaces.Config{
+				Level:          interfaces.InfoLevel,
+				Format:         interfaces.JSONFormat,
+				ServiceName:    "", // vazio
+				ServiceVersion: "1.0.0",
+				Environment:    "production",
+				Output:         &bytes.Buffer{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := &Provider{}
+			err := provider.Configure(tt.config)
+			assert.NoError(t, err)
+			assert.NotNil(t, provider.logger)
+		})
+	}
+}
+
+// TestAddFieldToEventErrorTypeWithNilValue testa addFieldToEvent com ErrorType e valor nil
+func TestAddFieldToEventErrorTypeWithNilValue(t *testing.T) {
+	provider := &Provider{}
+	config := interfaces.Config{
+		Level:  interfaces.InfoLevel,
+		Format: interfaces.JSONFormat,
+		Output: &bytes.Buffer{},
+	}
+	provider.Configure(config)
+
+	logger := zerolog.New(&bytes.Buffer{})
+	event := logger.Info()
+
+	field := interfaces.Field{
+		Key:   "test_error",
+		Value: nil, // Valor nil para testar if field.Value == nil
+		Type:  interfaces.ErrorType,
+	}
+
+	result := addFieldToEvent(event, field)
+	assert.NotNil(t, result)
+}
+
+// TestAddFieldToEventErrorTypeWithStringValue testa addFieldToEvent com ErrorType e valor string
+func TestAddFieldToEventErrorTypeWithStringValue(t *testing.T) {
+	provider := &Provider{}
+	config := interfaces.Config{
+		Level:  interfaces.InfoLevel,
+		Format: interfaces.JSONFormat,
+		Output: &bytes.Buffer{},
+	}
+	provider.Configure(config)
+
+	logger := zerolog.New(&bytes.Buffer{})
+	event := logger.Info()
+
+	field := interfaces.Field{
+		Key:   "test_error",
+		Value: "error message", // String value para testar o case string
+		Type:  interfaces.ErrorType,
+	}
+
+	result := addFieldToEvent(event, field)
+	assert.NotNil(t, result)
+}
+
+// TestAddFieldToEventErrorTypeWithErrorKeyName testa addFieldToEvent com key "error"
+func TestAddFieldToEventErrorTypeWithErrorKeyName(t *testing.T) {
+	provider := &Provider{}
+	config := interfaces.Config{
+		Level:  interfaces.InfoLevel,
+		Format: interfaces.JSONFormat,
+		Output: &bytes.Buffer{},
+	}
+	provider.Configure(config)
+
+	logger := zerolog.New(&bytes.Buffer{})
+	event := logger.Info()
+
+	field := interfaces.Field{
+		Key:   "error", // Key "error" para testar if field.Key == "error"
+		Value: errors.New("test error"),
+		Type:  interfaces.ErrorType,
+	}
+
+	result := addFieldToEvent(event, field)
+	assert.NotNil(t, result)
+}
+
+// TestAddFieldToContextErrorTypeWithNilValue testa addFieldToContext com ErrorType e valor nil
+func TestAddFieldToContextErrorTypeWithNilValue(t *testing.T) {
+	provider := &Provider{}
+	config := interfaces.Config{
+		Level:  interfaces.InfoLevel,
+		Format: interfaces.JSONFormat,
+		Output: &bytes.Buffer{},
+	}
+	provider.Configure(config)
+
+	logger := zerolog.New(&bytes.Buffer{})
+	ctx := logger.With()
+
+	field := interfaces.Field{
+		Key:   "test_error",
+		Value: nil, // Valor nil para testar if field.Value == nil
+		Type:  interfaces.ErrorType,
+	}
+
+	result := addFieldToContext(ctx, field)
+	assert.NotNil(t, result)
+}
+
+// TestAddFieldToContextErrorTypeWithStringValue testa addFieldToContext com ErrorType e valor string
+func TestAddFieldToContextErrorTypeWithStringValue(t *testing.T) {
+	provider := &Provider{}
+	config := interfaces.Config{
+		Level:  interfaces.InfoLevel,
+		Format: interfaces.JSONFormat,
+		Output: &bytes.Buffer{},
+	}
+	provider.Configure(config)
+
+	logger := zerolog.New(&bytes.Buffer{})
+	ctx := logger.With()
+
+	field := interfaces.Field{
+		Key:   "test_error",
+		Value: "error message", // String value para testar o case string
+		Type:  interfaces.ErrorType,
+	}
+
+	result := addFieldToContext(ctx, field)
+	assert.NotNil(t, result)
+}
+
+// TestAddFieldToContextErrorTypeWithErrorKeyName testa addFieldToContext com key "error"
+func TestAddFieldToContextErrorTypeWithErrorKeyName(t *testing.T) {
+	provider := &Provider{}
+	config := interfaces.Config{
+		Level:  interfaces.InfoLevel,
+		Format: interfaces.JSONFormat,
+		Output: &bytes.Buffer{},
+	}
+	provider.Configure(config)
+
+	logger := zerolog.New(&bytes.Buffer{})
+	ctx := logger.With()
+
+	field := interfaces.Field{
+		Key:   "error", // Key "error" para testar if field.Key == "error"
+		Value: errors.New("test error"),
+		Type:  interfaces.ErrorType,
+	}
+
+	result := addFieldToContext(ctx, field)
+	assert.NotNil(t, result)
+}
+
+// TestExtractTraceIDWithNilContext testa extractTraceID com contexto nil
+func TestExtractTraceIDWithNilContext(t *testing.T) {
+	result := extractTraceID(context.TODO())
+	assert.Empty(t, result)
+}
+
+// TestExtractSpanIDWithNilContext testa extractSpanID com contexto nil
+func TestExtractSpanIDWithNilContext(t *testing.T) {
+	result := extractSpanID(context.TODO())
+	assert.Empty(t, result)
+}
+
+// TestExtractUserIDWithNilContext testa extractUserID com contexto nil
+func TestExtractUserIDWithNilContext(t *testing.T) {
+	result := extractUserID(context.TODO())
+	assert.Empty(t, result)
+}
+
+// TestExtractRequestIDWithNilContext testa extractRequestID com contexto nil
+func TestExtractRequestIDWithNilContext(t *testing.T) {
+	result := extractRequestID(context.TODO())
+	assert.Empty(t, result)
+}
+
+// TestExtractUserIDWithNonStringValue testa extractUserID com valor não-string
+func TestExtractUserIDWithNonStringValue(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "user_id", 12345) // Valor int em vez de string
+	result := extractUserID(ctx)
+	assert.Empty(t, result)
+}
+
+// TestExtractRequestIDWithNonStringValue testa extractRequestID com valor não-string
+func TestExtractRequestIDWithNonStringValue(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "request_id", 67890) // Valor int em vez de string
+	result := extractRequestID(ctx)
+	assert.Empty(t, result)
+}
+
+// TestExtractTraceIDWithNonStringValue testa extractTraceID com valor não-string
+func TestExtractTraceIDWithNonStringValue(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "trace_id", 12345) // Valor int em vez de string
+	result := extractTraceID(ctx)
+	assert.Empty(t, result)
+}
+
+// TestExtractSpanIDWithNonStringValue testa extractSpanID com valor não-string
+func TestExtractSpanIDWithNonStringValue(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "span_id", 67890) // Valor int em vez de string
+	result := extractSpanID(ctx)
+	assert.Empty(t, result)
+}
+
+// TestExtractTraceIDWithNilValue testa extractTraceID com valor nil no contexto
+func TestExtractTraceIDWithNilValue(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "trace_id", nil)
+	result := extractTraceID(ctx)
+	assert.Empty(t, result)
+}
+
+// TestExtractSpanIDWithNilValue testa extractSpanID com valor nil no contexto
+func TestExtractSpanIDWithNilValue(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "span_id", nil)
+	result := extractSpanID(ctx)
+	assert.Empty(t, result)
+}
+
+// TestExtractUserIDWithNilValue testa extractUserID com valor nil no contexto
+func TestExtractUserIDWithNilValue(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "user_id", nil)
+	result := extractUserID(ctx)
+	assert.Empty(t, result)
+}
+
+// TestExtractRequestIDWithNilValue testa extractRequestID com valor nil no contexto
+func TestExtractRequestIDWithNilValue(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "request_id", nil)
+	result := extractRequestID(ctx)
+	assert.Empty(t, result)
+}
+
+// TestAddContextToEventWithEmptyExtractors testa addContextToEvent quando todos os extractors retornam vazio
+func TestAddContextToEventWithEmptyExtractors(t *testing.T) {
+	provider := &Provider{}
+	config := interfaces.Config{
+		Level:  interfaces.InfoLevel,
+		Format: interfaces.JSONFormat,
+		Output: &bytes.Buffer{},
+	}
+	provider.Configure(config)
+
+	logger := zerolog.New(&bytes.Buffer{})
+	event := logger.Info()
+
+	// Contexto sem nenhum dos valores esperados
+	ctx := context.WithValue(context.Background(), "other_key", "other_value")
+
+	result := addContextToEvent(event, ctx)
+	assert.NotNil(t, result)
+}
+
+// TestExtractTraceIDWithTraceIdKey testa extractTraceID com chave "traceId"
+func TestExtractTraceIDWithTraceIdKey(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "traceId", "trace-123")
+	result := extractTraceID(ctx)
+	assert.Equal(t, "trace-123", result)
+}
+
+// TestExtractSpanIDWithSpanIdKey testa extractSpanID com chave "spanId"
+func TestExtractSpanIDWithSpanIdKey(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "spanId", "span-456")
+	result := extractSpanID(ctx)
+	assert.Equal(t, "span-456", result)
+}
+
+// TestExtractTraceIDWithTraceIdKeyNonString testa extractTraceID com chave "traceId" e valor não-string
+func TestExtractTraceIDWithTraceIdKeyNonString(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "traceId", 12345)
+	result := extractTraceID(ctx)
+	assert.Empty(t, result)
+}
+
+// TestExtractSpanIDWithSpanIdKeyNonString testa extractSpanID com chave "spanId" e valor não-string
+func TestExtractSpanIDWithSpanIdKeyNonString(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "spanId", 67890)
+	result := extractSpanID(ctx)
+	assert.Empty(t, result)
+}
+
+// TestExtractTraceIDWithTraceIdKeyNilValue testa extractTraceID com chave "traceId" e valor nil
+func TestExtractTraceIDWithTraceIdKeyNilValue(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "traceId", nil)
+	result := extractTraceID(ctx)
+	assert.Empty(t, result)
+}
+
+// TestExtractSpanIDWithSpanIdKeyNilValue testa extractSpanID com chave "spanId" e valor nil
+func TestExtractSpanIDWithSpanIdKeyNilValue(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "spanId", nil)
+	result := extractSpanID(ctx)
+	assert.Empty(t, result)
 }

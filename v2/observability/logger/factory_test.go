@@ -706,3 +706,320 @@ func TestFactoryProviderInfo(t *testing.T) {
 		t.Errorf("Expected version %s, got %s", expectedVersion, retrievedProvider.Version())
 	}
 }
+
+func TestGlobalLoggerMethods(t *testing.T) {
+	// Setup global logger for testing
+	originalLogger := GetCurrentLogger()
+	defer func() {
+		SetCurrentLogger(originalLogger)
+	}()
+
+	// Create test logger
+	provider := NewMockProvider("test", "1.0.0")
+	config := TestConfig()
+	config.Level = interfaces.TraceLevel // Set to TraceLevel to include all log levels
+
+	provider.Configure(config)
+	testLogger := NewCoreLogger(provider, config)
+	SetCurrentLogger(testLogger)
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name     string
+		testFunc func()
+		expected string
+	}{
+		{
+			name: "Global Trace",
+			testFunc: func() {
+				Trace(ctx, "global trace message")
+			},
+			expected: "global trace message",
+		},
+		{
+			name: "Global Debug",
+			testFunc: func() {
+				Debug(ctx, "global debug message")
+			},
+			expected: "global debug message",
+		},
+		{
+			name: "Global Info",
+			testFunc: func() {
+				Info(ctx, "global info message")
+			},
+			expected: "global info message",
+		},
+		{
+			name: "Global Warn",
+			testFunc: func() {
+				Warn(ctx, "global warn message")
+			},
+			expected: "global warn message",
+		},
+		{
+			name: "Global Error",
+			testFunc: func() {
+				Error(ctx, "global error message")
+			},
+			expected: "global error message",
+		},
+		{
+			name: "Global Tracef",
+			testFunc: func() {
+				Tracef(ctx, "global tracef %s", "formatted")
+			},
+			expected: "global tracef formatted",
+		},
+		{
+			name: "Global Debugf",
+			testFunc: func() {
+				Debugf(ctx, "global debugf %s", "formatted")
+			},
+			expected: "global debugf formatted",
+		},
+		{
+			name: "Global Infof",
+			testFunc: func() {
+				Infof(ctx, "global infof %s", "formatted")
+			},
+			expected: "global infof formatted",
+		},
+		{
+			name: "Global Warnf",
+			testFunc: func() {
+				Warnf(ctx, "global warnf %s", "formatted")
+			},
+			expected: "global warnf formatted",
+		},
+		{
+			name: "Global Errorf",
+			testFunc: func() {
+				Errorf(ctx, "global errorf %s", "formatted")
+			},
+			expected: "global errorf formatted",
+		},
+		{
+			name: "Global TraceWithCode",
+			testFunc: func() {
+				TraceWithCode(ctx, "TRACE_CODE", "global trace with code")
+			},
+			expected: "global trace with code",
+		},
+		{
+			name: "Global DebugWithCode",
+			testFunc: func() {
+				DebugWithCode(ctx, "DEBUG_CODE", "global debug with code")
+			},
+			expected: "global debug with code",
+		},
+		{
+			name: "Global InfoWithCode",
+			testFunc: func() {
+				InfoWithCode(ctx, "INFO_CODE", "global info with code")
+			},
+			expected: "global info with code",
+		},
+		{
+			name: "Global WarnWithCode",
+			testFunc: func() {
+				WarnWithCode(ctx, "WARN_CODE", "global warn with code")
+			},
+			expected: "global warn with code",
+		},
+		{
+			name: "Global ErrorWithCode",
+			testFunc: func() {
+				ErrorWithCode(ctx, "ERROR_CODE", "global error with code")
+			},
+			expected: "global error with code",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clear previous messages
+			provider.mu.Lock()
+			provider.logMessages = provider.logMessages[:0]
+			provider.mu.Unlock()
+
+			// Execute test function
+			tt.testFunc()
+
+			// Verify message was logged
+			provider.mu.RLock()
+			found := false
+			for _, msg := range provider.logMessages {
+				if contains(msg, tt.expected) {
+					found = true
+					break
+				}
+			}
+			provider.mu.RUnlock()
+
+			if !found {
+				t.Errorf("Expected message containing '%s' to be logged", tt.expected)
+			}
+		})
+	}
+}
+
+func TestGlobalLoggerPanicMethods(t *testing.T) {
+	// Setup global logger for testing
+	originalLogger := GetCurrentLogger()
+	defer func() {
+		SetCurrentLogger(originalLogger)
+	}()
+
+	// Create test logger
+	provider := NewMockProvider("test", "1.0.0")
+	config := TestConfig()
+	config.Level = interfaces.TraceLevel // Set to TraceLevel to include all log levels
+
+	provider.Configure(config)
+	testLogger := NewCoreLogger(provider, config)
+	SetCurrentLogger(testLogger)
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name     string
+		testFunc func()
+		expected string
+	}{
+		{
+			name: "Global Panic",
+			testFunc: func() {
+				defer func() {
+					recover() // Capture panic
+				}()
+				Panic(ctx, "global panic message")
+			},
+			expected: "global panic message",
+		},
+		{
+			name: "Global Panicf",
+			testFunc: func() {
+				defer func() {
+					recover() // Capture panic
+				}()
+				Panicf(ctx, "global panicf %s", "formatted")
+			},
+			expected: "global panicf formatted",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clear previous messages
+			provider.mu.Lock()
+			provider.logMessages = provider.logMessages[:0]
+			provider.mu.Unlock()
+
+			// Execute test function (with panic handling)
+			tt.testFunc()
+
+			// Verify message was logged
+			provider.mu.RLock()
+			found := false
+			for _, msg := range provider.logMessages {
+				if contains(msg, tt.expected) {
+					found = true
+					break
+				}
+			}
+			provider.mu.RUnlock()
+
+			if !found {
+				t.Errorf("Expected message containing '%s' to be logged", tt.expected)
+			}
+		})
+	}
+}
+
+func TestGlobalLoggerFatalMethods(t *testing.T) {
+	// Setup global logger for testing
+	originalLogger := GetCurrentLogger()
+	defer func() {
+		SetCurrentLogger(originalLogger)
+	}()
+
+	// Create test logger
+	provider := NewMockProvider("test", "1.0.0")
+	config := TestConfig()
+	config.Level = interfaces.TraceLevel // Set to TraceLevel to include all log levels
+
+	provider.Configure(config)
+	testLogger := NewCoreLogger(provider, config)
+	SetCurrentLogger(testLogger)
+
+	// Test Fatal and Fatalf methods exist (but don't call them to avoid exit)
+	t.Run("Global Fatal method exists", func(t *testing.T) {
+		// Just verify the method exists and can be referenced
+		_ = Fatal
+		t.Log("Global Fatal method is available")
+	})
+
+	t.Run("Global Fatalf method exists", func(t *testing.T) {
+		// Just verify the method exists and can be referenced
+		_ = Fatalf
+		t.Log("Global Fatalf method is available")
+	})
+}
+
+func TestGlobalLoggerUtilityMethods(t *testing.T) {
+	// Setup global logger for testing
+	originalLogger := GetCurrentLogger()
+	defer func() {
+		SetCurrentLogger(originalLogger)
+	}()
+
+	// Create test logger
+	provider := NewMockProvider("test", "1.0.0")
+	config := TestConfig()
+	config.Level = interfaces.InfoLevel
+
+	provider.Configure(config)
+	testLogger := NewCoreLogger(provider, config)
+	SetCurrentLogger(testLogger)
+
+	t.Run("Global WithFields", func(t *testing.T) {
+		newLogger := WithFields(String("key", "value"))
+		if newLogger == nil {
+			t.Error("Expected WithFields to return a logger")
+		}
+	})
+
+	t.Run("Global WithContext", func(t *testing.T) {
+		ctx := context.Background()
+		newLogger := WithContext(ctx)
+		if newLogger == nil {
+			t.Error("Expected WithContext to return a logger")
+		}
+	})
+
+	t.Run("Global WithError", func(t *testing.T) {
+		err := fmt.Errorf("test error")
+		newLogger := WithError(err)
+		if newLogger == nil {
+			t.Error("Expected WithError to return a logger")
+		}
+	})
+
+	t.Run("Global WithTraceID", func(t *testing.T) {
+		traceID := "test-trace-123"
+		newLogger := WithTraceID(traceID)
+		if newLogger == nil {
+			t.Error("Expected WithTraceID to return a logger")
+		}
+	})
+
+	t.Run("Global WithSpanID", func(t *testing.T) {
+		spanID := "test-span-456"
+		newLogger := WithSpanID(spanID)
+		if newLogger == nil {
+			t.Error("Expected WithSpanID to return a logger")
+		}
+	})
+}

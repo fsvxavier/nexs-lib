@@ -106,11 +106,64 @@ Comprehensive error handling and edge case scenarios.
 - Resilience testing
 
 **Best For:** Production readiness, fault tolerance, reliability engineering
-- Provider-specific attribute mapping
-- Graceful provider degradation
-- Unified trace correlation
-- Performance impact analysis
-- Migration strategies
+
+### 🔥 [OpenTelemetry Integration](./opentelemetry/)
+Native OpenTelemetry SDK integration with OTLP exporters and W3C trace context.
+
+**Features Demonstrated:**
+- OTLP exporters (HTTP/gRPC)
+- W3C trace context propagation
+- Resource detection and configuration
+- Batch processing optimization
+- Sampling strategies
+- Context propagation patterns
+- Semantic conventions
+- Error recording with context
+
+**Best For:** OpenTelemetry adoption, vendor neutrality, standardization
+
+### ⚠️ [Enhanced Error Handling](./error_handling_example/)
+Advanced error handling patterns with circuit breakers and intelligent retry mechanisms.
+
+**Features Demonstrated:**
+- Circuit breaker pattern implementation
+- Exponential backoff with jitter
+- Intelligent error classification
+- Retry strategies for different error types
+- Context-aware error handling
+- Metrics and monitoring for error patterns
+- Graceful degradation patterns
+
+**Best For:** Resilient systems, fault tolerance, production reliability
+
+### 🎯 [Complete Integration](./complete-integration/)
+All Critical Improvements working together in production scenarios.
+
+**Features Demonstrated:**
+- OpenTelemetry + Error Handling + Performance
+- Production-ready configuration
+- Real-world usage patterns
+- Comprehensive monitoring
+- Full observability stack
+- Enterprise-grade deployment
+
+**Best For:** Production deployment, comprehensive observability, reference implementation
+
+### ⚡ [Performance Optimizations](./performance/)
+High-performance span operations with object pooling and zero-allocation paths.
+
+**Features Demonstrated:**
+- Span object pooling (138x improvement)
+- Zero-allocation fast paths
+- Memory usage optimization
+- Concurrent performance testing
+- Throughput benchmarking
+- Resource efficiency patterns
+
+**Best For:** High-throughput systems, performance optimization, resource efficiency
+
+### 🎛️ [Multi-Provider](./multi-provider/)
+Using multiple providers simultaneously for redundancy and feature comparison.
 
 **Best For:** Provider comparison, redundancy, migration scenarios
 

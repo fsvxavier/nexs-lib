@@ -213,6 +213,11 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// Check if already shutdown
+	if p.healthStatus == "disconnected" {
+		return nil
+	}
+
 	// Close all tracers
 	for _, t := range p.tracers {
 		if err := t.Close(); err != nil {
@@ -221,15 +226,22 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 	}
 
 	// Shutdown New Relic application
-	p.application.Shutdown(30 * time.Second)
+	if p.application != nil {
+		p.application.Shutdown(30 * time.Second)
+	}
 
 	p.healthStatus = "disconnected"
 	p.metrics.ConnectionState = "disconnected"
 	p.tracers = make(map[string]*Tracer)
 	p.metrics.TracersActive = 0
 
-	// Signal shutdown
-	close(p.shutdownCh)
+	// Signal shutdown - check if channel is already closed
+	select {
+	case <-p.shutdownCh:
+		// Channel already closed
+	default:
+		close(p.shutdownCh)
+	}
 
 	return p.lastError
 }
@@ -318,12 +330,21 @@ func validateConfig(config *Config) error {
 		return fmt.Errorf("license key is required")
 	}
 
+	// License key should be at least 40 characters for New Relic
+	if len(config.LicenseKey) < 40 {
+		return fmt.Errorf("license key must be 40 characters")
+	}
+
 	if config.MaxSamplesStored < 0 {
-		return fmt.Errorf("max samples stored cannot be negative")
+		return fmt.Errorf("max samples stored must be positive")
 	}
 
 	if config.ErrorCollector.MaxEventsSamplesStored < 0 {
 		return fmt.Errorf("max events samples stored cannot be negative")
+	}
+
+	if config.FlushInterval < 0 {
+		return fmt.Errorf("flush interval must be positive")
 	}
 
 	return nil

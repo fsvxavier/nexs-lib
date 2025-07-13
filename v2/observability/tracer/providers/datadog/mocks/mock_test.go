@@ -3,7 +3,7 @@
 //go:build test
 // +build test
 
-package datadog
+package mocks
 
 import (
 	"context"

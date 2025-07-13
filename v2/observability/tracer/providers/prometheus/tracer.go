@@ -155,18 +155,19 @@ func (s *Span) SetAttribute(key string, value interface{}) {
 	s.attributes[key] = value
 }
 
-// AddEvent adds a structured event (recorded as metrics in Prometheus)
+// AddEvent adds a structured event (stored as attributes in Prometheus)
 func (s *Span) AddEvent(name string, attributes map[string]interface{}) {
-	// Create event labels
-	eventLabels := make(prometheus.Labels)
-	for k, v := range s.labels {
-		eventLabels[k] = v
-	}
-	eventLabels["event_name"] = name
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	// Record event as a counter metric
-	if s.tracer.provider.spanCounter != nil {
-		s.tracer.provider.spanCounter.With(eventLabels).Inc()
+	// Store event as attributes with timestamp
+	eventKey := fmt.Sprintf("event.%s.timestamp", name)
+	s.attributes[eventKey] = time.Now().Unix()
+
+	// Add event attributes with prefix
+	for key, value := range attributes {
+		attrKey := fmt.Sprintf("event.%s.%s", name, key)
+		s.attributes[attrKey] = value
 	}
 }
 
@@ -187,7 +188,10 @@ func (s *Span) SetStatus(code tracer.StatusCode, message string) {
 	if code == tracer.StatusCodeError {
 		errorLabels := make(prometheus.Labels)
 		for k, v := range s.labels {
-			errorLabels[k] = v
+			// Skip the status label since errorCounter doesn't have it in its base labels
+			if k != "status" {
+				errorLabels[k] = v
+			}
 		}
 		errorLabels["error_type"] = "status_error"
 
@@ -214,14 +218,21 @@ func (s *Span) RecordError(err error, attributes map[string]interface{}) {
 	// Record error metrics
 	errorLabels := make(prometheus.Labels)
 	for k, v := range s.labels {
-		errorLabels[k] = v
+		// Skip the status label since errorCounter doesn't have it in its base labels
+		if k != "status" {
+			errorLabels[k] = v
+		}
 	}
 	errorLabels["error_type"] = fmt.Sprintf("%T", err)
 
 	s.tracer.provider.errorCounter.With(errorLabels).Inc()
 
-	// Set status to error
-	s.SetStatus(tracer.StatusCodeError, err.Error())
+	// Set status to error (but avoid recursion by setting directly)
+	s.attributes["status_code"] = tracer.StatusCodeError.String()
+	if err.Error() != "" {
+		s.attributes["status_message"] = err.Error()
+	}
+	s.labels["status"] = tracer.StatusCodeError.String()
 }
 
 // End finishes the span and records duration metrics
@@ -236,8 +247,17 @@ func (s *Span) End() {
 	s.endTime = time.Now()
 	duration := s.endTime.Sub(s.startTime)
 
+	// Create base labels for duration metric (without dynamic labels like status)
+	durationLabels := make(prometheus.Labels)
+	for k, v := range s.labels {
+		// Skip dynamic labels that aren't in the metric definition
+		if k != "status" {
+			durationLabels[k] = v
+		}
+	}
+
 	// Record duration metrics
-	s.tracer.provider.spanDuration.With(s.labels).Observe(duration.Seconds())
+	s.tracer.provider.spanDuration.With(durationLabels).Observe(duration.Seconds())
 
 	// Update active spans count
 	s.tracer.provider.activeSpans.WithLabelValues(

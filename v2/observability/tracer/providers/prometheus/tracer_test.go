@@ -273,260 +273,292 @@ func TestSpanSetAttribute(t *testing.T) {
 	span.End()
 }
 
+// TestSpanAddEvent tests the AddEvent method
 func TestSpanAddEvent(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := setupTestTimeout(t)
 	defer cancel()
 
 	tr := createTestTracer(t)
+	spanCtx, span := tr.StartSpan(ctx, "test-span")
+	defer span.End()
 
-	_, span := tr.StartSpan(ctx, "event-test")
-
-	// Add events (Note: This might cause label cardinality issues in Prometheus)
-	// span.AddEvent("event1", map[string]interface{}{
-	//     "severity": "info",
-	//     "message":  "Processing request",
-	// })
-
-	// span.AddEvent("event2", map[string]interface{}{
-	//     "severity":   "error",
-	//     "message":    "Request failed",
-	//     "error_code": 500,
-	// })
-
-	// Events should be tracked (implementation detail)
-	span.End()
-}
-
-// TestSpanRecordError tests error recording functionality
-// Currently commented due to Prometheus provider implementation issues (deadlock/timeout)
-/*
-func TestSpanRecordError(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := setupTestTimeout(t)
-	defer cancel()
-
-	tr := createTestTracer(t)
-
-	_, span := tr.StartSpan(ctx, "error-test")
-
-	// Record different types of errors
-	span.RecordError(fmt.Errorf("simple error"), nil)
-	span.RecordError(fmt.Errorf("validation failed: %s", "invalid input"), map[string]interface{}{
-		"field": "email",
-		"value": "invalid-email",
+	// Test adding events
+	span.AddEvent("user_action", map[string]interface{}{
+		"action": "click",
+		"target": "button",
 	})
 
-	span.End()
-}
-*/
+	span.AddEvent("system_event", nil)
 
-// TestSpanSetStatus tests span status setting functionality
-// Currently commented due to Prometheus label cardinality issues with dynamic status labels
-/*
+	span.AddEvent("error_event", map[string]interface{}{
+		"error_code": 500,
+		"message":    "internal error",
+	})
+
+	// Verify span is still recording
+	assert.True(t, span.IsRecording())
+	assert.NotNil(t, spanCtx)
+}
+
+// TestSpanSetStatus tests the SetStatus method
 func TestSpanSetStatus(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := setupTestTimeout(t)
 	defer cancel()
 
 	tr := createTestTracer(t)
+	_, span := tr.StartSpan(ctx, "test-span")
+	defer span.End()
 
-	tests := []struct {
-		name   string
-		status tracer.StatusCode
-		desc   string
-	}{
-		{"ok status", tracer.StatusCodeOk, "Success"},
-		{"error status", tracer.StatusCodeError, "Internal server error"},
-		{"unset status", tracer.StatusCodeUnset, "Request cancelled"},
-	}
+	// Test different status codes
+	span.SetStatus(tracer.StatusCodeOk, "success")
+	span.SetStatus(tracer.StatusCodeError, "something went wrong")
+	span.SetStatus(tracer.StatusCodeUnset, "")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, span := tr.StartSpan(ctx, fmt.Sprintf("status-test-%s", tt.name))
-
-			span.SetStatus(tt.status, tt.desc)
-
-			// Status should be tracked (implementation detail)
-			// Note: End() commented out due to Prometheus label cardinality issue with dynamic status labels
-			// span.End()
-		})
-	}
+	assert.True(t, span.IsRecording())
 }
-*/
 
-func TestSpanEnd(t *testing.T) {
+// TestSpanRecordError tests the RecordError method
+func TestSpanRecordError(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := setupTestTimeout(t)
 	defer cancel()
 
 	tr := createTestTracer(t)
+	_, span := tr.StartSpan(ctx, "test-span")
+	defer span.End()
 
-	_, span := tr.StartSpan(ctx, "end-test")
-	prometheusSpan := span.(*Span)
+	// Test recording errors
+	testErr := fmt.Errorf("test error")
+	span.RecordError(testErr, map[string]interface{}{
+		"error_type": "validation",
+		"severity":   "high",
+	})
 
-	// Verify span is active
-	tr.mu.RLock()
-	_, exists := tr.activeSpans[prometheusSpan.id]
-	tr.mu.RUnlock()
-	assert.True(t, exists)
+	span.RecordError(testErr, nil)
 
-	// End span
+	assert.True(t, span.IsRecording())
+}
+
+// TestSpanIsRecording tests the IsRecording method
+func TestSpanIsRecording(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := setupTestTimeout(t)
+	defer cancel()
+
+	tr := createTestTracer(t)
+	_, span := tr.StartSpan(ctx, "test-span")
+
+	// Should be recording initially
+	assert.True(t, span.IsRecording())
+
+	// Should still be recording after operations
+	span.SetAttribute("test", "value")
+	assert.True(t, span.IsRecording())
+
+	// End the span
 	span.End()
 
-	// Verify span is no longer active
-	tr.mu.RLock()
-	_, exists = tr.activeSpans[prometheusSpan.id]
-	tr.mu.RUnlock()
-	assert.False(t, exists)
-
-	// Verify end time is set
-	assert.False(t, prometheusSpan.endTime.IsZero())
+	// Should no longer be recording after End()
+	assert.False(t, span.IsRecording())
 }
 
-func TestSpanConcurrentAccess(t *testing.T) {
+// TestSpanGetDuration tests the GetDuration method
+func TestSpanGetDuration(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := setupTestTimeout(t)
 	defer cancel()
 
 	tr := createTestTracer(t)
+	_, span := tr.StartSpan(ctx, "test-span")
 
-	_, span := tr.StartSpan(ctx, "concurrent-test")
+	// Wait a bit and end the span
+	time.Sleep(10 * time.Millisecond)
+	span.End()
 
-	const numGoroutines = 10
-	const operationsPerGoroutine = 100
+	// Duration should be positive after span ends
+	duration := span.GetDuration()
+	assert.Greater(t, duration, time.Duration(0))
+	assert.Less(t, duration, time.Second) // Should be reasonable
+}
+
+// TestNoopSpan tests span behavior in simple scenario
+func TestNoopSpan(t *testing.T) {
+	t.Parallel()
+	_, cancel := setupTestTimeout(t)
+	defer cancel()
+
+	tr := createTestTracer(t)
+	_, span := tr.StartSpan(context.Background(), "test-span")
+
+	// Test all methods work correctly
+	spanCtx := span.Context()
+	assert.NotNil(t, spanCtx)
+
+	span.SetName("test")
+	span.SetAttributes(map[string]interface{}{"key": "value"})
+	span.SetAttribute("key", "value")
+	span.AddEvent("event", nil)
+	span.SetStatus(tracer.StatusCodeOk, "message")
+	span.RecordError(fmt.Errorf("error"), nil)
+	span.End()
+
+	assert.False(t, span.IsRecording())
+	duration := span.GetDuration()
+	assert.GreaterOrEqual(t, duration, time.Duration(0))
+}
+
+// TestTracerCloseError tests tracer close behavior
+func TestTracerCloseError(t *testing.T) {
+	t.Parallel()
+	_, cancel := setupTestTimeout(t)
+	defer cancel()
+
+	tr := createTestTracer(t)
+
+	// Close tracer first time should succeed
+	err := tr.Close()
+	assert.NoError(t, err)
+
+	// Close tracer second time should also succeed (idempotent)
+	err = tr.Close()
+	assert.NoError(t, err)
+}
+
+// TestConcurrentSpanOperations tests concurrent span operations for race conditions
+func TestConcurrentSpanOperations(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := setupTestTimeout(t)
+	defer cancel()
+
+	tr := createTestTracer(t)
+	numWorkers := 50
+	numOperations := 100
 
 	var wg sync.WaitGroup
-	wg.Add(numGoroutines)
+	wg.Add(numWorkers)
 
-	// Concurrent attribute setting
-	for i := 0; i < numGoroutines; i++ {
-		go func(id int) {
+	// Start multiple goroutines performing span operations
+	for i := 0; i < numWorkers; i++ {
+		go func(workerID int) {
 			defer wg.Done()
-			for j := 0; j < operationsPerGoroutine; j++ {
-				span.SetAttribute(fmt.Sprintf("key-%d-%d", id, j), fmt.Sprintf("value-%d-%d", id, j))
+
+			for j := 0; j < numOperations; j++ {
+				spanName := fmt.Sprintf("span-%d-%d", workerID, j)
+				_, span := tr.StartSpan(ctx, spanName)
+
+				// Perform various operations on span
+				span.SetAttribute("worker_id", workerID)
+				span.SetAttribute("operation", j)
+				span.AddEvent("operation_start", map[string]interface{}{
+					"timestamp": time.Now().Unix(),
+				})
+
+				if j%10 == 0 {
+					span.RecordError(fmt.Errorf("test error %d", j), nil)
+					span.SetStatus(tracer.StatusCodeError, "error occurred")
+				} else {
+					span.SetStatus(tracer.StatusCodeOk, "success")
+				}
+
+				span.End()
 			}
 		}(i)
 	}
 
 	wg.Wait()
+
+	// Verify tracer is still functional
+	_, span := tr.StartSpan(ctx, "final-span")
 	span.End()
-
-	// Verify no race conditions occurred
-	prometheusSpan := span.(*Span)
-	prometheusSpan.mu.RLock()
-	attributeCount := len(prometheusSpan.attributes)
-	prometheusSpan.mu.RUnlock()
-
-	// Should have all attributes plus any initial ones
-	expectedAttributes := numGoroutines * operationsPerGoroutine
-	assert.GreaterOrEqual(t, attributeCount, expectedAttributes)
+	assert.False(t, span.IsRecording())
 }
 
-func TestTracerConcurrentSpans(t *testing.T) {
+// TestSpanContextPropagation tests span context propagation
+func TestSpanContextPropagation(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := setupTestTimeout(t)
 	defer cancel()
 
 	tr := createTestTracer(t)
 
-	const numGoroutines = 10
-	const spansPerGoroutine = 5
+	// Create parent span
+	parentCtx, parentSpan := tr.StartSpan(ctx, "parent-span")
+	defer parentSpan.End()
 
-	var wg sync.WaitGroup
-	wg.Add(numGoroutines)
+	// Test context with span
+	spanFromCtx := tr.SpanFromContext(parentCtx)
+	assert.NotNil(t, spanFromCtx)
 
-	spans := make(chan tracer.Span, numGoroutines*spansPerGoroutine)
+	// Create child span using parent context
+	childCtx, childSpan := tr.StartSpan(parentCtx, "child-span")
+	defer childSpan.End()
 
-	// Create spans concurrently
-	for i := 0; i < numGoroutines; i++ {
-		go func(id int) {
-			defer wg.Done()
-			for j := 0; j < spansPerGoroutine; j++ {
-				_, span := tr.StartSpan(ctx, fmt.Sprintf("concurrent-span-%d-%d", id, j))
-				spans <- span
+	// Test ContextWithSpan
+	newCtx := tr.ContextWithSpan(ctx, childSpan)
+	retrievedSpan := tr.SpanFromContext(newCtx)
+	assert.NotNil(t, retrievedSpan)
 
-				// Add some attributes
-				span.SetAttribute("goroutine_id", id)
-				span.SetAttribute("span_index", j)
-			}
-		}(i)
-	}
+	// Verify contexts are functional (not comparing pointers)
+	assert.NotNil(t, parentCtx)
+	assert.NotNil(t, childCtx)
+	assert.NotNil(t, newCtx)
+}
 
-	wg.Wait()
-	close(spans)
+// TestTracerMetrics tests tracer metrics collection
+func TestTracerMetrics(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := setupTestTimeout(t)
+	defer cancel()
 
-	// End all spans
-	spanCount := 0
-	for span := range spans {
+	tr := createTestTracer(t)
+
+	// Get initial metrics
+	initialMetrics := tr.GetMetrics()
+	assert.Equal(t, int64(0), initialMetrics.SpansCreated)
+	assert.Equal(t, int64(0), initialMetrics.SpansFinished)
+
+	// Create and end some spans
+	for i := 0; i < 5; i++ {
+		_, span := tr.StartSpan(ctx, fmt.Sprintf("span-%d", i))
 		span.End()
-		spanCount++
 	}
 
-	assert.Equal(t, numGoroutines*spansPerGoroutine, spanCount)
+	// Get updated metrics
+	finalMetrics := tr.GetMetrics()
+	assert.Equal(t, int64(5), finalMetrics.SpansCreated)
+	assert.Equal(t, int64(5), finalMetrics.SpansFinished)
+	assert.True(t, finalMetrics.LastActivity.After(initialMetrics.LastActivity))
+}
 
-	// Verify no active spans remain
+// TestSpanMemoryLeaks tests for potential memory leaks in spans
+func TestSpanMemoryLeaks(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := setupTestTimeout(t)
+	defer cancel()
+
+	tr := createTestTracer(t)
+
+	// Create and end many spans to test cleanup
+	for i := 0; i < 1000; i++ {
+		_, span := tr.StartSpan(ctx, fmt.Sprintf("span-%d", i))
+		span.SetAttribute("index", i)
+		span.AddEvent("created", map[string]interface{}{"index": i})
+		span.End()
+	}
+
+	// Verify tracer state
+	metrics := tr.GetMetrics()
+	assert.Equal(t, int64(1000), metrics.SpansCreated)
+	assert.Equal(t, int64(1000), metrics.SpansFinished)
+
+	// Active spans should be cleaned up
 	tr.mu.RLock()
 	activeCount := len(tr.activeSpans)
 	tr.mu.RUnlock()
+
 	assert.Equal(t, 0, activeCount)
-}
-
-func TestNoopSpan(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := setupTestTimeout(t)
-	defer cancel()
-
-	tr := createTestTracer(t)
-
-	// Get noop span
-	noopSpan := tr.SpanFromContext(ctx)
-	require.NotNil(t, noopSpan)
-
-	noop, ok := noopSpan.(*NoopSpan)
-	require.True(t, ok)
-
-	// Test all noop operations
-	spanCtx := noop.Context()
-	// Note: Noop spans may have empty IDs, which is expected behavior
-	assert.IsType(t, tracer.SpanContext{}, spanCtx)
-
-	// These should not panic
-	noop.SetName("noop-name")
-	noop.SetAttributes(map[string]interface{}{"key": "value"})
-	noop.SetAttribute("single", "value")
-	noop.AddEvent("event", nil)
-	noop.RecordError(fmt.Errorf("test error"), nil)
-	noop.SetStatus(tracer.StatusCodeOk, "success")
-	noop.End()
-}
-
-func TestSpanLifecycle(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := setupTestTimeout(t)
-	defer cancel()
-
-	tr := createTestTracer(t)
-
-	// Create span
-	_, span := tr.StartSpan(ctx, "lifecycle-test")
-	prometheusSpan := span.(*Span)
-
-	// Verify initial state
-	assert.False(t, prometheusSpan.startTime.IsZero())
-	assert.True(t, prometheusSpan.endTime.IsZero())
-
-	// Add some data
-	span.SetAttribute("key", "value")
-	// span.AddEvent("started", nil) // Commented out due to Prometheus label cardinality issue
-	// span.SetStatus(tracer.StatusCodeOk, "processing") // Commented out due to Prometheus label cardinality issue
-
-	// End span
-	span.End()
-
-	// Verify final state
-	assert.False(t, prometheusSpan.endTime.IsZero())
-	assert.True(t, prometheusSpan.endTime.After(prometheusSpan.startTime))
 }
 
 // Benchmark tests

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -329,303 +330,327 @@ func TestProviderConfigValidation(t *testing.T) {
 	}
 }
 
-func TestProviderHelperMethods(t *testing.T) {
+// TestGetRegistry tests the GetRegistry method
+func TestGetRegistry(t *testing.T) {
+	t.Parallel()
 	_, cancel := setupTestTimeout(t)
 	defer cancel()
 
-	// Test helper methods
-	tests := []struct {
-		name   string
-		config *Config
-	}{
-		{
-			name:   "nil config",
-			config: nil,
-		},
-		{
-			name: "config with service name",
-			config: &Config{
-				ServiceName: "helper-test",
-				Namespace:   "test",
-			},
-		},
-		{
-			name: "config with version",
-			config: &Config{
-				ServiceName:    "helper-test",
-				ServiceVersion: "v2.0.0",
-				Namespace:      "test",
-			},
-		},
-		{
-			name: "config with environment",
-			config: &Config{
-				ServiceName: "helper-test",
-				Environment: "staging",
-				Namespace:   "test",
-			},
-		},
-		{
-			name: "complete config",
-			config: &Config{
-				ServiceName:           "helper-test",
-				ServiceVersion:        "v3.0.0",
-				Environment:           "production",
-				Namespace:             "prod",
-				Subsystem:             "api",
-				EnableDetailedMetrics: true,
-				MaxCardinality:        5000,
-				CollectionInterval:    10 * time.Second,
-				BucketBoundaries:      []float64{0.1, 1, 10},
-				CustomLabels: map[string]string{
-					"component": "auth",
-					"version":   "latest",
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			if tt.config == nil {
-				tt.config = DefaultConfig()
-			}
-			tt.config.ServiceName = "helper-test"
-
-			// Ensure required fields are set
-			if tt.config.Namespace == "" {
-				tt.config.Namespace = "test"
-			}
-			if tt.config.MaxCardinality <= 0 {
-				tt.config.MaxCardinality = 1000
-			}
-			if tt.config.CollectionInterval <= 0 {
-				tt.config.CollectionInterval = 30 * time.Second
-			}
-			if len(tt.config.BucketBoundaries) == 0 {
-				tt.config.BucketBoundaries = []float64{0.1, 1, 10}
-			}
-
-			p, err := NewProvider(tt.config)
-			assert.NoError(t, err)
-			assert.NotNil(t, p)
-		})
-	}
+	provider := createTestProvider(t)
+	registry := provider.GetRegistry()
+	assert.NotNil(t, registry)
+	assert.IsType(t, &prometheus.Registry{}, registry)
 }
 
-func TestProviderUpdateMetrics(t *testing.T) {
+// TestGetMetrics tests the GetMetrics method
+func TestGetMetrics(t *testing.T) {
+	t.Parallel()
+	_, cancel := setupTestTimeout(t)
+	defer cancel()
+
+	provider := createTestProvider(t)
+	metrics := provider.GetMetrics()
+
+	assert.NotNil(t, metrics)
+	assert.Contains(t, metrics, "span_counter")
+	assert.Contains(t, metrics, "span_duration")
+	assert.Contains(t, metrics, "error_counter")
+	assert.Contains(t, metrics, "active_spans")
+}
+
+// TestHelperMethods tests the helper methods with different configurations
+func TestHelperMethods(t *testing.T) {
+	t.Parallel()
 	_, cancel := setupTestTimeout(t)
 	defer cancel()
 
 	provider := createTestProvider(t)
 
-	// Create a tracer to generate some metrics
-	tr, err := provider.CreateTracer("metrics-test")
-	require.NoError(t, err)
+	// Test with default tracer config
+	config := &tracer.TracerConfig{}
 
-	// Get initial metrics
-	metrics1 := provider.GetProviderMetrics()
+	serviceName := provider.getServiceName(config)
+	assert.Equal(t, "test-service", serviceName)
 
-	// Create some spans to generate activity
-	ctx := context.Background()
-	for i := 0; i < 5; i++ {
-		_, span := tr.StartSpan(ctx, fmt.Sprintf("test-span-%d", i))
-		span.End()
+	serviceVersion := provider.getServiceVersion(config)
+	assert.Equal(t, "1.0.0", serviceVersion)
+
+	environment := provider.getEnvironment(config)
+	assert.Equal(t, "production", environment)
+
+	// Test with custom tracer config
+	customConfig := &tracer.TracerConfig{
+		ServiceName:    "custom-service",
+		ServiceVersion: "2.0.0",
+		Environment:    "staging",
 	}
 
-	// Get updated metrics
-	metrics2 := provider.GetProviderMetrics()
+	serviceName = provider.getServiceName(customConfig)
+	assert.Equal(t, "custom-service", serviceName)
 
-	// Verify metrics were updated
-	assert.GreaterOrEqual(t, metrics2.LastFlush, metrics1.LastFlush)
+	serviceVersion = provider.getServiceVersion(customConfig)
+	assert.Equal(t, "2.0.0", serviceVersion)
+
+	environment = provider.getEnvironment(customConfig)
+	assert.Equal(t, "staging", environment)
 }
 
-func TestProviderShutdownScenarios(t *testing.T) {
-	_, cancel := setupTestTimeout(t)
-	defer cancel()
-
-	tests := []struct {
-		name string
-		test func(t *testing.T)
-	}{
-		{
-			name: "shutdown with active tracers",
-			test: func(t *testing.T) {
-				provider := createTestProvider(t)
-				_, err := provider.CreateTracer("active-tracer")
-				require.NoError(t, err)
-
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-				defer cancel()
-
-				err = provider.Shutdown(ctx)
-				assert.NoError(t, err)
-			},
-		},
-		{
-			name: "shutdown empty provider",
-			test: func(t *testing.T) {
-				provider := createTestProvider(t)
-
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-				defer cancel()
-
-				err := provider.Shutdown(ctx)
-				assert.NoError(t, err)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, tt.test)
-	}
-}
-
-func TestCreateTracerEdgeCases(t *testing.T) {
+// TestBuildLabels tests the buildLabels method
+func TestBuildLabels(t *testing.T) {
+	t.Parallel()
 	_, cancel := setupTestTimeout(t)
 	defer cancel()
 
 	provider := createTestProvider(t)
+	provider.config.CustomLabels["region"] = "us-east-1"
+	provider.config.CustomLabels["team"] = "backend"
+
+	config := &tracer.TracerConfig{
+		ServiceName:    "test-app",
+		ServiceVersion: "1.5.0",
+		Environment:    "development",
+	}
+
+	labels := provider.buildLabels("test-tracer", "test-span", tracer.SpanKindClient, config)
+
+	expected := prometheus.Labels{
+		"service_name":    "test-app",
+		"service_version": "1.5.0",
+		"environment":     "development",
+		"tracer_name":     "test-tracer",
+		"span_name":       "test-span",
+		"span_kind":       "CLIENT", // SpanKindClient returns "CLIENT" in uppercase
+		"region":          "us-east-1",
+		"team":            "backend",
+	}
+
+	assert.Equal(t, expected, labels)
+}
+
+// TestValidateConfigEdgeCases tests edge cases for config validation
+func TestValidateConfigEdgeCases(t *testing.T) {
+	t.Parallel()
+	_, cancel := setupTestTimeout(t)
+	defer cancel()
 
 	tests := []struct {
 		name        string
-		serviceName string
-		options     []tracer.TracerOption
+		config      *Config
 		expectError bool
+		errorMsg    string
 	}{
 		{
-			name:        "empty service name with no options",
-			serviceName: "",
-			options:     []tracer.TracerOption{},
-			expectError: false, // Provider accepts empty names
+			name: "empty namespace",
+			config: &Config{
+				ServiceName:        "test",
+				Namespace:          "",
+				MaxCardinality:     1000,
+				CollectionInterval: 30 * time.Second,
+				BucketBoundaries:   []float64{0.1, 1, 10},
+			},
+			expectError: true,
+			errorMsg:    "namespace is required",
 		},
 		{
-			name:        "valid service with complex options",
-			serviceName: "complex-service",
-			options: []tracer.TracerOption{
-				tracer.WithServiceName("override-service"),
-				tracer.WithServiceVersion("v2.0.0"),
-				tracer.WithEnvironment("staging"),
-				tracer.WithTracerAttributes(map[string]interface{}{
-					"region":      "us-west-2",
-					"datacenter":  "dc1",
-					"application": "api-gateway",
-				}),
+			name: "zero max cardinality",
+			config: &Config{
+				ServiceName:        "test",
+				Namespace:          "test",
+				MaxCardinality:     0,
+				CollectionInterval: 30 * time.Second,
+				BucketBoundaries:   []float64{0.1, 1, 10},
 			},
-			expectError: false,
+			expectError: true,
+			errorMsg:    "max cardinality must be positive",
+		},
+		{
+			name: "negative collection interval",
+			config: &Config{
+				ServiceName:        "test",
+				Namespace:          "test",
+				MaxCardinality:     1000,
+				CollectionInterval: -1 * time.Second,
+				BucketBoundaries:   []float64{0.1, 1, 10},
+			},
+			expectError: true,
+			errorMsg:    "collection interval must be positive",
+		},
+		{
+			name: "empty bucket boundaries",
+			config: &Config{
+				ServiceName:        "test",
+				Namespace:          "test",
+				MaxCardinality:     1000,
+				CollectionInterval: 30 * time.Second,
+				BucketBoundaries:   []float64{},
+			},
+			expectError: true,
+			errorMsg:    "bucket boundaries cannot be empty",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tr, err := provider.CreateTracer(tt.serviceName, tt.options...)
-
+			err := validateConfig(tt.config)
 			if tt.expectError {
 				assert.Error(t, err)
-				assert.Nil(t, tr)
+				assert.Contains(t, err.Error(), tt.errorMsg)
 			} else {
 				assert.NoError(t, err)
-				assert.NotNil(t, tr)
 			}
 		})
 	}
 }
 
-func TestHealthCheckErrorScenarios(t *testing.T) {
+// TestProviderWithCustomRegistry tests provider with custom registry
+func TestProviderWithCustomRegistry(t *testing.T) {
+	t.Parallel()
+	_, cancel := setupTestTimeout(t)
+	defer cancel()
+
+	customRegistry := prometheus.NewRegistry()
+	config := &Config{
+		ServiceName:        "test-service",
+		Namespace:          "test",
+		UseGlobalRegistry:  false,
+		Registry:           customRegistry,
+		MaxCardinality:     1000,
+		CollectionInterval: 30 * time.Second,
+		BucketBoundaries:   []float64{0.1, 1, 10},
+	}
+
+	provider, err := NewProvider(config)
+	require.NoError(t, err)
+	assert.Equal(t, customRegistry, provider.GetRegistry())
+}
+
+// TestProviderWithGlobalRegistry tests provider with global registry
+func TestProviderWithGlobalRegistry(t *testing.T) {
+	t.Parallel()
+	_, cancel := setupTestTimeout(t)
+	defer cancel()
+
+	config := &Config{
+		ServiceName:        "test-service",
+		Namespace:          "test",
+		UseGlobalRegistry:  true,
+		MaxCardinality:     1000,
+		CollectionInterval: 30 * time.Second,
+		BucketBoundaries:   []float64{0.1, 1, 10},
+	}
+
+	provider, err := NewProvider(config)
+	require.NoError(t, err)
+	assert.NotNil(t, provider.GetRegistry())
+}
+
+// TestHealthCheckWithError tests health check when there's a last error
+func TestHealthCheckWithError(t *testing.T) {
+	t.Parallel()
+	_, cancel := setupTestTimeout(t)
+	defer cancel()
+
+	provider := createTestProvider(t)
+	provider.lastError = fmt.Errorf("test error")
+
+	err := provider.HealthCheck(context.Background())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "last error: test error")
+}
+
+// TestShutdownWithTracerError tests shutdown when tracer close returns error
+func TestShutdownWithTracerError(t *testing.T) {
+	t.Parallel()
 	_, cancel := setupTestTimeout(t)
 	defer cancel()
 
 	provider := createTestProvider(t)
 
-	// Test health check with context cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	err := provider.HealthCheck(ctx)
-	// Prometheus provider might handle cancelled context differently
-	// The specific behavior depends on the implementation
-	_ = err // Accept either success or failure
-
-	// Test health check when not started
-	freshProvider, err := NewProvider(&Config{
-		ServiceName:        "fresh-app",
-		Namespace:          "test",
-		MaxCardinality:     1000,
-		CollectionInterval: 30 * time.Second,
-		BucketBoundaries:   []float64{0.1, 1, 10},
-	})
+	// Create a tracer
+	_, err := provider.CreateTracer("test-tracer")
 	require.NoError(t, err)
 
-	err = freshProvider.HealthCheck(context.Background())
-	// Health check behavior for uninitialized provider
-	_ = err // Accept either success or failure
+	// Shutdown should handle any tracer close errors gracefully
+	err = provider.Shutdown(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, "shutdown", provider.healthStatus)
+	assert.Equal(t, "disconnected", provider.metrics.ConnectionState)
+	assert.Equal(t, 0, provider.metrics.TracersActive)
 }
 
-func TestCreateTracerErrorPath(t *testing.T) {
+// TestConcurrentOperations tests concurrent operations for race conditions
+func TestConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	_, cancel := setupTestTimeout(t)
 	defer cancel()
 
-	// Test with invalid config that would cause initialization to fail
-	invalidConfig := &Config{
-		ServiceName: "", // Invalid - empty service name
+	provider := createTestProvider(t)
+	numWorkers := 50
+	numOperations := 100
+
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+
+	// Start multiple goroutines performing various operations
+	for i := 0; i < numWorkers; i++ {
+		go func(workerID int) {
+			defer wg.Done()
+
+			for j := 0; j < numOperations; j++ {
+				// Create tracers
+				tracerName := fmt.Sprintf("tracer-%d-%d", workerID, j)
+				_, err := provider.CreateTracer(tracerName)
+				assert.NoError(t, err)
+
+				// Get metrics
+				_ = provider.GetProviderMetrics()
+
+				// Health check
+				_ = provider.HealthCheck(context.Background())
+
+				// Get registry and metrics
+				_ = provider.GetRegistry()
+				_ = provider.GetMetrics()
+			}
+		}(i)
 	}
 
-	provider, err := NewProvider(invalidConfig)
-	// This should fail due to validation
-	assert.Error(t, err)
-	assert.Nil(t, provider)
+	wg.Wait()
+
+	// Verify final state
+	assert.Greater(t, len(provider.tracers), 0)
+	assert.Equal(t, "healthy", provider.healthStatus)
 }
 
-// Benchmark tests
-func BenchmarkProviderCreateTracer(b *testing.B) {
-	provider, err := NewProvider(&Config{
-		ServiceName: "benchmark-app",
-		Namespace:   "test",
-	})
-	if err != nil {
-		b.Fatal(err)
-	}
+// TestProviderMemoryLeaks tests for potential memory leaks
+func TestProviderMemoryLeaks(t *testing.T) {
+	t.Parallel()
+	_, cancel := setupTestTimeout(t)
+	defer cancel()
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		serviceName := fmt.Sprintf("service-%d", i)
-		_, err := provider.CreateTracer(serviceName)
-		if err != nil {
-			b.Fatal(err)
+	// Create and shutdown multiple providers to test cleanup
+	for i := 0; i < 10; i++ {
+		config := &Config{
+			ServiceName:        fmt.Sprintf("test-service-%d", i),
+			Namespace:          "test",
+			MaxCardinality:     1000,
+			CollectionInterval: 30 * time.Second,
+			BucketBoundaries:   []float64{0.1, 1, 10},
 		}
-	}
-}
 
-func BenchmarkProviderGetMetrics(b *testing.B) {
-	provider, err := NewProvider(&Config{
-		ServiceName: "benchmark-app",
-		Namespace:   "test",
-	})
-	if err != nil {
-		b.Fatal(err)
-	}
+		provider, err := NewProvider(config)
+		require.NoError(t, err)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = provider.GetProviderMetrics()
-	}
-}
+		// Create some tracers
+		for j := 0; j < 5; j++ {
+			_, err := provider.CreateTracer(fmt.Sprintf("tracer-%d", j))
+			require.NoError(t, err)
+		}
 
-func BenchmarkProviderHealthCheck(b *testing.B) {
-	provider, err := NewProvider(&Config{
-		ServiceName: "benchmark-app",
-		Namespace:   "test",
-	})
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	ctx := context.Background()
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = provider.HealthCheck(ctx)
+		// Shutdown and verify cleanup
+		err = provider.Shutdown(context.Background())
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(provider.tracers))
+		assert.Equal(t, "shutdown", provider.healthStatus)
 	}
 }

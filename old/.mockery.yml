@@ -1,0 +1,7 @@
+all: true
+recursive: true
+filename: "mock_{{ .InterfaceName }}.go"
+dir: "{{.InterfaceDir}}/mocks/"
+pkgname: "mocks"
+packages:
+  github.com/dock-tech/isis-golang-lib:

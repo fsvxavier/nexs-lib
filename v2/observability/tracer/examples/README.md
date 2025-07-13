@@ -48,6 +48,64 @@ Advanced example using multiple providers simultaneously.
 
 **Features Demonstrated:**
 - Simultaneous tracing to multiple providers
+- Provider failover and redundancy
+- Cross-provider correlation
+- Performance comparison
+- Cost optimization strategies
+
+**Best For:** High availability, vendor independence, cost optimization
+
+### 🏗️ [Microservices](./microservices/)
+Complete microservices architecture with distributed tracing.
+
+**Features Demonstrated:**
+- Service-to-service communication
+- Context propagation across services
+- Load balancing and service discovery
+- Authentication and authorization flows
+- Database integration patterns
+- Health check monitoring
+
+**Best For:** Distributed systems, service mesh monitoring, DevOps
+
+### 🚀 [gRPC & Message Queue](./grpc-messagequeue/)
+Advanced integration with gRPC services and message queues.
+
+**Features Demonstrated:**
+- gRPC client and server tracing
+- Asynchronous message processing
+- Producer and consumer patterns
+- Retry logic and error handling
+- Dead letter queue management
+- Background job processing
+
+**Best For:** Event-driven architectures, async processing, gRPC services
+
+### ⚡ [Performance & Benchmark](./performance-benchmark/)
+Performance monitoring and benchmarking with detailed metrics.
+
+**Features Demonstrated:**
+- Load testing scenarios
+- Performance SLA monitoring
+- Latency percentile tracking (P50, P95, P99)
+- Throughput optimization
+- Memory and resource monitoring
+- Stress testing patterns
+
+**Best For:** Performance optimization, SLA compliance, capacity planning
+
+### 🛡️ [Edge Cases & Error Handling](./edge-cases-error-handling/)
+Comprehensive error handling and edge case scenarios.
+
+**Features Demonstrated:**
+- Network failure simulation
+- Resource exhaustion scenarios
+- Retry patterns and circuit breakers
+- Graceful degradation
+- Error recovery mechanisms
+- Resilience testing
+
+**Best For:** Production readiness, fault tolerance, reliability engineering
 - Provider-specific attribute mapping
 - Graceful provider degradation
 - Unified trace correlation

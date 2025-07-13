@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/fsvxavier/nexs-lib/domainerrors"
 	"github.com/fsvxavier/nexs-lib/message-queue/config"
 	"github.com/fsvxavier/nexs-lib/message-queue/interfaces"
+	"github.com/fsvxavier/nexs-lib/v2/domainerrors"
 )
 
 // KafkaProvider implementa o provider para Apache Kafka

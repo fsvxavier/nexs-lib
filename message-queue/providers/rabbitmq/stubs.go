@@ -1,8 +1,8 @@
 package rabbitmq
 
 import (
-	"github.com/fsvxavier/nexs-lib/domainerrors"
 	"github.com/fsvxavier/nexs-lib/message-queue/interfaces"
+	"github.com/fsvxavier/nexs-lib/v2/domainerrors"
 )
 
 // NewRabbitMQProducer cria um novo producer RabbitMQ (stub)

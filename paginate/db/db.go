@@ -4,8 +4,8 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/fsvxavier/nexs-lib/domainerrors"
 	page "github.com/fsvxavier/nexs-lib/paginate"
+	"github.com/fsvxavier/nexs-lib/v2/domainerrors"
 )
 
 // CountTotal executa uma consulta para contar o total de registros

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/fsvxavier/nexs-lib/domainerrors"
+	"github.com/fsvxavier/nexs-lib/v2/domainerrors"
 	jsoniter "github.com/json-iterator/go"
 )
 

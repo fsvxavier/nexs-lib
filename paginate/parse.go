@@ -4,7 +4,7 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/fsvxavier/nexs-lib/domainerrors"
+	"github.com/fsvxavier/nexs-lib/v2/domainerrors"
 	"github.com/fsvxavier/nexs-lib/validator/schema"
 )
 

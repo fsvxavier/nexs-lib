@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/fsvxavier/nexs-lib/domainerrors"
 	"github.com/fsvxavier/nexs-lib/message-queue/interfaces"
+	"github.com/fsvxavier/nexs-lib/v2/domainerrors"
 )
 
 // Retryer define a interface para o sistema de retry

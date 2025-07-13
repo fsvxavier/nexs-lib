@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/fsvxavier/nexs-lib/domainerrors"
 	"github.com/fsvxavier/nexs-lib/message-queue/interfaces"
-	"github.com/fsvxavier/nexs-lib/observability/logger"
+	"github.com/fsvxavier/nexs-lib/v2/domainerrors"
+	"github.com/fsvxavier/nexs-lib/v2/observability/logger"
 )
 
 // KafkaConsumer implementa MessageConsumer para Apache Kafka

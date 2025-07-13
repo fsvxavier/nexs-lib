@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fsvxavier/nexs-lib/domainerrors"
+	"github.com/fsvxavier/nexs-lib/v2/domainerrors"
 )
 
 func BenchmarkRetryer_SuccessFirstAttempt(b *testing.B) {

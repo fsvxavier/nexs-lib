@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fsvxavier/nexs-lib/domainerrors"
 	"github.com/fsvxavier/nexs-lib/message-queue/config"
 	"github.com/fsvxavier/nexs-lib/message-queue/interfaces"
+	"github.com/fsvxavier/nexs-lib/v2/domainerrors"
 	"github.com/rabbitmq/amqp091-go"
 )
 

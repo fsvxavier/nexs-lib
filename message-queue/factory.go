@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/fsvxavier/nexs-lib/domainerrors"
 	"github.com/fsvxavier/nexs-lib/message-queue/config"
 	"github.com/fsvxavier/nexs-lib/message-queue/interfaces"
 	"github.com/fsvxavier/nexs-lib/message-queue/providers/activemq"
 	"github.com/fsvxavier/nexs-lib/message-queue/providers/kafka"
 	"github.com/fsvxavier/nexs-lib/message-queue/providers/rabbitmq"
 	"github.com/fsvxavier/nexs-lib/message-queue/providers/sqs"
+	"github.com/fsvxavier/nexs-lib/v2/domainerrors"
 )
 
 // Factory define a interface para criação de providers

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/fsvxavier/nexs-lib/domainerrors"
+	"github.com/fsvxavier/nexs-lib/v2/domainerrors"
 )
 
 func TestTimeoutErrorStructure(t *testing.T) {

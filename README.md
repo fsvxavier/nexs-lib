@@ -281,7 +281,7 @@ span.SetTag("operation.type", "payment")
 Sistema estruturado de tratamento de erros seguindo DDD.
 
 ```go
-import "github.com/fsvxavier/nexs-lib/domainerrors"
+import "github.com/fsvxavier/nexs-lib/v2/domainerrors"
 
 // Diferentes tipos de erros de domínio
 err := domainerrors.NewValidationError("Campo obrigatório")

@@ -447,7 +447,7 @@ func verifyInsertedData(ctx context.Context, pool postgresql.IPool) error {
 
 	for _, table := range tables {
 		var count int
-		row := conn.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", table))
+		row, _ := conn.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", table))
 		if err := row.Scan(&count); err != nil {
 			return fmt.Errorf("erro ao contar registros em %s: %w", table, err)
 		}

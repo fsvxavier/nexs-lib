@@ -90,7 +90,7 @@ func (w *Worker) executeQuery() error {
 
 	// Executar query simples
 	var result int
-	row := conn.QueryRow(ctx, "SELECT $1::int + $2::int", w.ID, time.Now().Unix()%100)
+	row, _ := conn.QueryRow(ctx, "SELECT $1::int + $2::int", w.ID, time.Now().Unix()%100)
 	if err := row.Scan(&result); err != nil {
 		return fmt.Errorf("erro ao executar query: %w", err)
 	}

@@ -159,7 +159,7 @@ func (bs *BankingService) Transfer(ctx context.Context, fromAccountID, toAccount
 	// Verificar se conta de origem existe e tem saldo suficiente (com lock)
 	var fromBalance float64
 	var fromStatus string
-	row := tx.QueryRow(txCtx,
+	row, _ := tx.QueryRow(txCtx,
 		"SELECT balance, status FROM accounts WHERE id = $1 FOR UPDATE",
 		fromAccountID)
 
@@ -181,7 +181,7 @@ func (bs *BankingService) Transfer(ctx context.Context, fromAccountID, toAccount
 
 	// Verificar se conta de destino existe e está ativa (com lock)
 	var toStatus string
-	toRow := tx.QueryRow(txCtx,
+	toRow, _ := tx.QueryRow(txCtx,
 		"SELECT status FROM accounts WHERE id = $1 FOR UPDATE",
 		toAccountID)
 
@@ -203,7 +203,7 @@ func (bs *BankingService) Transfer(ctx context.Context, fromAccountID, toAccount
 
 	// Registrar transação bancária
 	var transactionID int
-	txRow := tx.QueryRow(txCtx,
+	txRow, _ := tx.QueryRow(txCtx,
 		`INSERT INTO bank_transactions (from_account, to_account, amount, type, description, status) 
 		 VALUES ($1, $2, $3, 'transfer', $4, 'pending') RETURNING id`,
 		fromAccountID, toAccountID, amount, description)
@@ -298,7 +298,7 @@ func (bs *BankingService) GetAccountBalance(ctx context.Context, accountID int) 
 	defer conn.Release(ctx)
 
 	var balance float64
-	row := conn.QueryRow(ctx, "SELECT balance FROM accounts WHERE id = $1", accountID)
+	row, _ := conn.QueryRow(ctx, "SELECT balance FROM accounts WHERE id = $1", accountID)
 	if err := row.Scan(&balance); err != nil {
 		return 0, fmt.Errorf("erro ao consultar saldo: %w", err)
 	}

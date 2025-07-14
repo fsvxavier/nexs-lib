@@ -147,7 +147,7 @@ func demonstrateCRUD(ctx context.Context, pool postgresql.IPool) error {
 
 	for i, user := range users {
 		var id int
-		row := conn.QueryRow(ctx,
+		row, _ := conn.QueryRow(ctx,
 			"INSERT INTO users (name, email, age) VALUES ($1, $2, $3) RETURNING id",
 			user.Name, user.Email, user.Age)
 
@@ -204,7 +204,7 @@ func demonstrateCRUD(ctx context.Context, pool postgresql.IPool) error {
 
 	// Verificar contagem final
 	var count int
-	row := conn.QueryRow(ctx, "SELECT COUNT(*) FROM users")
+	row, _ := conn.QueryRow(ctx, "SELECT COUNT(*) FROM users")
 	if err := row.Scan(&count); err != nil {
 		return fmt.Errorf("erro ao contar usuários: %w", err)
 	}
@@ -239,7 +239,7 @@ func demonstrateTransactions(ctx context.Context, pool postgresql.IPool) error {
 
 	// Inserir produto
 	var productID int
-	row := tx.QueryRow(ctx,
+	row, _ := tx.QueryRow(ctx,
 		"INSERT INTO products (name, description, price, stock) VALUES ($1, $2, $3, $4) RETURNING id",
 		"Notebook Gamer", "Notebook para jogos de alta performance", 2500.00, 10)
 
@@ -251,7 +251,7 @@ func demonstrateTransactions(ctx context.Context, pool postgresql.IPool) error {
 
 	// Buscar um usuário para criar pedido
 	var userID int
-	userRow := tx.QueryRow(ctx, "SELECT id FROM users LIMIT 1")
+	userRow, _ := tx.QueryRow(ctx, "SELECT id FROM users LIMIT 1")
 	if err := userRow.Scan(&userID); err != nil {
 		_ = tx.Rollback(ctx)
 		return fmt.Errorf("erro ao buscar usuário: %w", err)
@@ -259,7 +259,7 @@ func demonstrateTransactions(ctx context.Context, pool postgresql.IPool) error {
 
 	// Criar pedido
 	var orderID int
-	orderRow := tx.QueryRow(ctx,
+	orderRow, _ := tx.QueryRow(ctx,
 		"INSERT INTO orders (user_id, total, status) VALUES ($1, $2, $3) RETURNING id",
 		userID, 2500.00, "pending")
 
@@ -337,7 +337,7 @@ func demonstrateBatchOperations(ctx context.Context, pool postgresql.IPool) erro
 
 	// Verificar produtos inseridos
 	var productCount int
-	row := conn.QueryRow(ctx, "SELECT COUNT(*) FROM products")
+	row, _ := conn.QueryRow(ctx, "SELECT COUNT(*) FROM products")
 	if err := row.Scan(&productCount); err != nil {
 		return fmt.Errorf("erro ao contar produtos: %w", err)
 	}

@@ -95,7 +95,7 @@ func (hc *HealthChecker) CheckHealth(ctx context.Context) error {
 
 	// Verificar query simples
 	var result int
-	row := conn.QueryRow(ctx, "SELECT 1")
+	row, _ := conn.QueryRow(ctx, "SELECT 1")
 	if err := row.Scan(&result); err != nil {
 		return fmt.Errorf("falha na query de teste: %w", err)
 	}
@@ -190,7 +190,7 @@ func (hc *HealthChecker) LoadTest(ctx context.Context, connections int, duration
 					defer conn.Release(ctx)
 
 					var result int
-					row := conn.QueryRow(ctx, "SELECT $1::int", time.Now().Unix()%1000)
+					row, _ := conn.QueryRow(ctx, "SELECT $1::int", time.Now().Unix()%1000)
 					if err := row.Scan(&result); err != nil {
 						totalErrors++
 						return

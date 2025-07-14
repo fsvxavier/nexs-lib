@@ -1,380 +1,306 @@
-//go:build unit
-// +build unit
-
 package config
 
 import (
-	"os"
+	"crypto/tls"
 	"testing"
 	"time"
-
-	"github.com/fsvxavier/nexs-lib/db/postgresql/interfaces"
 )
 
 func TestDefaultConfig(t *testing.T) {
-	tests := []struct {
-		name     string
-		envVars  map[string]string
-		expected *Config
-	}{
-		{
-			name:    "default configuration",
-			envVars: map[string]string{},
-			expected: &Config{
-				Host:               "localhost",
-				Port:               5432,
-				User:               "postgres",
-				Password:           "",
-				Database:           "postgres",
-				SSLMode:            "disable",
-				Driver:             interfaces.DriverPGX,
-				MaxOpenConns:       25,
-				MaxIdleConns:       5,
-				ConnMaxLifetime:    5 * time.Minute,
-				ConnMaxIdleTime:    5 * time.Minute,
-				MinConns:           2,
-				QueryTimeout:       30 * time.Second,
-				ConnectTimeout:     10 * time.Second,
-				TLSEnabled:         false,
-				QueryMode:          "EXEC",
-				Timezone:           "UTC",
-				ApplicationName:    "nexs-lib",
-				SearchPath:         "public",
-				StatementTimeout:   0,
-				LockTimeout:        0,
-				IdleInTransaction:  0,
-				TracingEnabled:     false,
-				LoggingEnabled:     true,
-				MetricsEnabled:     false,
-				MultiTenantEnabled: false,
-				RLSEnabled:         false,
-			},
-		},
-		{
-			name: "configuration with environment variables",
-			envVars: map[string]string{
-				"POSTGRES_HOST":                 "testhost",
-				"POSTGRES_PORT":                 "5433",
-				"POSTGRES_USER":                 "testuser",
-				"POSTGRES_PASSWORD":             "testpass",
-				"POSTGRES_DATABASE":             "testdb",
-				"POSTGRES_SSL_MODE":             "require",
-				"POSTGRES_DRIVER":               "gorm",
-				"POSTGRES_MAX_OPEN_CONNS":       "50",
-				"POSTGRES_MAX_IDLE_CONNS":       "10",
-				"POSTGRES_CONN_MAX_LIFETIME":    "10m",
-				"POSTGRES_CONN_MAX_IDLE_TIME":   "2m",
-				"POSTGRES_MIN_CONNS":            "5",
-				"POSTGRES_QUERY_TIMEOUT":        "45s",
-				"POSTGRES_CONNECT_TIMEOUT":      "15s",
-				"POSTGRES_TLS_ENABLED":          "true",
-				"POSTGRES_QUERY_MODE":           "CACHE_STATEMENT",
-				"POSTGRES_TIMEZONE":             "America/New_York",
-				"POSTGRES_APPLICATION_NAME":     "test-app",
-				"POSTGRES_SEARCH_PATH":          "test,public",
-				"POSTGRES_TRACING_ENABLED":      "true",
-				"POSTGRES_LOGGING_ENABLED":      "false",
-				"POSTGRES_METRICS_ENABLED":      "true",
-				"POSTGRES_MULTI_TENANT_ENABLED": "true",
-				"POSTGRES_RLS_ENABLED":          "true",
-			},
-			expected: &Config{
-				Host:               "testhost",
-				Port:               5433,
-				User:               "testuser",
-				Password:           "testpass",
-				Database:           "testdb",
-				SSLMode:            "require",
-				Driver:             interfaces.DriverGORM,
-				MaxOpenConns:       50,
-				MaxIdleConns:       10,
-				ConnMaxLifetime:    10 * time.Minute,
-				ConnMaxIdleTime:    2 * time.Minute,
-				MinConns:           5,
-				QueryTimeout:       45 * time.Second,
-				ConnectTimeout:     15 * time.Second,
-				TLSEnabled:         true,
-				QueryMode:          "CACHE_STATEMENT",
-				Timezone:           "America/New_York",
-				ApplicationName:    "test-app",
-				SearchPath:         "test,public",
-				StatementTimeout:   0,
-				LockTimeout:        0,
-				IdleInTransaction:  0,
-				TracingEnabled:     true,
-				LoggingEnabled:     false,
-				MetricsEnabled:     true,
-				MultiTenantEnabled: true,
-				RLSEnabled:         true,
-			},
-		},
+	cfg := DefaultConfig()
+
+	if cfg.Host != "localhost" {
+		t.Errorf("Expected host to be 'localhost', got '%s'", cfg.Host)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Set environment variables
-			for key, value := range tt.envVars {
-				os.Setenv(key, value)
-				defer os.Unsetenv(key)
-			}
+	if cfg.Port != 5432 {
+		t.Errorf("Expected port to be 5432, got %d", cfg.Port)
+	}
 
-			cfg := DefaultConfig()
+	if cfg.Database != "postgres" {
+		t.Errorf("Expected database to be 'postgres', got '%s'", cfg.Database)
+	}
 
-			// Compare all fields
-			if cfg.Host != tt.expected.Host {
-				t.Errorf("Host = %v, want %v", cfg.Host, tt.expected.Host)
-			}
-			if cfg.Port != tt.expected.Port {
-				t.Errorf("Port = %v, want %v", cfg.Port, tt.expected.Port)
-			}
-			if cfg.User != tt.expected.User {
-				t.Errorf("User = %v, want %v", cfg.User, tt.expected.User)
-			}
-			if cfg.Password != tt.expected.Password {
-				t.Errorf("Password = %v, want %v", cfg.Password, tt.expected.Password)
-			}
-			if cfg.Database != tt.expected.Database {
-				t.Errorf("Database = %v, want %v", cfg.Database, tt.expected.Database)
-			}
-			if cfg.SSLMode != tt.expected.SSLMode {
-				t.Errorf("SSLMode = %v, want %v", cfg.SSLMode, tt.expected.SSLMode)
-			}
-			if cfg.Driver != tt.expected.Driver {
-				t.Errorf("Driver = %v, want %v", cfg.Driver, tt.expected.Driver)
-			}
-			if cfg.MaxOpenConns != tt.expected.MaxOpenConns {
-				t.Errorf("MaxOpenConns = %v, want %v", cfg.MaxOpenConns, tt.expected.MaxOpenConns)
-			}
-			if cfg.MaxIdleConns != tt.expected.MaxIdleConns {
-				t.Errorf("MaxIdleConns = %v, want %v", cfg.MaxIdleConns, tt.expected.MaxIdleConns)
-			}
-			if cfg.ConnMaxLifetime != tt.expected.ConnMaxLifetime {
-				t.Errorf("ConnMaxLifetime = %v, want %v", cfg.ConnMaxLifetime, tt.expected.ConnMaxLifetime)
-			}
-			if cfg.ConnMaxIdleTime != tt.expected.ConnMaxIdleTime {
-				t.Errorf("ConnMaxIdleTime = %v, want %v", cfg.ConnMaxIdleTime, tt.expected.ConnMaxIdleTime)
-			}
-			if cfg.MinConns != tt.expected.MinConns {
-				t.Errorf("MinConns = %v, want %v", cfg.MinConns, tt.expected.MinConns)
-			}
-			if cfg.QueryTimeout != tt.expected.QueryTimeout {
-				t.Errorf("QueryTimeout = %v, want %v", cfg.QueryTimeout, tt.expected.QueryTimeout)
-			}
-			if cfg.ConnectTimeout != tt.expected.ConnectTimeout {
-				t.Errorf("ConnectTimeout = %v, want %v", cfg.ConnectTimeout, tt.expected.ConnectTimeout)
-			}
-			if cfg.TLSEnabled != tt.expected.TLSEnabled {
-				t.Errorf("TLSEnabled = %v, want %v", cfg.TLSEnabled, tt.expected.TLSEnabled)
-			}
-			if cfg.QueryMode != tt.expected.QueryMode {
-				t.Errorf("QueryMode = %v, want %v", cfg.QueryMode, tt.expected.QueryMode)
-			}
-			if cfg.Timezone != tt.expected.Timezone {
-				t.Errorf("Timezone = %v, want %v", cfg.Timezone, tt.expected.Timezone)
-			}
-			if cfg.ApplicationName != tt.expected.ApplicationName {
-				t.Errorf("ApplicationName = %v, want %v", cfg.ApplicationName, tt.expected.ApplicationName)
-			}
-			if cfg.SearchPath != tt.expected.SearchPath {
-				t.Errorf("SearchPath = %v, want %v", cfg.SearchPath, tt.expected.SearchPath)
-			}
-			if cfg.TracingEnabled != tt.expected.TracingEnabled {
-				t.Errorf("TracingEnabled = %v, want %v", cfg.TracingEnabled, tt.expected.TracingEnabled)
-			}
-			if cfg.LoggingEnabled != tt.expected.LoggingEnabled {
-				t.Errorf("LoggingEnabled = %v, want %v", cfg.LoggingEnabled, tt.expected.LoggingEnabled)
-			}
-			if cfg.MetricsEnabled != tt.expected.MetricsEnabled {
-				t.Errorf("MetricsEnabled = %v, want %v", cfg.MetricsEnabled, tt.expected.MetricsEnabled)
-			}
-			if cfg.MultiTenantEnabled != tt.expected.MultiTenantEnabled {
-				t.Errorf("MultiTenantEnabled = %v, want %v", cfg.MultiTenantEnabled, tt.expected.MultiTenantEnabled)
-			}
-			if cfg.RLSEnabled != tt.expected.RLSEnabled {
-				t.Errorf("RLSEnabled = %v, want %v", cfg.RLSEnabled, tt.expected.RLSEnabled)
-			}
-		})
+	if cfg.Username != "postgres" {
+		t.Errorf("Expected username to be 'postgres', got '%s'", cfg.Username)
+	}
+
+	if cfg.MaxConns != 40 {
+		t.Errorf("Expected MaxConns to be 40, got %d", cfg.MaxConns)
+	}
+
+	if cfg.MinConns != 2 {
+		t.Errorf("Expected MinConns to be 2, got %d", cfg.MinConns)
+	}
+
+	if cfg.MaxConnLifetime != 9*time.Second {
+		t.Errorf("Expected MaxConnLifetime to be 9s, got %v", cfg.MaxConnLifetime)
+	}
+
+	if cfg.MaxConnIdleTime != 3*time.Second {
+		t.Errorf("Expected MaxConnIdleTime to be 3s, got %v", cfg.MaxConnIdleTime)
+	}
+
+	if cfg.TLSMode != TLSModePrefer {
+		t.Errorf("Expected TLSMode to be 'prefer', got '%s'", cfg.TLSMode)
+	}
+
+	if cfg.ApplicationName != "nexs-lib" {
+		t.Errorf("Expected ApplicationName to be 'nexs-lib', got '%s'", cfg.ApplicationName)
+	}
+
+	if cfg.Timezone != "UTC" {
+		t.Errorf("Expected Timezone to be 'UTC', got '%s'", cfg.Timezone)
+	}
+
+	if cfg.RetryConfig == nil {
+		t.Error("Expected RetryConfig to be set")
+	} else {
+		if !cfg.RetryConfig.Enabled {
+			t.Error("Expected RetryConfig.Enabled to be true")
+		}
+		if cfg.RetryConfig.MaxRetries != 3 {
+			t.Errorf("Expected RetryConfig.MaxRetries to be 3, got %d", cfg.RetryConfig.MaxRetries)
+		}
+	}
+
+	if cfg.FailoverConfig == nil {
+		t.Error("Expected FailoverConfig to be set")
+	} else {
+		if cfg.FailoverConfig.Enabled {
+			t.Error("Expected FailoverConfig.Enabled to be false")
+		}
+	}
+
+	if cfg.RuntimeParams == nil {
+		t.Error("Expected RuntimeParams to be initialized")
+	}
+
+	if cfg.ProviderSpecific == nil {
+		t.Error("Expected ProviderSpecific to be initialized")
 	}
 }
 
 func TestNewConfig(t *testing.T) {
-	tests := []struct {
-		name     string
-		options  []ConfigOption
-		expected *Config
-	}{
-		{
-			name:    "default configuration with no options",
-			options: []ConfigOption{},
-			expected: &Config{
-				Host:               "localhost",
-				Port:               5432,
-				User:               "postgres",
-				Password:           "",
-				Database:           "postgres",
-				SSLMode:            "disable",
-				Driver:             interfaces.DriverPGX,
-				MaxOpenConns:       25,
-				MaxIdleConns:       5,
-				ConnMaxLifetime:    5 * time.Minute,
-				ConnMaxIdleTime:    5 * time.Minute,
-				MinConns:           2,
-				QueryTimeout:       30 * time.Second,
-				ConnectTimeout:     10 * time.Second,
-				TLSEnabled:         false,
-				QueryMode:          "EXEC",
-				Timezone:           "UTC",
-				ApplicationName:    "nexs-lib",
-				SearchPath:         "public",
-				StatementTimeout:   0,
-				LockTimeout:        0,
-				IdleInTransaction:  0,
-				TracingEnabled:     false,
-				LoggingEnabled:     true,
-				MetricsEnabled:     false,
-				MultiTenantEnabled: false,
-				RLSEnabled:         false,
-			},
-		},
-		{
-			name: "configuration with custom options",
-			options: []ConfigOption{
-				WithHost("custom-host"),
-				WithPort(5433),
-				WithUser("custom-user"),
-				WithPassword("custom-pass"),
-				WithDatabase("custom-db"),
-				WithSSLMode("require"),
-				WithDriver(interfaces.DriverGORM),
-				WithMaxOpenConns(50),
-				WithMaxIdleConns(10),
-				WithConnMaxLifetime(10 * time.Minute),
-				WithConnMaxIdleTime(2 * time.Minute),
-				WithMinConns(5),
-				WithQueryTimeout(45 * time.Second),
-				WithConnectTimeout(15 * time.Second),
-				WithTLSEnabled(true),
-				WithQueryMode("CACHE_STATEMENT"),
-				WithTimezone("America/New_York"),
-				WithApplicationName("custom-app"),
-				WithTracingEnabled(true),
-				WithLoggingEnabled(false),
-				WithMetricsEnabled(true),
-				WithMultiTenantEnabled(true),
-				WithRLSEnabled(true),
-			},
-			expected: &Config{
-				Host:               "custom-host",
-				Port:               5433,
-				User:               "custom-user",
-				Password:           "custom-pass",
-				Database:           "custom-db",
-				SSLMode:            "require",
-				Driver:             interfaces.DriverGORM,
-				MaxOpenConns:       50,
-				MaxIdleConns:       10,
-				ConnMaxLifetime:    10 * time.Minute,
-				ConnMaxIdleTime:    2 * time.Minute,
-				MinConns:           5,
-				QueryTimeout:       45 * time.Second,
-				ConnectTimeout:     15 * time.Second,
-				TLSEnabled:         true,
-				QueryMode:          "CACHE_STATEMENT",
-				Timezone:           "America/New_York",
-				ApplicationName:    "custom-app",
-				SearchPath:         "public",
-				StatementTimeout:   0,
-				LockTimeout:        0,
-				IdleInTransaction:  0,
-				TracingEnabled:     true,
-				LoggingEnabled:     false,
-				MetricsEnabled:     true,
-				MultiTenantEnabled: true,
-				RLSEnabled:         true,
-			},
-		},
+	cfg := NewConfig(
+		WithHost("test-host"),
+		WithPort(5433),
+		WithDatabase("test-db"),
+		WithUsername("test-user"),
+		WithPassword("test-pass"),
+		WithMaxConns(20),
+		WithMinConns(5),
+		WithApplicationName("test-app"),
+		WithTLSMode(TLSModeRequire),
+	)
+
+	if cfg.Host != "test-host" {
+		t.Errorf("Expected host to be 'test-host', got '%s'", cfg.Host)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := NewConfig(tt.options...)
+	if cfg.Port != 5433 {
+		t.Errorf("Expected port to be 5433, got %d", cfg.Port)
+	}
 
-			// Compare key fields
-			if cfg.Host != tt.expected.Host {
-				t.Errorf("Host = %v, want %v", cfg.Host, tt.expected.Host)
-			}
-			if cfg.Port != tt.expected.Port {
-				t.Errorf("Port = %v, want %v", cfg.Port, tt.expected.Port)
-			}
-			if cfg.User != tt.expected.User {
-				t.Errorf("User = %v, want %v", cfg.User, tt.expected.User)
-			}
-			if cfg.Driver != tt.expected.Driver {
-				t.Errorf("Driver = %v, want %v", cfg.Driver, tt.expected.Driver)
-			}
-			if cfg.MaxOpenConns != tt.expected.MaxOpenConns {
-				t.Errorf("MaxOpenConns = %v, want %v", cfg.MaxOpenConns, tt.expected.MaxOpenConns)
-			}
-			if cfg.TracingEnabled != tt.expected.TracingEnabled {
-				t.Errorf("TracingEnabled = %v, want %v", cfg.TracingEnabled, tt.expected.TracingEnabled)
-			}
-		})
+	if cfg.Database != "test-db" {
+		t.Errorf("Expected database to be 'test-db', got '%s'", cfg.Database)
+	}
+
+	if cfg.Username != "test-user" {
+		t.Errorf("Expected username to be 'test-user', got '%s'", cfg.Username)
+	}
+
+	if cfg.Password != "test-pass" {
+		t.Errorf("Expected password to be 'test-pass', got '%s'", cfg.Password)
+	}
+
+	if cfg.MaxConns != 20 {
+		t.Errorf("Expected MaxConns to be 20, got %d", cfg.MaxConns)
+	}
+
+	if cfg.MinConns != 5 {
+		t.Errorf("Expected MinConns to be 5, got %d", cfg.MinConns)
+	}
+
+	if cfg.ApplicationName != "test-app" {
+		t.Errorf("Expected ApplicationName to be 'test-app', got '%s'", cfg.ApplicationName)
+	}
+
+	if cfg.TLSMode != TLSModeRequire {
+		t.Errorf("Expected TLSMode to be 'require', got '%s'", cfg.TLSMode)
 	}
 }
 
-func TestConfigConnectionString(t *testing.T) {
+func TestConfigWithConnectionString(t *testing.T) {
+	connStr := "postgres://user:pass@localhost:5432/testdb"
+	cfg := NewConfig(WithConnectionString(connStr))
+
+	if cfg.ConnString != connStr {
+		t.Errorf("Expected ConnString to be '%s', got '%s'", connStr, cfg.ConnString)
+	}
+
+	result := cfg.ConnectionString()
+	if result != connStr {
+		t.Errorf("Expected ConnectionString() to return '%s', got '%s'", connStr, result)
+	}
+}
+
+func TestConfigWithTLSConfig(t *testing.T) {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	cfg := NewConfig(WithTLSConfig(tlsConfig))
+
+	if cfg.TLSConfig == nil {
+		t.Error("Expected TLSConfig to be set")
+	}
+
+	if !cfg.TLSConfig.InsecureSkipVerify {
+		t.Error("Expected TLSConfig.InsecureSkipVerify to be true")
+	}
+}
+
+func TestConfigWithRetryConfig(t *testing.T) {
+	retryConfig := &RetryConfig{
+		Enabled:     false,
+		MaxRetries:  5,
+		InitialWait: 200 * time.Millisecond,
+		MaxWait:     5 * time.Second,
+		Multiplier:  1.5,
+		Jitter:      false,
+	}
+
+	cfg := NewConfig(WithRetryConfig(retryConfig))
+
+	if cfg.RetryConfig.Enabled {
+		t.Error("Expected RetryConfig.Enabled to be false")
+	}
+
+	if cfg.RetryConfig.MaxRetries != 5 {
+		t.Errorf("Expected RetryConfig.MaxRetries to be 5, got %d", cfg.RetryConfig.MaxRetries)
+	}
+
+	if cfg.RetryConfig.InitialWait != 200*time.Millisecond {
+		t.Errorf("Expected RetryConfig.InitialWait to be 200ms, got %v", cfg.RetryConfig.InitialWait)
+	}
+
+	if cfg.RetryConfig.MaxWait != 5*time.Second {
+		t.Errorf("Expected RetryConfig.MaxWait to be 5s, got %v", cfg.RetryConfig.MaxWait)
+	}
+
+	if cfg.RetryConfig.Multiplier != 1.5 {
+		t.Errorf("Expected RetryConfig.Multiplier to be 1.5, got %f", cfg.RetryConfig.Multiplier)
+	}
+
+	if cfg.RetryConfig.Jitter {
+		t.Error("Expected RetryConfig.Jitter to be false")
+	}
+}
+
+func TestConfigWithRuntimeParam(t *testing.T) {
+	cfg := NewConfig(
+		WithRuntimeParam("work_mem", "256MB"),
+		WithRuntimeParam("shared_preload_libraries", "pg_stat_statements"),
+	)
+
+	if cfg.RuntimeParams["work_mem"] != "256MB" {
+		t.Errorf("Expected RuntimeParams['work_mem'] to be '256MB', got '%s'", cfg.RuntimeParams["work_mem"])
+	}
+
+	if cfg.RuntimeParams["shared_preload_libraries"] != "pg_stat_statements" {
+		t.Errorf("Expected RuntimeParams['shared_preload_libraries'] to be 'pg_stat_statements', got '%s'", cfg.RuntimeParams["shared_preload_libraries"])
+	}
+}
+
+func TestConfigWithProviderSpecific(t *testing.T) {
+	cfg := NewConfig(
+		WithProviderSpecific("pgx_pool_max_conn_lifetime", 30*time.Second),
+		WithProviderSpecific("gorm_disable_foreign_key_constraint_when_migrating", true),
+	)
+
+	if cfg.ProviderSpecific["pgx_pool_max_conn_lifetime"] != 30*time.Second {
+		t.Errorf("Expected ProviderSpecific['pgx_pool_max_conn_lifetime'] to be 30s, got %v", cfg.ProviderSpecific["pgx_pool_max_conn_lifetime"])
+	}
+
+	if cfg.ProviderSpecific["gorm_disable_foreign_key_constraint_when_migrating"] != true {
+		t.Errorf("Expected ProviderSpecific['gorm_disable_foreign_key_constraint_when_migrating'] to be true, got %v", cfg.ProviderSpecific["gorm_disable_foreign_key_constraint_when_migrating"])
+	}
+}
+
+func TestConnectionString(t *testing.T) {
 	tests := []struct {
 		name     string
 		config   *Config
 		expected string
 	}{
 		{
-			name: "pgx driver connection string",
+			name: "basic connection string",
 			config: &Config{
-				Host:            "localhost",
-				Port:            5432,
-				User:            "postgres",
-				Password:        "password",
-				Database:        "testdb",
-				SSLMode:         "disable",
-				Driver:          interfaces.DriverPGX,
-				ApplicationName: "test-app",
-				SearchPath:      "public",
-				Timezone:        "UTC",
+				Host:     "localhost",
+				Port:     5432,
+				Database: "testdb",
+				Username: "user",
+				Password: "pass",
 			},
-			expected: "host=localhost port=5432 user=postgres password=password dbname=testdb sslmode=disable application_name=test-app search_path=public timezone=UTC",
+			expected: "postgres://user:pass@localhost/testdb",
 		},
 		{
-			name: "gorm driver connection string",
+			name: "connection string with port",
 			config: &Config{
-				Host:            "localhost",
-				Port:            5432,
-				User:            "postgres",
-				Password:        "password",
-				Database:        "testdb",
-				SSLMode:         "disable",
-				Driver:          interfaces.DriverGORM,
-				ApplicationName: "test-app",
-				SearchPath:      "public",
-				Timezone:        "UTC",
+				Host:     "localhost",
+				Port:     5433,
+				Database: "testdb",
+				Username: "user",
+				Password: "pass",
 			},
-			expected: "host=localhost user=postgres password=password dbname=testdb port=5432 sslmode=disable TimeZone=UTC application_name=test-app search_path=public",
+			expected: "postgres://user:pass@localhost:5433/testdb",
 		},
 		{
-			name: "pq driver connection string",
+			name: "connection string without password",
+			config: &Config{
+				Host:     "localhost",
+				Port:     5432,
+				Database: "testdb",
+				Username: "user",
+			},
+			expected: "postgres://user@localhost/testdb",
+		},
+		{
+			name: "connection string with TLS mode",
+			config: &Config{
+				Host:     "localhost",
+				Port:     5432,
+				Database: "testdb",
+				Username: "user",
+				Password: "pass",
+				TLSMode:  TLSModeRequire,
+			},
+			expected: "postgres://user:pass@localhost/testdb?sslmode=require",
+		},
+		{
+			name: "connection string with application name",
 			config: &Config{
 				Host:            "localhost",
 				Port:            5432,
-				User:            "postgres",
-				Password:        "password",
 				Database:        "testdb",
-				SSLMode:         "disable",
-				Driver:          interfaces.DriverPQ,
+				Username:        "user",
+				Password:        "pass",
 				ApplicationName: "test-app",
-				SearchPath:      "public",
-				Timezone:        "UTC",
 			},
-			expected: "host=localhost port=5432 user=postgres password=password dbname=testdb sslmode=disable application_name=test-app search_path=public timezone=UTC",
+			expected: "postgres://user:pass@localhost/testdb?application_name=test-app",
+		},
+		{
+			name: "existing connection string takes precedence",
+			config: &Config{
+				ConnString: "postgres://override:override@override:1234/override",
+				Host:       "localhost",
+				Port:       5432,
+				Database:   "testdb",
+				Username:   "user",
+				Password:   "pass",
+			},
+			expected: "postgres://override:override@override:1234/override",
 		},
 	}
 
@@ -382,199 +308,275 @@ func TestConfigConnectionString(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.config.ConnectionString()
 			if result != tt.expected {
-				t.Errorf("ConnectionString() = %v, want %v", result, tt.expected)
+				t.Errorf("Expected connection string '%s', got '%s'", tt.expected, result)
 			}
 		})
 	}
 }
 
-func TestConfigValidate(t *testing.T) {
+func TestValidate(t *testing.T) {
 	tests := []struct {
 		name      string
 		config    *Config
-		wantError bool
-		errorMsg  string
+		expectErr bool
+		errField  string
 	}{
 		{
-			name: "valid configuration",
-			config: &Config{
-				Host:         "localhost",
-				Port:         5432,
-				User:         "postgres",
-				Database:     "testdb",
-				MaxOpenConns: 25,
-				MaxIdleConns: 5,
-			},
-			wantError: false,
+			name:      "valid config",
+			config:    DefaultConfig(),
+			expectErr: false,
 		},
 		{
-			name: "missing host",
+			name: "valid config with connection string",
 			config: &Config{
-				Host:         "",
-				Port:         5432,
-				User:         "postgres",
-				Database:     "testdb",
-				MaxOpenConns: 25,
-				MaxIdleConns: 5,
+				ConnString: "postgres://user:pass@localhost/db",
+				MaxConns:   10,
+				MinConns:   1,
 			},
-			wantError: true,
-			errorMsg:  "host is required",
+			expectErr: false,
 		},
 		{
-			name: "invalid port",
+			name: "missing host and connection string",
 			config: &Config{
-				Host:         "localhost",
-				Port:         0,
-				User:         "postgres",
-				Database:     "testdb",
-				MaxOpenConns: 25,
-				MaxIdleConns: 5,
+				MaxConns: 10,
+				MinConns: 1,
 			},
-			wantError: true,
-			errorMsg:  "port must be between 1 and 65535",
+			expectErr: true,
+			errField:  "host",
 		},
 		{
-			name: "missing user",
+			name: "invalid max conns",
 			config: &Config{
-				Host:         "localhost",
-				Port:         5432,
-				User:         "",
-				Database:     "testdb",
-				MaxOpenConns: 25,
-				MaxIdleConns: 5,
+				Host:     "localhost",
+				MaxConns: 0,
+				MinConns: 1,
 			},
-			wantError: true,
-			errorMsg:  "user is required",
+			expectErr: true,
+			errField:  "max_conns",
 		},
 		{
-			name: "missing database",
+			name: "invalid min conns",
 			config: &Config{
-				Host:         "localhost",
-				Port:         5432,
-				User:         "postgres",
-				Database:     "",
-				MaxOpenConns: 25,
-				MaxIdleConns: 5,
+				Host:     "localhost",
+				MaxConns: 10,
+				MinConns: -1,
 			},
-			wantError: true,
-			errorMsg:  "database is required",
+			expectErr: true,
+			errField:  "min_conns",
 		},
 		{
-			name: "invalid max open conns",
+			name: "min conns greater than max conns",
 			config: &Config{
-				Host:         "localhost",
-				Port:         5432,
-				User:         "postgres",
-				Database:     "testdb",
-				MaxOpenConns: 0,
-				MaxIdleConns: 5,
+				Host:     "localhost",
+				MaxConns: 5,
+				MinConns: 10,
 			},
-			wantError: true,
-			errorMsg:  "max_open_conns must be greater than 0",
+			expectErr: true,
+			errField:  "min_conns",
 		},
 		{
-			name: "invalid max idle conns",
+			name: "negative max conn lifetime",
 			config: &Config{
-				Host:         "localhost",
-				Port:         5432,
-				User:         "postgres",
-				Database:     "testdb",
-				MaxOpenConns: 25,
-				MaxIdleConns: -1,
+				Host:            "localhost",
+				MaxConns:        10,
+				MinConns:        1,
+				MaxConnLifetime: -1 * time.Second,
 			},
-			wantError: true,
-			errorMsg:  "max_idle_conns must be greater than or equal to 0",
+			expectErr: true,
+			errField:  "max_conn_lifetime",
 		},
 		{
-			name: "max idle greater than max open",
+			name: "negative max conn idle time",
+			config: &Config{
+				Host:            "localhost",
+				MaxConns:        10,
+				MinConns:        1,
+				MaxConnIdleTime: -1 * time.Second,
+			},
+			expectErr: true,
+			errField:  "max_conn_idle_time",
+		},
+		{
+			name: "negative connect timeout",
+			config: &Config{
+				Host:           "localhost",
+				MaxConns:       10,
+				MinConns:       1,
+				ConnectTimeout: -1 * time.Second,
+			},
+			expectErr: true,
+			errField:  "connect_timeout",
+		},
+		{
+			name: "negative query timeout",
 			config: &Config{
 				Host:         "localhost",
-				Port:         5432,
-				User:         "postgres",
-				Database:     "testdb",
-				MaxOpenConns: 5,
-				MaxIdleConns: 10,
+				MaxConns:     10,
+				MinConns:     1,
+				QueryTimeout: -1 * time.Second,
 			},
-			wantError: true,
-			errorMsg:  "max_idle_conns cannot be greater than max_open_conns",
+			expectErr: true,
+			errField:  "query_timeout",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.config.Validate()
-			if tt.wantError {
+
+			if tt.expectErr {
 				if err == nil {
-					t.Errorf("Validate() error = nil, wantError %v", tt.wantError)
+					t.Error("Expected validation error, got nil")
 					return
 				}
-				if err.Error() != tt.errorMsg {
-					t.Errorf("Validate() error = %v, want %v", err.Error(), tt.errorMsg)
+
+				configErr, ok := err.(ErrInvalidConfig)
+				if !ok {
+					t.Errorf("Expected ErrInvalidConfig, got %T", err)
+					return
+				}
+
+				if configErr.Field != tt.errField {
+					t.Errorf("Expected error field '%s', got '%s'", tt.errField, configErr.Field)
 				}
 			} else {
 				if err != nil {
-					t.Errorf("Validate() error = %v, wantError %v", err, tt.wantError)
+					t.Errorf("Expected no validation error, got: %v", err)
 				}
 			}
 		})
 	}
 }
 
-func TestConfigDSN(t *testing.T) {
-	config := &Config{
-		Host:            "localhost",
-		Port:            5432,
-		User:            "postgres",
-		Password:        "password",
-		Database:        "testdb",
-		SSLMode:         "disable",
-		Driver:          interfaces.DriverPGX,
-		ApplicationName: "test-app",
-		SearchPath:      "public",
-		Timezone:        "UTC",
+func TestErrInvalidConfig(t *testing.T) {
+	err := ErrInvalidConfig{
+		Field:   "test_field",
+		Message: "test message",
 	}
 
-	dsn := config.DSN()
-	connectionString := config.ConnectionString()
-
-	if dsn != connectionString {
-		t.Errorf("DSN() = %v, want %v", dsn, connectionString)
+	expected := "invalid config field 'test_field': test message"
+	if err.Error() != expected {
+		t.Errorf("Expected error message '%s', got '%s'", expected, err.Error())
 	}
 }
 
-// Benchmark tests
-func BenchmarkDefaultConfig(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_ = DefaultConfig()
+// Edge cases and boundary tests
+
+func TestConfigWithTimeouts(t *testing.T) {
+	cfg := NewConfig(
+		WithConnectTimeout(5*time.Second),
+		WithQueryTimeout(30*time.Second),
+		WithMaxConnLifetime(60*time.Minute),
+		WithMaxConnIdleTime(10*time.Minute),
+	)
+
+	if cfg.ConnectTimeout != 5*time.Second {
+		t.Errorf("Expected ConnectTimeout to be 5s, got %v", cfg.ConnectTimeout)
+	}
+
+	if cfg.QueryTimeout != 30*time.Second {
+		t.Errorf("Expected QueryTimeout to be 30s, got %v", cfg.QueryTimeout)
+	}
+
+	if cfg.MaxConnLifetime != 60*time.Minute {
+		t.Errorf("Expected MaxConnLifetime to be 60m, got %v", cfg.MaxConnLifetime)
+	}
+
+	if cfg.MaxConnIdleTime != 10*time.Minute {
+		t.Errorf("Expected MaxConnIdleTime to be 10m, got %v", cfg.MaxConnIdleTime)
 	}
 }
 
-func BenchmarkNewConfigWithOptions(b *testing.B) {
-	options := []ConfigOption{
-		WithHost("localhost"),
-		WithPort(5432),
-		WithUser("postgres"),
-		WithDatabase("testdb"),
-		WithMaxOpenConns(50),
+func TestConfigWithSearchPath(t *testing.T) {
+	searchPath := []string{"public", "auth", "app"}
+	cfg := NewConfig(WithSearchPath(searchPath))
+
+	if len(cfg.SearchPath) != len(searchPath) {
+		t.Errorf("Expected SearchPath length to be %d, got %d", len(searchPath), len(cfg.SearchPath))
 	}
 
-	for i := 0; i < b.N; i++ {
-		_ = NewConfig(options...)
-	}
-}
-
-func BenchmarkConnectionString(b *testing.B) {
-	config := DefaultConfig()
-
-	for i := 0; i < b.N; i++ {
-		_ = config.ConnectionString()
+	for i, path := range searchPath {
+		if cfg.SearchPath[i] != path {
+			t.Errorf("Expected SearchPath[%d] to be '%s', got '%s'", i, path, cfg.SearchPath[i])
+		}
 	}
 }
 
-func BenchmarkValidate(b *testing.B) {
-	config := DefaultConfig()
+func TestConfigWithMultipleTLSModes(t *testing.T) {
+	modes := []TLSMode{
+		TLSModeDisable,
+		TLSModeAllow,
+		TLSModePrefer,
+		TLSModeRequire,
+		TLSModeVerifyCA,
+		TLSModeVerifyFull,
+	}
 
-	for i := 0; i < b.N; i++ {
-		_ = config.Validate()
+	for _, mode := range modes {
+		cfg := NewConfig(WithTLSMode(mode))
+		if cfg.TLSMode != mode {
+			t.Errorf("Expected TLSMode to be '%s', got '%s'", mode, cfg.TLSMode)
+		}
+	}
+}
+
+func TestConfigWithQueryExecModes(t *testing.T) {
+	modes := []QueryExecMode{
+		QueryExecModeDefault,
+		QueryExecModeCacheStatement,
+		QueryExecModeCacheDescribe,
+		QueryExecModeDescribeExec,
+		QueryExecModeExec,
+		QueryExecModeSimpleProtocol,
+	}
+
+	for _, mode := range modes {
+		cfg := NewConfig(WithQueryExecMode(mode))
+		if cfg.QueryExecMode != mode {
+			t.Errorf("Expected QueryExecMode to be '%s', got '%s'", mode, cfg.QueryExecMode)
+		}
+	}
+}
+
+func TestConfigZeroValues(t *testing.T) {
+	cfg := &Config{}
+
+	// Test with zero values
+	if cfg.MaxConns != 0 {
+		t.Errorf("Expected MaxConns to be 0, got %d", cfg.MaxConns)
+	}
+
+	// Test validation fails for zero MaxConns
+	err := cfg.Validate()
+	if err == nil {
+		t.Error("Expected validation to fail for zero MaxConns")
+	}
+}
+
+func TestConfigBoundaryValues(t *testing.T) {
+	// Test maximum values
+	cfg := NewConfig(
+		WithMaxConns(1000),
+		WithMinConns(100),
+		WithConnectTimeout(time.Hour),
+		WithQueryTimeout(time.Hour),
+	)
+
+	err := cfg.Validate()
+	if err != nil {
+		t.Errorf("Expected validation to pass for large values, got: %v", err)
+	}
+
+	// Test minimum valid values
+	cfg = NewConfig(
+		WithMaxConns(1),
+		WithMinConns(0),
+		WithConnectTimeout(0),
+		WithQueryTimeout(0),
+	)
+
+	err = cfg.Validate()
+	if err != nil {
+		t.Errorf("Expected validation to pass for minimum values, got: %v", err)
 	}
 }

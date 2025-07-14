@@ -1,56 +1,151 @@
 package config
 
 import (
-	"fmt"
-	"os"
+	"context"
+	"crypto/tls"
+	"net"
 	"strconv"
 	"time"
-
-	"github.com/fsvxavier/nexs-lib/db/postgresql/interfaces"
 )
 
-// Config represents the unified configuration for all PostgreSQL drivers
+// Config represents the main configuration for PostgreSQL connections
 type Config struct {
 	// Connection settings
 	Host     string
 	Port     int
-	User     string
-	Password string
 	Database string
-	SSLMode  string
+	Username string
+	Password string
 
-	// Driver selection
-	Driver interfaces.DriverType
+	// Connection string (alternative to individual fields)
+	ConnString string
 
-	// Connection pool settings
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
-	ConnMaxIdleTime time.Duration
+	// Pool settings
+	MaxConns        int32
+	MinConns        int32
+	MaxConnLifetime time.Duration
+	MaxConnIdleTime time.Duration
 
-	// Driver-specific settings
-	MinConns int // for pgx
+	// Connection timeouts
+	ConnectTimeout time.Duration
+	QueryTimeout   time.Duration
+
+	// TLS configuration
+	TLSConfig *tls.Config
+	TLSMode   TLSMode
+
+	// Application settings
+	ApplicationName string
+	SearchPath      []string
+	Timezone        string
 
 	// Advanced settings
-	QueryTimeout      time.Duration
-	ConnectTimeout    time.Duration
-	TLSEnabled        bool
-	QueryMode         string
-	Timezone          string
-	ApplicationName   string
-	SearchPath        string
-	StatementTimeout  time.Duration
-	LockTimeout       time.Duration
-	IdleInTransaction time.Duration
+	QueryExecMode QueryExecMode
+	RuntimeParams map[string]string
 
-	// Observability
-	TracingEnabled bool
-	LoggingEnabled bool
-	MetricsEnabled bool
-
-	// Multi-tenant support
+	// Multi-tenancy
 	MultiTenantEnabled bool
-	RLSEnabled         bool
+	DefaultSchema      string
+
+	// Retry and failover
+	RetryConfig    *RetryConfig
+	FailoverConfig *FailoverConfig
+
+	// Read replicas
+	ReadReplicas []ReplicaConfig
+
+	// Monitoring and observability
+	TracingEnabled     bool
+	MetricsEnabled     bool
+	LogLevel           LogLevel
+	SlowQueryThreshold time.Duration
+
+	// Health check
+	HealthCheckInterval time.Duration
+	HealthCheckTimeout  time.Duration
+
+	// Hooks and middleware
+	Hooks *HooksConfig
+
+	// Provider specific settings
+	ProviderSpecific map[string]interface{}
+}
+
+// TLSMode represents TLS connection modes
+type TLSMode string
+
+const (
+	TLSModeDisable    TLSMode = "disable"
+	TLSModeAllow      TLSMode = "allow"
+	TLSModePrefer     TLSMode = "prefer"
+	TLSModeRequire    TLSMode = "require"
+	TLSModeVerifyCA   TLSMode = "verify-ca"
+	TLSModeVerifyFull TLSMode = "verify-full"
+)
+
+// QueryExecMode represents query execution modes
+type QueryExecMode string
+
+const (
+	QueryExecModeDefault        QueryExecMode = "default"
+	QueryExecModeCacheStatement QueryExecMode = "cache_statement"
+	QueryExecModeCacheDescribe  QueryExecMode = "cache_describe"
+	QueryExecModeDescribeExec   QueryExecMode = "describe_exec"
+	QueryExecModeExec           QueryExecMode = "exec"
+	QueryExecModeSimpleProtocol QueryExecMode = "simple_protocol"
+)
+
+// LogLevel represents logging levels
+type LogLevel string
+
+const (
+	LogLevelTrace LogLevel = "trace"
+	LogLevelDebug LogLevel = "debug"
+	LogLevelInfo  LogLevel = "info"
+	LogLevelWarn  LogLevel = "warn"
+	LogLevelError LogLevel = "error"
+	LogLevelNone  LogLevel = "none"
+)
+
+// RetryConfig represents retry configuration
+type RetryConfig struct {
+	Enabled     bool
+	MaxRetries  int
+	InitialWait time.Duration
+	MaxWait     time.Duration
+	Multiplier  float64
+	Jitter      bool
+}
+
+// FailoverConfig represents failover configuration
+type FailoverConfig struct {
+	Enabled               bool
+	MaxFailoverTime       time.Duration
+	FailoverCheckInterval time.Duration
+	AutoFailback          bool
+	FailbackDelay         time.Duration
+}
+
+// ReplicaConfig represents read replica configuration
+type ReplicaConfig struct {
+	Host            string
+	Port            int
+	Weight          int
+	MaxConns        int32
+	HealthCheckURL  string
+	PreferredMaster bool
+}
+
+// HooksConfig represents hooks configuration
+type HooksConfig struct {
+	BeforeConnect     func(ctx context.Context, cfg *Config) error
+	AfterConnect      func(ctx context.Context, conn interface{}) error
+	BeforeQuery       func(ctx context.Context, query string, args []interface{}) error
+	AfterQuery        func(ctx context.Context, query string, args []interface{}, duration time.Duration, err error) error
+	BeforeTransaction func(ctx context.Context) error
+	AfterTransaction  func(ctx context.Context, committed bool, duration time.Duration, err error) error
+	BeforeRelease     func(ctx context.Context, conn interface{}) error
+	AfterAcquire      func(ctx context.Context, conn interface{}) error
 }
 
 // ConfigOption represents a configuration option function
@@ -59,122 +154,57 @@ type ConfigOption func(*Config)
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		Host:     getEnvOrDefault("POSTGRES_HOST", "localhost"),
-		Port:     getEnvOrDefaultInt("POSTGRES_PORT", 5432),
-		User:     getEnvOrDefault("POSTGRES_USER", "postgres"),
-		Password: getEnvOrDefault("POSTGRES_PASSWORD", ""),
-		Database: getEnvOrDefault("POSTGRES_DATABASE", "postgres"),
-		SSLMode:  getEnvOrDefault("POSTGRES_SSL_MODE", "disable"),
+		Host:     "localhost",
+		Port:     5432,
+		Database: "postgres",
+		Username: "postgres",
+		Password: "",
 
-		Driver: interfaces.DriverType(getEnvOrDefault("POSTGRES_DRIVER", string(interfaces.DriverPGX))),
+		MaxConns:        40,
+		MinConns:        2,
+		MaxConnLifetime: 9 * time.Second,
+		MaxConnIdleTime: 3 * time.Second,
 
-		MaxOpenConns:    getEnvOrDefaultInt("POSTGRES_MAX_OPEN_CONNS", 25),
-		MaxIdleConns:    getEnvOrDefaultInt("POSTGRES_MAX_IDLE_CONNS", 5),
-		ConnMaxLifetime: getEnvOrDefaultDuration("POSTGRES_CONN_MAX_LIFETIME", 5*time.Minute),
-		ConnMaxIdleTime: getEnvOrDefaultDuration("POSTGRES_CONN_MAX_IDLE_TIME", 5*time.Minute),
-		MinConns:        getEnvOrDefaultInt("POSTGRES_MIN_CONNS", 2),
+		ConnectTimeout: 30 * time.Second,
+		QueryTimeout:   30 * time.Second,
 
-		QueryTimeout:      getEnvOrDefaultDuration("POSTGRES_QUERY_TIMEOUT", 30*time.Second),
-		ConnectTimeout:    getEnvOrDefaultDuration("POSTGRES_CONNECT_TIMEOUT", 10*time.Second),
-		TLSEnabled:        getEnvOrDefaultBool("POSTGRES_TLS_ENABLED", false),
-		QueryMode:         getEnvOrDefault("POSTGRES_QUERY_MODE", "EXEC"),
-		Timezone:          getEnvOrDefault("POSTGRES_TIMEZONE", "UTC"),
-		ApplicationName:   getEnvOrDefault("POSTGRES_APPLICATION_NAME", "nexs-lib"),
-		SearchPath:        getEnvOrDefault("POSTGRES_SEARCH_PATH", "public"),
-		StatementTimeout:  getEnvOrDefaultDuration("POSTGRES_STATEMENT_TIMEOUT", 0),
-		LockTimeout:       getEnvOrDefaultDuration("POSTGRES_LOCK_TIMEOUT", 0),
-		IdleInTransaction: getEnvOrDefaultDuration("POSTGRES_IDLE_IN_TRANSACTION", 0),
+		TLSMode:         TLSModePrefer,
+		ApplicationName: "nexs-lib",
+		Timezone:        "UTC",
+		QueryExecMode:   QueryExecModeDefault,
 
-		TracingEnabled: getEnvOrDefaultBool("POSTGRES_TRACING_ENABLED", false),
-		LoggingEnabled: getEnvOrDefaultBool("POSTGRES_LOGGING_ENABLED", true),
-		MetricsEnabled: getEnvOrDefaultBool("POSTGRES_METRICS_ENABLED", false),
+		MultiTenantEnabled: false,
+		DefaultSchema:      "public",
 
-		MultiTenantEnabled: getEnvOrDefaultBool("POSTGRES_MULTI_TENANT_ENABLED", false),
-		RLSEnabled:         getEnvOrDefaultBool("POSTGRES_RLS_ENABLED", false),
+		RetryConfig: &RetryConfig{
+			Enabled:     true,
+			MaxRetries:  3,
+			InitialWait: 100 * time.Millisecond,
+			MaxWait:     2 * time.Second,
+			Multiplier:  2.0,
+			Jitter:      true,
+		},
+
+		FailoverConfig: &FailoverConfig{
+			Enabled:               false,
+			MaxFailoverTime:       30 * time.Second,
+			FailoverCheckInterval: 5 * time.Second,
+			AutoFailback:          true,
+			FailbackDelay:         10 * time.Second,
+		},
+
+		TracingEnabled:     false,
+		MetricsEnabled:     false,
+		LogLevel:           LogLevelInfo,
+		SlowQueryThreshold: 100 * time.Millisecond,
+
+		HealthCheckInterval: 30 * time.Second,
+		HealthCheckTimeout:  5 * time.Second,
+
+		RuntimeParams:    make(map[string]string),
+		ProviderSpecific: make(map[string]interface{}),
 	}
 }
-
-// NewConfig creates a new configuration with optional modifications
-func NewConfig(options ...ConfigOption) *Config {
-	cfg := DefaultConfig()
-	for _, option := range options {
-		option(cfg)
-	}
-	return cfg
-}
-
-// ConnectionString returns a formatted connection string for the given driver
-func (c *Config) ConnectionString() string {
-	switch c.Driver {
-	case interfaces.DriverPGX, interfaces.DriverPQ:
-		return c.buildPostgresConnectionString()
-	case interfaces.DriverGORM:
-		return c.buildGORMConnectionString()
-	default:
-		return c.buildPostgresConnectionString()
-	}
-}
-
-// DSN returns the data source name
-func (c *Config) DSN() string {
-	return c.ConnectionString()
-}
-
-// Validate validates the configuration
-func (c *Config) Validate() error {
-	if c.Host == "" {
-		return fmt.Errorf("host is required")
-	}
-	if c.Port <= 0 || c.Port > 65535 {
-		return fmt.Errorf("port must be between 1 and 65535")
-	}
-	if c.User == "" {
-		return fmt.Errorf("user is required")
-	}
-	if c.Database == "" {
-		return fmt.Errorf("database is required")
-	}
-	if c.MaxOpenConns <= 0 {
-		return fmt.Errorf("max_open_conns must be greater than 0")
-	}
-	if c.MaxIdleConns < 0 {
-		return fmt.Errorf("max_idle_conns must be greater than or equal to 0")
-	}
-	if c.MaxIdleConns > c.MaxOpenConns {
-		return fmt.Errorf("max_idle_conns cannot be greater than max_open_conns")
-	}
-	return nil
-}
-
-// buildPostgresConnectionString builds a standard PostgreSQL connection string
-func (c *Config) buildPostgresConnectionString() string {
-	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s application_name=%s search_path=%s timezone=%s",
-		c.Host, c.Port, c.User, c.Password, c.Database, c.SSLMode, c.ApplicationName, c.SearchPath, c.Timezone,
-	)
-}
-
-// buildGORMConnectionString builds a GORM-compatible connection string
-func (c *Config) buildGORMConnectionString() string {
-	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=%s application_name=%s search_path=%s",
-		c.Host, c.User, c.Password, c.Database, c.Port, c.SSLMode, c.Timezone, c.ApplicationName, c.SearchPath,
-	)
-
-	if c.StatementTimeout > 0 {
-		dsn += fmt.Sprintf(" statement_timeout=%dms", c.StatementTimeout.Milliseconds())
-	}
-	if c.LockTimeout > 0 {
-		dsn += fmt.Sprintf(" lock_timeout=%dms", c.LockTimeout.Milliseconds())
-	}
-	if c.IdleInTransaction > 0 {
-		dsn += fmt.Sprintf(" idle_in_transaction_session_timeout=%dms", c.IdleInTransaction.Milliseconds())
-	}
-
-	return dsn
-}
-
-// Configuration option functions
 
 // WithHost sets the database host
 func WithHost(host string) ConfigOption {
@@ -190,10 +220,17 @@ func WithPort(port int) ConfigOption {
 	}
 }
 
-// WithUser sets the database user
-func WithUser(user string) ConfigOption {
+// WithDatabase sets the database name
+func WithDatabase(database string) ConfigOption {
 	return func(c *Config) {
-		c.User = user
+		c.Database = database
+	}
+}
+
+// WithUsername sets the database username
+func WithUsername(username string) ConfigOption {
+	return func(c *Config) {
+		c.Username = username
 	}
 }
 
@@ -204,66 +241,38 @@ func WithPassword(password string) ConfigOption {
 	}
 }
 
-// WithDatabase sets the database name
-func WithDatabase(database string) ConfigOption {
+// WithConnectionString sets the connection string
+func WithConnectionString(connString string) ConfigOption {
 	return func(c *Config) {
-		c.Database = database
+		c.ConnString = connString
 	}
 }
 
-// WithSSLMode sets the SSL mode
-func WithSSLMode(sslMode string) ConfigOption {
+// WithMaxConns sets the maximum number of connections
+func WithMaxConns(maxConns int32) ConfigOption {
 	return func(c *Config) {
-		c.SSLMode = sslMode
+		c.MaxConns = maxConns
 	}
 }
 
-// WithDriver sets the database driver
-func WithDriver(driver interfaces.DriverType) ConfigOption {
-	return func(c *Config) {
-		c.Driver = driver
-	}
-}
-
-// WithMaxOpenConns sets the maximum number of open connections
-func WithMaxOpenConns(maxConns int) ConfigOption {
-	return func(c *Config) {
-		c.MaxOpenConns = maxConns
-	}
-}
-
-// WithMaxIdleConns sets the maximum number of idle connections
-func WithMaxIdleConns(maxIdle int) ConfigOption {
-	return func(c *Config) {
-		c.MaxIdleConns = maxIdle
-	}
-}
-
-// WithConnMaxLifetime sets the maximum connection lifetime
-func WithConnMaxLifetime(lifetime time.Duration) ConfigOption {
-	return func(c *Config) {
-		c.ConnMaxLifetime = lifetime
-	}
-}
-
-// WithConnMaxIdleTime sets the maximum connection idle time
-func WithConnMaxIdleTime(idleTime time.Duration) ConfigOption {
-	return func(c *Config) {
-		c.ConnMaxIdleTime = idleTime
-	}
-}
-
-// WithMinConns sets the minimum number of connections (pgx only)
-func WithMinConns(minConns int) ConfigOption {
+// WithMinConns sets the minimum number of connections
+func WithMinConns(minConns int32) ConfigOption {
 	return func(c *Config) {
 		c.MinConns = minConns
 	}
 }
 
-// WithQueryTimeout sets the query timeout
-func WithQueryTimeout(timeout time.Duration) ConfigOption {
+// WithMaxConnLifetime sets the maximum connection lifetime
+func WithMaxConnLifetime(lifetime time.Duration) ConfigOption {
 	return func(c *Config) {
-		c.QueryTimeout = timeout
+		c.MaxConnLifetime = lifetime
+	}
+}
+
+// WithMaxConnIdleTime sets the maximum connection idle time
+func WithMaxConnIdleTime(idleTime time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.MaxConnIdleTime = idleTime
 	}
 }
 
@@ -274,24 +283,24 @@ func WithConnectTimeout(timeout time.Duration) ConfigOption {
 	}
 }
 
-// WithTLSEnabled enables or disables TLS
-func WithTLSEnabled(enabled bool) ConfigOption {
+// WithQueryTimeout sets the query timeout
+func WithQueryTimeout(timeout time.Duration) ConfigOption {
 	return func(c *Config) {
-		c.TLSEnabled = enabled
+		c.QueryTimeout = timeout
 	}
 }
 
-// WithQueryMode sets the query execution mode
-func WithQueryMode(mode string) ConfigOption {
+// WithTLSConfig sets the TLS configuration
+func WithTLSConfig(tlsConfig *tls.Config) ConfigOption {
 	return func(c *Config) {
-		c.QueryMode = mode
+		c.TLSConfig = tlsConfig
 	}
 }
 
-// WithTimezone sets the timezone
-func WithTimezone(timezone string) ConfigOption {
+// WithTLSMode sets the TLS mode
+func WithTLSMode(mode TLSMode) ConfigOption {
 	return func(c *Config) {
-		c.Timezone = timezone
+		c.TLSMode = mode
 	}
 }
 
@@ -302,73 +311,242 @@ func WithApplicationName(name string) ConfigOption {
 	}
 }
 
-// WithTracingEnabled enables or disables tracing
-func WithTracingEnabled(enabled bool) ConfigOption {
+// WithSearchPath sets the search path
+func WithSearchPath(searchPath []string) ConfigOption {
 	return func(c *Config) {
-		c.TracingEnabled = enabled
+		c.SearchPath = searchPath
 	}
 }
 
-// WithLoggingEnabled enables or disables logging
-func WithLoggingEnabled(enabled bool) ConfigOption {
+// WithTimezone sets the timezone
+func WithTimezone(timezone string) ConfigOption {
 	return func(c *Config) {
-		c.LoggingEnabled = enabled
+		c.Timezone = timezone
 	}
 }
 
-// WithMetricsEnabled enables or disables metrics
-func WithMetricsEnabled(enabled bool) ConfigOption {
+// WithQueryExecMode sets the query execution mode
+func WithQueryExecMode(mode QueryExecMode) ConfigOption {
 	return func(c *Config) {
-		c.MetricsEnabled = enabled
+		c.QueryExecMode = mode
 	}
 }
 
-// WithMultiTenantEnabled enables or disables multi-tenant support
-func WithMultiTenantEnabled(enabled bool) ConfigOption {
+// WithMultiTenant enables multi-tenant mode
+func WithMultiTenant(enabled bool) ConfigOption {
 	return func(c *Config) {
 		c.MultiTenantEnabled = enabled
 	}
 }
 
-// WithRLSEnabled enables or disables Row Level Security
-func WithRLSEnabled(enabled bool) ConfigOption {
+// WithDefaultSchema sets the default schema
+func WithDefaultSchema(schema string) ConfigOption {
 	return func(c *Config) {
-		c.RLSEnabled = enabled
+		c.DefaultSchema = schema
 	}
 }
 
-// Helper functions
-
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+// WithRetryConfig sets the retry configuration
+func WithRetryConfig(retryConfig *RetryConfig) ConfigOption {
+	return func(c *Config) {
+		c.RetryConfig = retryConfig
 	}
-	return defaultValue
 }
 
-func getEnvOrDefaultInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
+// WithFailoverConfig sets the failover configuration
+func WithFailoverConfig(failoverConfig *FailoverConfig) ConfigOption {
+	return func(c *Config) {
+		c.FailoverConfig = failoverConfig
+	}
+}
+
+// WithReadReplicas sets the read replicas configuration
+func WithReadReplicas(replicas []ReplicaConfig) ConfigOption {
+	return func(c *Config) {
+		c.ReadReplicas = replicas
+	}
+}
+
+// WithTracing enables tracing
+func WithTracing(enabled bool) ConfigOption {
+	return func(c *Config) {
+		c.TracingEnabled = enabled
+	}
+}
+
+// WithMetrics enables metrics
+func WithMetrics(enabled bool) ConfigOption {
+	return func(c *Config) {
+		c.MetricsEnabled = enabled
+	}
+}
+
+// WithLogLevel sets the log level
+func WithLogLevel(level LogLevel) ConfigOption {
+	return func(c *Config) {
+		c.LogLevel = level
+	}
+}
+
+// WithSlowQueryThreshold sets the slow query threshold
+func WithSlowQueryThreshold(threshold time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.SlowQueryThreshold = threshold
+	}
+}
+
+// WithHealthCheckInterval sets the health check interval
+func WithHealthCheckInterval(interval time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.HealthCheckInterval = interval
+	}
+}
+
+// WithHealthCheckTimeout sets the health check timeout
+func WithHealthCheckTimeout(timeout time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.HealthCheckTimeout = timeout
+	}
+}
+
+// WithHooks sets the hooks configuration
+func WithHooks(hooks *HooksConfig) ConfigOption {
+	return func(c *Config) {
+		c.Hooks = hooks
+	}
+}
+
+// WithRuntimeParam sets a runtime parameter
+func WithRuntimeParam(key, value string) ConfigOption {
+	return func(c *Config) {
+		if c.RuntimeParams == nil {
+			c.RuntimeParams = make(map[string]string)
+		}
+		c.RuntimeParams[key] = value
+	}
+}
+
+// WithProviderSpecific sets provider-specific configuration
+func WithProviderSpecific(key string, value interface{}) ConfigOption {
+	return func(c *Config) {
+		if c.ProviderSpecific == nil {
+			c.ProviderSpecific = make(map[string]interface{})
+		}
+		c.ProviderSpecific[key] = value
+	}
+}
+
+// NewConfig creates a new configuration with the provided options
+func NewConfig(options ...ConfigOption) *Config {
+	config := DefaultConfig()
+	for _, option := range options {
+		option(config)
+	}
+	return config
+}
+
+// ConnectionString builds a connection string from the configuration
+func (c *Config) ConnectionString() string {
+	if c.ConnString != "" {
+		return c.ConnString
+	}
+
+	host := c.Host
+	if c.Port != 0 && c.Port != 5432 {
+		host = net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
+	}
+
+	connStr := "postgres://"
+	if c.Username != "" {
+		connStr += c.Username
+		if c.Password != "" {
+			connStr += ":" + c.Password
+		}
+		connStr += "@"
+	}
+
+	connStr += host
+	if c.Database != "" {
+		connStr += "/" + c.Database
+	}
+
+	params := make(map[string]string)
+	if c.TLSMode != "" {
+		params["sslmode"] = string(c.TLSMode)
+	}
+	if c.ApplicationName != "" {
+		params["application_name"] = c.ApplicationName
+	}
+	if c.Timezone != "" {
+		params["timezone"] = c.Timezone
+	}
+	if c.ConnectTimeout > 0 {
+		params["connect_timeout"] = strconv.Itoa(int(c.ConnectTimeout.Seconds()))
+	}
+
+	// Add runtime parameters
+	for key, value := range c.RuntimeParams {
+		params[key] = value
+	}
+
+	if len(params) > 0 {
+		connStr += "?"
+		first := true
+		for key, value := range params {
+			if !first {
+				connStr += "&"
+			}
+			connStr += key + "=" + value
+			first = false
 		}
 	}
-	return defaultValue
+
+	return connStr
 }
 
-func getEnvOrDefaultBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		if boolValue, err := strconv.ParseBool(value); err == nil {
-			return boolValue
-		}
+// Validate validates the configuration
+func (c *Config) Validate() error {
+	if c.ConnString == "" && c.Host == "" {
+		return ErrInvalidConfig{Field: "host", Message: "host is required when connection string is not provided"}
 	}
-	return defaultValue
+
+	if c.MaxConns <= 0 {
+		return ErrInvalidConfig{Field: "max_conns", Message: "max_conns must be greater than 0"}
+	}
+
+	if c.MinConns < 0 {
+		return ErrInvalidConfig{Field: "min_conns", Message: "min_conns must be greater than or equal to 0"}
+	}
+
+	if c.MinConns > c.MaxConns {
+		return ErrInvalidConfig{Field: "min_conns", Message: "min_conns cannot be greater than max_conns"}
+	}
+
+	if c.MaxConnLifetime < 0 {
+		return ErrInvalidConfig{Field: "max_conn_lifetime", Message: "max_conn_lifetime must be greater than or equal to 0"}
+	}
+
+	if c.MaxConnIdleTime < 0 {
+		return ErrInvalidConfig{Field: "max_conn_idle_time", Message: "max_conn_idle_time must be greater than or equal to 0"}
+	}
+
+	if c.ConnectTimeout < 0 {
+		return ErrInvalidConfig{Field: "connect_timeout", Message: "connect_timeout must be greater than or equal to 0"}
+	}
+
+	if c.QueryTimeout < 0 {
+		return ErrInvalidConfig{Field: "query_timeout", Message: "query_timeout must be greater than or equal to 0"}
+	}
+
+	return nil
 }
 
-func getEnvOrDefaultDuration(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
-	}
-	return defaultValue
+// ErrInvalidConfig represents a configuration validation error
+type ErrInvalidConfig struct {
+	Field   string
+	Message string
+}
+
+func (e ErrInvalidConfig) Error() string {
+	return "invalid config field '" + e.Field + "': " + e.Message
 }

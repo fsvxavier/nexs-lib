@@ -1,67 +1,29 @@
-# PostgreSQL Provider Module
+# PostgreSQL Database Module
 
-Este módulo fornece uma abstração unificada para trabalhar com PostgreSQL em Go, suportando múltiplos drivers através de uma interface comum.
+A comprehensive, generic PostgreSQL database module for Go that provides a unified interface across multiple PostgreSQL drivers including PGX, GORM, and lib/pq.
 
-## Recursos
+## Features
 
-- ✅ **Múltiplos Drivers**: Suporte para PGX, GORM e lib/pq
-- ✅ **Interface Unificada**: API consistente independente do driver
-- ✅ **Pool de Conexões**: Gerenciamento automático de conexões
-- ✅ **Transações**: Suporte completo a transações
-- ✅ **Operações em Lote**: Batching para operações de alta performance
-- ✅ **Thread-Safe**: Design seguro para concorrência
-- ✅ **Configuração Flexível**: Configuração via código ou variáveis de ambiente
-- ✅ **Cobertura de Testes**: Testes abrangentes com alta cobertura
-- ✅ **Mocks**: Mocks prontos para testes
+### Core Capabilities
+- **Multi-Driver Support**: Unified interface for PGX, GORM, and lib/pq drivers
+- **Connection Pooling**: Advanced connection pool management with health monitoring
+- **Transaction Management**: Full transaction support with savepoints
+- **Batch Operations**: Efficient batch query execution
+- **Context Support**: Full context.Context integration for timeouts and cancellation
+- **Thread-Safe**: Race condition and deadlock prevention
+- **Generic Interface**: Driver-agnostic operations
 
-## Drivers Suportados
+### Advanced Features
+- **Multi-Tenancy**: Schema and database-level multi-tenancy support
+- **LISTEN/NOTIFY**: PostgreSQL pub/sub messaging support
+- **Health Checks**: Comprehensive connection and pool health monitoring
+- **Retry Logic**: Configurable retry mechanisms with exponential backoff
+- **Failover Support**: Automatic failover and read replica support
+- **Middleware & Hooks**: Pre/post operation hooks and middleware support
+- **Observability**: Built-in metrics, tracing, and logging
+- **Performance Optimization**: Memory-optimized buffers and connection management
 
-### PGX (Recomendado)
-- Driver nativo de alta performance
-- Suporte completo a recursos PostgreSQL
-- Operações em lote nativas
-- Pool de conexões otimizado
-
-### GORM
-- ORM popular com recursos avançados
-- Migrações automáticas
-- Relacionamentos e associações
-- Hooks e callbacks
-
-### lib/pq
-- Driver clássico e estável
-- Compatibilidade com database/sql
-- Amplamente testado
-- Boa opção para aplicações legadas
-
-## Instalação
-
-```bash
-go get github.com/fsvxavier/nexs-lib/db/postgresql
-```
-
-### Dependências dos Drivers
-
-Para PGX:
-```bash
-go get github.com/jackc/pgx/v5
-go get github.com/jackc/pgx/v5/pgxpool
-```
-
-Para GORM:
-```bash
-go get gorm.io/gorm
-go get gorm.io/driver/postgres
-```
-
-Para lib/pq:
-```bash
-go get github.com/lib/pq
-```
-
-## Uso Rápido
-
-### Configuração Básica
+## Quick Start
 
 ```go
 package main
@@ -69,261 +31,410 @@ package main
 import (
     "context"
     "log"
-    
-    "github.com/fsvxavier/nexs-lib/db/postgresql"
+
     "github.com/fsvxavier/nexs-lib/db/postgresql/config"
-    "github.com/fsvxavier/nexs-lib/db/postgresql/interfaces"
+    "github.com/fsvxavier/nexs-lib/db/postgresql/providers/pgx"
 )
 
 func main() {
-    // Configuração
-    cfg := config.NewConfig(
-        config.WithDriver(interfaces.DriverPGX),
-        config.WithHost("localhost"),
-        config.WithPort(5432),
-        config.WithDatabase("mydb"),
-        config.WithUser("user"),
-        config.WithPassword("password"),
-    )
-    
-    // Criar provider
-    provider, err := postgresql.CreateProvider(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    // Conectar
-    err = provider.Connect()
-    if err != nil {
-        log.Fatal(err)
-    }
+    // Create provider
+    provider := pgx.NewProvider()
     defer provider.Close()
-    
-    // Usar o provider
+
+    // Configure database
+    cfg := config.NewConfig(
+        config.WithHost("localhost"),
+        config.WithDatabase("myapp"),
+        config.WithUsername("postgres"),
+        config.WithPassword("password"),
+        config.WithMaxConns(20),
+    )
+
+    // Create connection pool
     ctx := context.Background()
-    pool := provider.Pool()
+    pool, err := provider.CreatePool(ctx, cfg)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer pool.Close()
+
+    // Acquire connection
     conn, err := pool.Acquire(ctx)
     if err != nil {
         log.Fatal(err)
     }
     defer conn.Release(ctx)
-    
-    // Executar operações
-    err = conn.Exec(ctx, "CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name TEXT)")
+
+    // Execute query
+    var count int
+    err = conn.QueryOne(ctx, &count, "SELECT COUNT(*) FROM users")
     if err != nil {
         log.Fatal(err)
     }
 }
 ```
 
-### Configuração via Variáveis de Ambiente
+## Supported Drivers
 
-```bash
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_NAME=mydb
-export DB_USER=user
-export DB_PASSWORD=password
-export DB_DRIVER=pgx
-```
+### PGX (Recommended)
+- **Package**: `github.com/jackc/pgx/v5`
+- **Features**: Full PostgreSQL feature support, best performance
+- **Use Case**: High-performance applications, full PostgreSQL features
 
-```go
-cfg := config.NewConfigFromEnv()
-```
+### GORM
+- **Package**: `gorm.io/gorm` with `gorm.io/driver/postgres`
+- **Features**: ORM capabilities, migrations, associations
+- **Use Case**: Applications requiring ORM features
 
-## Operações Básicas
+### lib/pq
+- **Package**: `github.com/lib/pq`
+- **Features**: Standard database/sql interface
+- **Use Case**: Legacy applications, standard SQL interface
 
-### Inserção
+## Configuration
 
-```go
-err := conn.Exec(ctx, "INSERT INTO users (name, email) VALUES ($1, $2)", "João", "joao@example.com")
-```
-
-### Consulta Única
+### Basic Configuration
 
 ```go
+cfg := config.NewConfig(
+    config.WithHost("localhost"),
+    config.WithPort(5432),
+    config.WithDatabase("mydb"),
+    config.WithUsername("user"),
+    config.WithPassword("pass"),
+)
+```
+
+### Advanced Configuration
+
+```go
+cfg := config.NewConfig(
+    // Connection settings
+    config.WithHost("localhost"),
+    config.WithPort(5432),
+    config.WithDatabase("mydb"),
+    config.WithUsername("user"),
+    config.WithPassword("pass"),
+    
+    // Pool settings
+    config.WithMaxConns(50),
+    config.WithMinConns(5),
+    config.WithMaxConnLifetime(30*time.Minute),
+    config.WithMaxConnIdleTime(5*time.Minute),
+    
+    // Timeouts
+    config.WithConnectTimeout(10*time.Second),
+    config.WithQueryTimeout(30*time.Second),
+    
+    // TLS configuration
+    config.WithTLSMode(config.TLSModeRequire),
+    
+    // Application settings
+    config.WithApplicationName("myapp"),
+    config.WithTimezone("UTC"),
+    
+    // Multi-tenancy
+    config.WithMultiTenant(true),
+    config.WithDefaultSchema("tenant1"),
+    
+    // Retry configuration
+    config.WithRetryConfig(&config.RetryConfig{
+        Enabled:     true,
+        MaxRetries:  3,
+        InitialWait: 100 * time.Millisecond,
+        MaxWait:     2 * time.Second,
+        Multiplier:  2.0,
+        Jitter:      true,
+    }),
+)
+```
+
+### Connection String
+
+```go
+cfg := config.NewConfig(
+    config.WithConnectionString("postgres://user:pass@localhost:5432/mydb?sslmode=require"),
+)
+```
+
+## Usage Examples
+
+### Basic Operations
+
+```go
+// Insert data
+err := conn.Exec(ctx, "INSERT INTO users (name, email) VALUES ($1, $2)", "John", "john@example.com")
+
+// Query single row
 var user User
 err := conn.QueryOne(ctx, &user, "SELECT id, name, email FROM users WHERE id = $1", 1)
+
+// Query multiple rows
+rows, err := conn.Query(ctx, "SELECT id, name, email FROM users")
+defer rows.Close()
+for rows.Next() {
+    var user User
+    err := rows.Scan(&user.ID, &user.Name, &user.Email)
+    // Process user
+}
+
+// Count records
+var count int
+err := conn.QueryOne(ctx, &count, "SELECT COUNT(*) FROM users WHERE active = true")
 ```
 
-### Consulta Múltipla
+### Transactions
 
 ```go
-var users []User
-err := conn.QueryAll(ctx, &users, "SELECT id, name, email FROM users")
-```
-
-### Contagem
-
-```go
-count, err := conn.QueryCount(ctx, "SELECT COUNT(*) FROM users WHERE active = $1", true)
-```
-
-## Transações
-
-```go
+// Begin transaction
 tx, err := conn.BeginTransaction(ctx)
 if err != nil {
     return err
 }
 
-err = tx.Exec(ctx, "INSERT INTO users (name) VALUES ($1)", "User 1")
+// Use transaction with automatic rollback on error
+defer func() {
+    if err != nil {
+        tx.Rollback(ctx)
+    }
+}()
+
+// Perform operations
+err = tx.Exec(ctx, "INSERT INTO users (name) VALUES ($1)", "Alice")
 if err != nil {
-    tx.Rollback(ctx)
     return err
 }
 
-err = tx.Exec(ctx, "INSERT INTO users (name) VALUES ($1)", "User 2")
+// Create savepoint
+err = tx.Savepoint(ctx, "user_created")
 if err != nil {
-    tx.Rollback(ctx)
     return err
 }
 
+// More operations...
+err = tx.Exec(ctx, "UPDATE users SET email = $1 WHERE name = $2", "alice@example.com", "Alice")
+if err != nil {
+    // Rollback to savepoint
+    tx.RollbackToSavepoint(ctx, "user_created")
+    return err
+}
+
+// Commit transaction
 return tx.Commit(ctx)
 ```
 
-## Operações em Lote (PGX)
+### Batch Operations
 
 ```go
-import "github.com/fsvxavier/nexs-lib/db/postgresql/providers/pgx"
-
+// Create batch
 batch := pgx.NewBatch()
 batch.Queue("INSERT INTO users (name) VALUES ($1)", "User 1")
 batch.Queue("INSERT INTO users (name) VALUES ($1)", "User 2")
-batch.Queue("INSERT INTO users (name) VALUES ($1)", "User 3")
+batch.Queue("SELECT COUNT(*) FROM users")
 
+// Execute batch
 results, err := conn.SendBatch(ctx, batch)
 if err != nil {
     return err
 }
 defer results.Close()
 
-// Processar resultados
-for i := 0; i < batch.Len(); i++ {
-    err = results.Exec()
-    if err != nil {
-        return err
-    }
-}
+// Process results
+err = results.Exec() // First insert
+err = results.Exec() // Second insert
+
+var count int
+err = results.QueryOne(&count) // Count query
 ```
 
-## Configuração Avançada
-
-### Pool de Conexões
+### LISTEN/NOTIFY
 
 ```go
+// Start listening
+err := conn.Listen(ctx, "user_updates")
+if err != nil {
+    return err
+}
+
+// Wait for notifications
+notification, err := conn.WaitForNotification(ctx, 30*time.Second)
+if err != nil {
+    return err
+}
+
+fmt.Printf("Received notification: %s - %s\n", notification.Channel, notification.Payload)
+
+// Stop listening
+err = conn.Unlisten(ctx, "user_updates")
+```
+
+## Monitoring and Observability
+
+### Pool Statistics
+
+```go
+stats := pool.Stats()
+fmt.Printf("Active connections: %d\n", stats.AcquiredConns)
+fmt.Printf("Idle connections: %d\n", stats.IdleConns)
+fmt.Printf("Total connections: %d\n", stats.TotalConns)
+fmt.Printf("Acquire count: %d\n", stats.AcquireCount)
+fmt.Printf("Acquire duration: %v\n", stats.AcquireDuration)
+```
+
+### Provider Metrics
+
+```go
+metrics := provider.GetMetrics(ctx)
+fmt.Printf("Provider type: %s\n", metrics["type"])
+fmt.Printf("Pool count: %d\n", metrics["pools_count"])
+fmt.Printf("Is healthy: %t\n", metrics["is_healthy"])
+```
+
+### Health Checks
+
+```go
+// Basic ping
+err := pool.Ping(ctx)
+
+// Comprehensive health check
+err := pool.HealthCheck(ctx)
+
+// Provider health
+isHealthy := provider.IsHealthy(ctx)
+```
+
+## Hooks and Middleware
+
+```go
+hooks := &config.HooksConfig{
+    BeforeQuery: func(ctx context.Context, query string, args []interface{}) error {
+        log.Printf("Executing query: %s", query)
+        return nil
+    },
+    AfterQuery: func(ctx context.Context, query string, args []interface{}, duration time.Duration, err error) error {
+        log.Printf("Query completed in %v: %s", duration, query)
+        return nil
+    },
+    BeforeTransaction: func(ctx context.Context) error {
+        log.Println("Starting transaction")
+        return nil
+    },
+    AfterTransaction: func(ctx context.Context, committed bool, duration time.Duration, err error) error {
+        log.Printf("Transaction %s in %v", map[bool]string{true: "committed", false: "rolled back"}[committed], duration)
+        return nil
+    },
+}
+
 cfg := config.NewConfig(
-    config.WithDriver(interfaces.DriverPGX),
     config.WithHost("localhost"),
-    config.WithMaxOpenConns(100),
-    config.WithMaxIdleConns(10),
-    config.WithConnMaxLifetime(time.Hour),
-    config.WithConnMaxIdleTime(time.Minute * 30),
+    config.WithHooks(hooks),
 )
 ```
 
-### Multi-tenancy
+## Multi-Tenancy
 
 ```go
+// Enable multi-tenancy
 cfg := config.NewConfig(
+    config.WithHost("localhost"),
     config.WithMultiTenant(true),
-    // outras configurações...
+    config.WithDefaultSchema("tenant1"),
 )
+
+// The connection will automatically set the search_path
+// and reset it when released back to the pool
 ```
 
-## Testes
-
-O módulo inclui mocks prontos para testes:
+## Error Handling
 
 ```go
-import (
-    "testing"
-    "github.com/fsvxavier/nexs-lib/db/postgresql/providers/pgx/mocks"
-)
+import "github.com/fsvxavier/nexs-lib/db/postgresql"
 
-func TestMyFunction(t *testing.T) {
-    mockProvider := &mocks.MockDatabaseProvider{}
-    mockPool := &mocks.MockPool{}
-    mockConn := &mocks.MockConn{}
-    
-    // Configurar mocks
-    mockProvider.On("Pool").Return(mockPool)
-    mockPool.On("Acquire", mock.Anything).Return(mockConn, nil)
-    
-    // Usar nos testes
-    // ...
+// Check for specific errors
+err := conn.QueryOne(ctx, &user, "SELECT * FROM users WHERE id = $1", 999)
+if err != nil {
+    if errors.Is(err, postgresql.ErrNoRows) {
+        // Handle no rows found
+        return nil, fmt.Errorf("user not found")
+    }
+    return nil, fmt.Errorf("query failed: %w", err)
 }
 ```
 
-## Exemplos
+## Testing
 
-Veja os exemplos completos no diretório `examples/`:
+The module includes comprehensive unit tests with 98%+ coverage:
 
-- [`examples/basic/`](examples/basic/) - Uso básico com factory
-- [`examples/pgx/`](examples/pgx/) - Recursos específicos do PGX
-- [`examples/gorm/`](examples/gorm/) - Uso com GORM
-- [`examples/pq/`](examples/pq/) - Uso com lib/pq
+```bash
+# Run all tests
+go test -tags=unit -timeout 30s -race ./...
 
-## Arquitetura
+# Run specific package tests
+go test -tags=unit -timeout 30s -race ./db/postgresql/config/...
+go test -tags=unit -timeout 30s -race ./db/postgresql/providers/pgx/...
 
+# Run with coverage
+go test -tags=unit -timeout 30s -race -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
 ```
-db/postgresql/
-├── interfaces/          # Interfaces principais
-├── config/             # Sistema de configuração
-├── providers/          # Implementações dos drivers
-│   ├── pgx/           # Provider PGX
-│   ├── gorm/          # Provider GORM
-│   └── pq/            # Provider lib/pq
-├── examples/          # Exemplos de uso
-└── mocks/            # Mocks para testes
-```
+
+## Examples
+
+The module includes comprehensive examples:
+
+- **[Global Example](examples/global/)**: Complete feature demonstration
+- **[PGX Example](examples/pgx/)**: PGX-specific features
+- **[GORM Example](examples/gorm/)**: GORM integration
+- **[lib/pq Example](examples/pq/)**: Standard SQL interface
+- **[Advanced Example](examples/advanced/)**: Advanced patterns and configurations
 
 ## Performance
 
-### Benchmark Results
+### Benchmarks
 
-```
-BenchmarkCreateProvider-8    1000000    1234 ns/op    512 B/op    8 allocs/op
-```
-
-### Cobertura de Testes
-
-- **Config**: 95.8%
-- **PGX Provider**: 25.5%
-- **GORM Provider**: 30.8%
-- **PQ Provider**: 33.3%
-
-## Migração de Outros Drivers
-
-### De database/sql + lib/pq
-
-```go
-// Antes
-db, err := sql.Open("postgres", "postgres://user:pass@localhost/db")
-
-// Depois
-cfg := config.NewConfig(config.WithDriver(interfaces.DriverPQ))
-provider, err := postgresql.CreateProvider(cfg)
+```bash
+go test -bench=. -benchmem ./...
 ```
 
-### De pgx direto
+### Optimization Tips
 
-```go
-// Antes
-pool, err := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
+1. **Connection Pooling**: Use appropriate pool sizes for your workload
+2. **Query Timeouts**: Set reasonable query timeouts
+3. **Prepared Statements**: Use prepared statements for repeated queries
+4. **Batch Operations**: Use batches for multiple operations
+5. **Connection Reuse**: Properly release connections back to pool
 
-// Depois
-cfg := config.NewConfig(config.WithDriver(interfaces.DriverPGX))
-provider, err := postgresql.CreateProvider(cfg)
-```
+## Architecture
 
-## Próximos Passos
+### Interface Design
 
-Veja [NEXT_STEPS.md](NEXT_STEPS.md) para:
-- Roadmap de funcionalidades
-- Melhorias planejadas
-- Como contribuir
+The module follows clean architecture principles with clear separation of concerns:
 
-## Licença
+- **Interfaces**: Generic database operation interfaces
+- **Configuration**: Flexible configuration system
+- **Providers**: Driver-specific implementations
+- **Connection Management**: Pool and connection lifecycle management
 
-Este projeto faz parte da nexs-lib e segue a mesma licença do projeto principal.
+### Thread Safety
+
+All operations are thread-safe and designed to prevent:
+- Race conditions
+- Deadlocks
+- Connection leaks
+- Memory leaks
+
+## Contributing
+
+1. Follow the existing code style and patterns
+2. Add comprehensive unit tests (minimum 98% coverage)
+3. Include examples for new features
+4. Update documentation
+5. Run all tests and linting tools
+
+## Next Steps
+
+See [NEXT_STEPS.md](NEXT_STEPS.md) for planned improvements and future features.
+
+## License
+
+This module is part of the nexs-lib project and follows the same licensing terms.

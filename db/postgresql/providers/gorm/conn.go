@@ -23,6 +23,9 @@ func (c *Conn) QueryOne(ctx context.Context, dst interface{}, query string, args
 	if c.released {
 		return fmt.Errorf("connection is released")
 	}
+	if c.db == nil {
+		return fmt.Errorf("database connection is nil")
+	}
 
 	result := c.db.WithContext(ctx).Raw(query, args...).First(dst)
 	return result.Error
@@ -33,6 +36,9 @@ func (c *Conn) QueryAll(ctx context.Context, dst interface{}, query string, args
 	if c.released {
 		return fmt.Errorf("connection is released")
 	}
+	if c.db == nil {
+		return fmt.Errorf("database connection is nil")
+	}
 
 	result := c.db.WithContext(ctx).Raw(query, args...).Find(dst)
 	return result.Error
@@ -42,6 +48,9 @@ func (c *Conn) QueryAll(ctx context.Context, dst interface{}, query string, args
 func (c *Conn) QueryCount(ctx context.Context, query string, args ...interface{}) (*int, error) {
 	if c.released {
 		return nil, fmt.Errorf("connection is released")
+	}
+	if c.db == nil {
+		return nil, fmt.Errorf("database connection is nil")
 	}
 
 	var count int64
@@ -58,6 +67,9 @@ func (c *Conn) QueryCount(ctx context.Context, query string, args ...interface{}
 func (c *Conn) Query(ctx context.Context, query string, args ...interface{}) (postgresql.IRows, error) {
 	if c.released {
 		return nil, fmt.Errorf("connection is released")
+	}
+	if c.db == nil {
+		return nil, fmt.Errorf("database connection is nil")
 	}
 
 	rows, err := c.db.WithContext(ctx).Raw(query, args...).Rows()
@@ -76,7 +88,7 @@ func (c *Conn) QueryRow(ctx context.Context, query string, args ...interface{}) 
 
 	// GORM doesn't have direct QueryRow, so we use Raw with First
 	return &Row{
-		db:    c.db.WithContext(ctx),
+		db:    c.db,
 		query: query,
 		args:  args,
 	}, nil
@@ -86,6 +98,9 @@ func (c *Conn) QueryRow(ctx context.Context, query string, args ...interface{}) 
 func (c *Conn) Exec(ctx context.Context, query string, args ...interface{}) error {
 	if c.released {
 		return fmt.Errorf("connection is released")
+	}
+	if c.db == nil {
+		return fmt.Errorf("database connection is nil")
 	}
 
 	result := c.db.WithContext(ctx).Exec(query, args...)
@@ -101,6 +116,9 @@ func (c *Conn) SendBatch(ctx context.Context, batch postgresql.IBatch) (postgres
 func (c *Conn) BeginTransaction(ctx context.Context) (postgresql.ITransaction, error) {
 	if c.released {
 		return nil, fmt.Errorf("connection is released")
+	}
+	if c.db == nil {
+		return nil, fmt.Errorf("database connection is nil")
 	}
 
 	tx := c.db.WithContext(ctx).Begin()
@@ -157,6 +175,9 @@ func (c *Conn) Release(ctx context.Context) {
 func (c *Conn) Ping(ctx context.Context) error {
 	if c.released {
 		return fmt.Errorf("connection is released")
+	}
+	if c.db == nil {
+		return fmt.Errorf("database connection is nil")
 	}
 
 	sqlDB, err := c.db.DB()

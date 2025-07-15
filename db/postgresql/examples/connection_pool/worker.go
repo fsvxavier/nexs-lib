@@ -123,7 +123,15 @@ func (w *Worker) incrementError() {
 func (w *Worker) GetStats() WorkerStats {
 	w.stats.mu.RLock()
 	defer w.stats.mu.RUnlock()
-	return *w.stats
+
+	// Retorna cópia sem o mutex
+	return WorkerStats{
+		QueriesExecuted: w.stats.QueriesExecuted,
+		ErrorsCount:     w.stats.ErrorsCount,
+		TotalDuration:   w.stats.TotalDuration,
+		AvgResponseTime: w.stats.AvgResponseTime,
+		LastQueryTime:   w.stats.LastQueryTime,
+	}
 }
 
 // WorkerManager gerencia múltiplos workers

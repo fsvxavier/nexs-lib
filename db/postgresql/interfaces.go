@@ -168,7 +168,6 @@ type ProviderType string
 const (
 	ProviderTypePGX  ProviderType = "pgx"
 	ProviderTypeGORM ProviderType = "gorm"
-	ProviderTypePQ   ProviderType = "pq"
 )
 
 // IProvider represents a generic provider interface

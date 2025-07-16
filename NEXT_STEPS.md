@@ -63,11 +63,6 @@ Este documento descreve as melhorias planejadas, roadmap e como contribuir para 
   - [x] Reconexão automática com retry configurável
   - [x] Gerenciamento de múltiplos listeners simultaneamente
   - [x] Estatísticas por canal e timeouts configuráveis
-- [x] **Middleware System** - Sistema de interceptação ✅
-  - [x] Chain de middlewares com ExecutionContext completo
-  - [x] Middlewares built-in: Logging, Timing, Validation, Metrics, Cache
-  - [x] Execução ordenada Before/After/OnError
-  - [x] Estatísticas detalhadas por middleware e operação
 - [x] **Hooks System** - Hooks pré/pós operações ✅
   - [x] Hooks para todos os tipos de operações
   - [x] Sistema de prioridades e condições
@@ -167,13 +162,11 @@ Este documento descreve as melhorias planejadas, roadmap e como contribuir para 
   - TLS/Encryption: Testes de certificados e modos SSL
   - Replicas: Testes de balanceamento e failover
   - Notifications: Testes de LISTEN/NOTIFY
-  - Middleware/Hooks: Testes de execução e chain
 - [ ] **Integration Tests**: Testes com banco real
   - Setup Docker para PostgreSQL com TLS
   - Testes E2E para réplicas e failover
   - Testes de notificações em tempo real
 - [ ] **Performance Tests**: Benchmarks dos novos sistemas
-  - Overhead de middlewares e hooks
   - Performance de balanceamento de réplicas
   - Latência de notificações
 
@@ -295,12 +288,6 @@ go tool cover -html=coverage.out
 - Estatísticas detalhadas por canal
 - Timeouts configuráveis para handlers
 
-### ✅ Middleware & Hooks Systems
-- Chain de middlewares com contexto completo
-- Sistema de hooks com prioridades e condições
-- Execução assíncrona e estatísticas individuais
-- Middlewares e hooks built-in prontos para uso
-
 ## Melhorias de Longo Prazo (3-6 meses)
 
 ### 7. Finalização dos Últimos Recursos 🔌
@@ -397,13 +384,6 @@ go test -tags=unit ./...
 - **Statistics Tracking**: Métricas por canal e handler
 - **Timeout Management**: Timeouts configuráveis para handlers
 - **Notification Manager**: Gerenciamento de múltiplos listeners
-
-#### 🔄 Middleware Interception System
-- **Execution Chain**: Chain de middlewares com ordem configurável
-- **Rich Context**: ExecutionContext com query, args, metadata completos
-- **Built-in Middlewares**: Logging, Timing, Validation, Metrics, Cache
-- **Before/After/OnError**: Hooks completos no ciclo de vida
-- **Performance Stats**: Métricas detalhadas por middleware
 
 #### 🎣 Advanced Hooks System
 - **Comprehensive Hook Types**: Pre/Post Query, Connect, Transaction, etc.

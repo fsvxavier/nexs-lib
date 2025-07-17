@@ -3,6 +3,7 @@ package postgresql
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/fsvxavier/nexs-lib/db/postgresql/config"
 	"github.com/fsvxavier/nexs-lib/db/postgresql/hooks"
@@ -49,12 +50,31 @@ func NewPostgreSQLProvider(providerType interfaces.ProviderType) (interfaces.Pos
 		return nil, fmt.Errorf("unsupported provider type: %s", providerType)
 	}
 
+	// Create default retry and failover configurations
+	defaultRetryConfig := interfaces.RetryConfig{
+		MaxRetries:      3,
+		InitialInterval: time.Millisecond * 100,
+		MaxInterval:     time.Second * 5,
+		Multiplier:      2.0,
+		RandomizeWait:   true,
+	}
+
+	defaultFailoverConfig := interfaces.FailoverConfig{
+		Enabled:             false,
+		FallbackNodes:       []string{},
+		HealthCheckInterval: time.Second * 30,
+		RetryInterval:       time.Second * 5,
+		MaxFailoverAttempts: 3,
+	}
+
 	provider := &PostgreSQLProviderImpl{
 		name:              fmt.Sprintf("postgresql-%s", providerType),
 		version:           "1.0.0",
 		supportedFeatures: supportedFeatures,
 		driverName:        driverName,
 		hookManager:       hooks.NewDefaultHookManager(),
+		retryManager:      NewDefaultRetryManager(defaultRetryConfig),
+		failoverManager:   NewDefaultFailoverManager(defaultFailoverConfig),
 	}
 
 	return provider, nil

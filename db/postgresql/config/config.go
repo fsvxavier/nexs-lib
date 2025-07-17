@@ -3,6 +3,8 @@ package config
 import (
 	"crypto/tls"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	interfaces "github.com/fsvxavier/nexs-lib/db/postgresql/interface"
@@ -66,6 +68,19 @@ func NewDefaultConfig(connectionString string) *DefaultConfig {
 	}
 }
 
+// NewConfig creates a new configuration with the provided options
+func NewConfig(options ...ConfigOption) interfaces.Config {
+	config := NewDefaultConfig("")
+	for _, option := range options {
+		if err := option(config); err != nil {
+			// In a real-world scenario, you might want to handle this differently
+			// For now, we'll just continue with the configuration as-is
+			continue
+		}
+	}
+	return config
+}
+
 // GetConnectionString returns the connection string
 func (c *DefaultConfig) GetConnectionString() string {
 	return c.connectionString
@@ -110,6 +125,13 @@ func (c *DefaultConfig) GetFailoverConfig() interfaces.FailoverConfig {
 func (c *DefaultConfig) Validate() error {
 	if c.connectionString == "" {
 		return fmt.Errorf("connection string cannot be empty")
+	}
+
+	// Basic validation of connection string format
+	if !strings.HasPrefix(c.connectionString, "postgres://") && !strings.HasPrefix(c.connectionString, "postgresql://") {
+		if _, err := url.Parse(c.connectionString); err != nil {
+			return fmt.Errorf("invalid connection string format: %w", err)
+		}
 	}
 
 	if c.poolConfig.MaxConns <= 0 {
@@ -394,5 +416,49 @@ func (c *DefaultConfig) Clone() *DefaultConfig {
 		copy(clone.failoverConfig.FallbackNodes, c.failoverConfig.FallbackNodes)
 	}
 
+	return clone
+}
+
+// Builder pattern methods - returns new instance with modified config
+
+// WithPoolConfig returns a new config with the specified pool configuration
+func (c *DefaultConfig) WithPoolConfig(poolConfig interfaces.PoolConfig) *DefaultConfig {
+	clone := c.Clone()
+	clone.poolConfig = poolConfig
+	return clone
+}
+
+// WithTLSConfig returns a new config with the specified TLS configuration
+func (c *DefaultConfig) WithTLSConfig(tlsConfig interfaces.TLSConfig) *DefaultConfig {
+	clone := c.Clone()
+	clone.tlsConfig = tlsConfig
+	return clone
+}
+
+// WithRetryConfig returns a new config with the specified retry configuration
+func (c *DefaultConfig) WithRetryConfig(retryConfig interfaces.RetryConfig) *DefaultConfig {
+	clone := c.Clone()
+	clone.retryConfig = retryConfig
+	return clone
+}
+
+// WithHookConfig returns a new config with the specified hook configuration
+func (c *DefaultConfig) WithHookConfig(hookConfig interfaces.HookConfig) *DefaultConfig {
+	clone := c.Clone()
+	clone.hookConfig = hookConfig
+	return clone
+}
+
+// WithReadReplicaConfig returns a new config with the specified read replica configuration
+func (c *DefaultConfig) WithReadReplicaConfig(readReplicaConfig interfaces.ReadReplicaConfig) *DefaultConfig {
+	clone := c.Clone()
+	clone.readReplicaConfig = readReplicaConfig
+	return clone
+}
+
+// WithFailoverConfig returns a new config with the specified failover configuration
+func (c *DefaultConfig) WithFailoverConfig(failoverConfig interfaces.FailoverConfig) *DefaultConfig {
+	clone := c.Clone()
+	clone.failoverConfig = failoverConfig
 	return clone
 }

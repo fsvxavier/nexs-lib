@@ -28,6 +28,8 @@ func TestConnectionStatsImpl(t *testing.T) {
 		{"GetAverageExecTime", testGetAverageExecTime},
 		{"UpdateLastActivity", testUpdateLastActivity},
 		{"ThreadSafety", testConnectionStatsThreadSafety},
+		{"IncrementFailedExecs", testIncrementFailedExecs},
+		{"IncrementFailedTransactions", testIncrementFailedTransactions},
 	}
 
 	for _, tt := range tests {
@@ -354,4 +356,24 @@ func BenchmarkConcurrentConnectionStats(b *testing.B) {
 			}
 		})
 	})
+}
+
+func testIncrementFailedExecs(t *testing.T) {
+	stats := NewConnectionStats()
+
+	stats.IncrementFailedExecs()
+	assert.Equal(t, int64(1), stats.failedExecs)
+
+	stats.IncrementFailedExecs()
+	assert.Equal(t, int64(2), stats.failedExecs)
+}
+
+func testIncrementFailedTransactions(t *testing.T) {
+	stats := NewConnectionStats()
+
+	stats.IncrementFailedTransactions()
+	assert.Equal(t, int64(1), stats.failedTransactions)
+
+	stats.IncrementFailedTransactions()
+	assert.Equal(t, int64(2), stats.failedTransactions)
 }

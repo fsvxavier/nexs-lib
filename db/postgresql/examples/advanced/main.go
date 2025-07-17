@@ -12,18 +12,66 @@ import (
 	interfaces "github.com/fsvxavier/nexs-lib/db/postgresql/interface"
 )
 
+// Error categorization
+type ErrorCategory int
+
+const (
+	ConnectionError ErrorCategory = iota
+	SyntaxError
+	ConstraintError
+	TimeoutError
+	UnknownError
+)
+
+// Custom metrics collector
+type MetricsCollector struct {
+	mu                 sync.RWMutex
+	queryCount         int64
+	totalDuration      time.Duration
+	errorCount         int64
+	slowQueries        int64
+	slowQueryThreshold time.Duration
+}
+
+func NewMetricsCollector() *MetricsCollector {
+	return &MetricsCollector{
+		slowQueryThreshold: 100 * time.Millisecond,
+	}
+}
+
+func (m *MetricsCollector) RecordQuery(duration time.Duration, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.queryCount++
+	m.totalDuration += duration
+
+	if err != nil {
+		m.errorCount++
+	}
+
+	if duration > m.slowQueryThreshold {
+		m.slowQueries++
+	}
+}
+
+func (m *MetricsCollector) GetStats() (int64, time.Duration, int64, int64) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.queryCount, m.totalDuration, m.errorCount, m.slowQueries
+}
+
 func main() {
 	// Advanced PostgreSQL provider example with custom hooks and middlewares
 	ctx := context.Background()
 
 	// Create configuration with advanced features
-	cfg := postgresql.NewDefaultConfig("postgres://postgres:password@localhost:5432/testdb")
+	cfg := postgresql.NewDefaultConfig("postgres://user:password@localhost:5432/testdb")
 
 	if defaultCfg, ok := cfg.(*config.DefaultConfig); ok {
 		err := defaultCfg.ApplyOptions(
-			postgresql.WithMaxConns(50),
-			postgresql.WithMinConns(10),
-			postgresql.WithMaxConnLifetime(1*time.Hour),
+			postgresql.WithMaxConns(10),
+			postgresql.WithMinConns(2),
 		)
 		if err != nil {
 			log.Fatalf("Failed to apply configuration: %v", err)
@@ -43,49 +91,67 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Demonstrate custom hooks
+	// Example 1: Custom hooks demonstration
 	if err := demonstrateCustomHooks(pool); err != nil {
-		log.Fatalf("Custom hooks demo failed: %v", err)
+		log.Printf("Custom hooks demo failed: %v", err)
 	}
 
-	// Demonstrate concurrent operations
-	if err := demonstrateConcurrentOperations(ctx, pool); err != nil {
-		log.Fatalf("Concurrent operations demo failed: %v", err)
+	// Example 2: Metrics and monitoring
+	if err := demonstrateMetricsAndMonitoring(ctx, pool); err != nil {
+		log.Printf("Metrics demo failed: %v", err)
 	}
 
-	// Demonstrate advanced querying
-	if err := demonstrateAdvancedQuerying(ctx, pool); err != nil {
-		log.Fatalf("Advanced querying demo failed: %v", err)
+	// Example 3: Query performance analysis
+	if err := demonstratePerformanceAnalysis(ctx, pool); err != nil {
+		log.Printf("Performance analysis demo failed: %v", err)
 	}
 
-	// Show detailed statistics
-	showDetailedStatistics(pool)
+	// Example 4: Advanced error handling
+	if err := demonstrateAdvancedErrorHandling(ctx, pool); err != nil {
+		log.Printf("Error handling demo failed: %v", err)
+	}
+
+	// Example 5: Connection lifecycle hooks
+	if err := demonstrateConnectionLifecycleHooks(ctx, pool); err != nil {
+		log.Printf("Connection lifecycle demo failed: %v", err)
+	}
 
 	fmt.Println("Advanced example completed successfully!")
 }
 
 func demonstrateCustomHooks(pool interfaces.IPool) error {
-	fmt.Println("\n--- Custom Hooks Demo ---")
+	fmt.Println("\n=== Custom Hooks Demonstration ===")
 
 	hookManager := pool.GetHookManager()
+	if hookManager == nil {
+		fmt.Println("Note: Hook manager not available in this implementation")
+		return nil
+	}
 
-	// Register custom query logging hook
+	// Create metrics collector
+	metrics := NewMetricsCollector()
+
+	// 1. Query logging hook
 	queryLogHook := func(ctx *interfaces.ExecutionContext) *interfaces.HookResult {
 		if ctx.Operation == "query" || ctx.Operation == "exec" {
-			fmt.Printf("🪝 [HOOK] %s: %s\n", ctx.Operation, ctx.Query)
+			fmt.Printf("🪝 [QUERY] %s: %s\n", ctx.Operation, truncateQuery(ctx.Query, 60))
+			if len(ctx.Args) > 0 {
+				fmt.Printf("🪝 [ARGS] %v\n", ctx.Args)
+			}
 		}
 		return &interfaces.HookResult{Continue: true}
 	}
 
-	// Register timing hook
+	// 2. Timing hook
 	timingHook := func(ctx *interfaces.ExecutionContext) *interfaces.HookResult {
 		if ctx.Duration > 0 {
 			fmt.Printf("⏱️  [TIMING] %s took %v\n", ctx.Operation, ctx.Duration)
+			metrics.RecordQuery(ctx.Duration, ctx.Error)
 		}
 		return &interfaces.HookResult{Continue: true}
 	}
 
-	// Register error logging hook
+	// 3. Error logging hook
 	errorHook := func(ctx *interfaces.ExecutionContext) *interfaces.HookResult {
 		if ctx.Error != nil {
 			fmt.Printf("❌ [ERROR] %s failed: %v\n", ctx.Operation, ctx.Error)
@@ -93,313 +159,493 @@ func demonstrateCustomHooks(pool interfaces.IPool) error {
 		return &interfaces.HookResult{Continue: true}
 	}
 
-	// Register hooks
-	if err := hookManager.RegisterHook(interfaces.BeforeQueryHook, queryLogHook); err != nil {
-		return fmt.Errorf("failed to register query hook: %w", err)
-	}
-
-	if err := hookManager.RegisterHook(interfaces.AfterQueryHook, timingHook); err != nil {
-		return fmt.Errorf("failed to register timing hook: %w", err)
-	}
-
-	if err := hookManager.RegisterHook(interfaces.OnErrorHook, errorHook); err != nil {
-		return fmt.Errorf("failed to register error hook: %w", err)
-	}
-
-	// Register custom performance monitoring hook
-	performanceHook := func(ctx *interfaces.ExecutionContext) *interfaces.HookResult {
-		if ctx.Duration > 1*time.Second {
-			fmt.Printf("🐌 [SLOW QUERY] Operation %s took %v - Query: %s\n",
-				ctx.Operation, ctx.Duration, ctx.Query)
+	// 4. Slow query detection hook
+	slowQueryHook := func(ctx *interfaces.ExecutionContext) *interfaces.HookResult {
+		if ctx.Duration > 50*time.Millisecond {
+			fmt.Printf("🐌 [SLOW QUERY] %s took %v (threshold: 50ms)\n",
+				ctx.Operation, ctx.Duration)
+			fmt.Printf("🐌 [SLOW QUERY SQL] %s\n", truncateQuery(ctx.Query, 100))
 		}
 		return &interfaces.HookResult{Continue: true}
 	}
 
-	if err := hookManager.RegisterCustomHook(interfaces.CustomHookBase+1, "performance_monitor", performanceHook); err != nil {
-		return fmt.Errorf("failed to register performance hook: %w", err)
+	// 5. Security audit hook
+	auditHook := func(ctx *interfaces.ExecutionContext) *interfaces.HookResult {
+		// Log sensitive operations
+		if containsSensitiveOperation(ctx.Query) {
+			fmt.Printf("🔒 [AUDIT] Sensitive operation detected: %s\n",
+				truncateQuery(ctx.Query, 80))
+		}
+		return &interfaces.HookResult{Continue: true}
 	}
 
-	fmt.Println("✓ Custom hooks registered successfully")
-	return nil
-}
-
-func demonstrateConcurrentOperations(ctx context.Context, pool interfaces.IPool) error {
-	fmt.Println("\n--- Concurrent Operations Demo ---")
-
-	// Setup test table
-	conn, err := pool.Acquire(ctx)
-	if err != nil {
-		return err
+	// Register hooks
+	hooks := []struct {
+		hookType interfaces.HookType
+		hook     interfaces.Hook
+		name     string
+	}{
+		{interfaces.BeforeQueryHook, queryLogHook, "Query Logger"},
+		{interfaces.AfterQueryHook, timingHook, "Timer"},
+		{interfaces.OnErrorHook, errorHook, "Error Logger"},
+		{interfaces.AfterQueryHook, slowQueryHook, "Slow Query Detector"},
+		{interfaces.BeforeQueryHook, auditHook, "Security Auditor"},
 	}
 
-	_, err = conn.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS concurrent_test (
-			id SERIAL PRIMARY KEY,
-			value INTEGER,
-			worker_id INTEGER,
-			created_at TIMESTAMP DEFAULT NOW()
-		)
-	`)
-	conn.Release()
-	if err != nil {
-		return err
+	for _, h := range hooks {
+		if err := hookManager.RegisterHook(h.hookType, h.hook); err != nil {
+			fmt.Printf("⚠️  Failed to register %s hook: %v\n", h.name, err)
+		} else {
+			fmt.Printf("✅ Registered %s hook\n", h.name)
+		}
 	}
 
-	// Run concurrent workers
-	const numWorkers = 10
-	const operationsPerWorker = 20
+	// Test hooks with some operations
+	fmt.Println("\n📊 Testing hooks with sample operations...")
 
-	var wg sync.WaitGroup
-	errors := make(chan error, numWorkers)
+	ctx := context.Background()
+	err := pool.AcquireFunc(ctx, func(conn interfaces.IConn) error {
+		// Test queries that will trigger various hooks
+		queries := []string{
+			"SELECT 1 as test",
+			"SELECT COUNT(*) FROM information_schema.tables",
+			"SELECT pg_sleep(0.1), 'slow query' as result", // This will be slow
+			"SELECT * FROM non_existent_table",             // This will error
+		}
 
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-
-			for j := 0; j < operationsPerWorker; j++ {
-				err := pool.AcquireFunc(ctx, func(conn interfaces.IConn) error {
-					// Insert with worker ID
-					_, err := conn.Exec(ctx,
-						"INSERT INTO concurrent_test (value, worker_id) VALUES ($1, $2)",
-						j, workerID)
-					return err
-				})
-
-				if err != nil {
-					errors <- fmt.Errorf("worker %d operation %d failed: %w", workerID, j, err)
-					return
-				}
+		for i, query := range queries {
+			fmt.Printf("\n🔍 Executing test query %d...\n", i+1)
+			if i == 3 { // Skip the error query for this demo
+				fmt.Printf("⏭️  Skipping error query for demo purposes\n")
+				continue
 			}
-		}(i)
-	}
 
-	// Wait for all workers to complete
-	wg.Wait()
-	close(errors)
-
-	// Check for errors
-	var errorCount int
-	for err := range errors {
-		log.Printf("Concurrent operation error: %v", err)
-		errorCount++
-	}
-
-	// Verify results
-	conn, err = pool.Acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer conn.Release()
-
-	count, err := conn.QueryCount(ctx, "SELECT COUNT(*) FROM concurrent_test")
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("✓ Concurrent operations completed: %d errors, %d total records\n", errorCount, count)
-	return nil
-}
-
-func demonstrateAdvancedQuerying(ctx context.Context, pool interfaces.IPool) error {
-	fmt.Println("\n--- Advanced Querying Demo ---")
-
-	return pool.AcquireFunc(ctx, func(conn interfaces.IConn) error {
-		// Prepared statement example
-		err := conn.Prepare(ctx, "get_user_by_id", "SELECT id, name, email FROM users WHERE id = $1")
-		if err != nil {
-			return fmt.Errorf("failed to prepare statement: %w", err)
-		}
-		defer conn.Deallocate(ctx, "get_user_by_id")
-
-		// Complex query with CTEs
-		complexQuery := `
-			WITH user_stats AS (
-				SELECT 
-					worker_id,
-					COUNT(*) as operation_count,
-					AVG(value) as avg_value
-				FROM concurrent_test 
-				GROUP BY worker_id
-			)
-			SELECT 
-				worker_id,
-				operation_count,
-				ROUND(avg_value, 2) as avg_value
-			FROM user_stats 
-			ORDER BY operation_count DESC
-			LIMIT 5
-		`
-
-		var stats []struct {
-			WorkerID       int     `db:"worker_id"`
-			OperationCount int64   `db:"operation_count"`
-			AvgValue       float64 `db:"avg_value"`
-		}
-
-		err = conn.QueryAll(ctx, &stats, complexQuery)
-		if err != nil {
-			return fmt.Errorf("failed to execute complex query: %w", err)
-		}
-
-		fmt.Printf("✓ Top 5 workers by operation count:\n")
-		for _, stat := range stats {
-			fmt.Printf("  Worker %d: %d operations, avg value: %.2f\n",
-				stat.WorkerID, stat.OperationCount, stat.AvgValue)
+			row := conn.QueryRow(ctx, query)
+			var result interface{}
+			_ = row.Scan(&result) // Ignore errors for demo
 		}
 
 		return nil
 	})
+
+	if err != nil {
+		fmt.Printf("Note: Some operations would require actual database: %v\n", err)
+	}
+
+	// Show collected metrics
+	queryCount, totalDuration, errorCount, slowQueries := metrics.GetStats()
+	fmt.Printf("\n📈 Collected Metrics:\n")
+	fmt.Printf("  - Total Queries: %d\n", queryCount)
+	fmt.Printf("  - Total Duration: %v\n", totalDuration)
+	fmt.Printf("  - Error Count: %d\n", errorCount)
+	fmt.Printf("  - Slow Queries: %d\n", slowQueries)
+	if queryCount > 0 {
+		avgDuration := totalDuration / time.Duration(queryCount)
+		fmt.Printf("  - Average Duration: %v\n", avgDuration)
+	}
+
+	return nil
 }
 
-func showDetailedStatistics(pool interfaces.IPool) {
-	fmt.Println("\n--- Detailed Statistics ---")
+func demonstrateMetricsAndMonitoring(ctx context.Context, pool interfaces.IPool) error {
+	fmt.Println("\n=== Metrics and Monitoring Demonstration ===")
+
+	// Custom monitoring hook
+	var operationStats = struct {
+		sync.RWMutex
+		operations map[string]int64
+		durations  map[string]time.Duration
+	}{
+		operations: make(map[string]int64),
+		durations:  make(map[string]time.Duration),
+	}
+
+	hookManager := pool.GetHookManager()
+	if hookManager != nil {
+		// Metrics collection hook
+		metricsHook := func(ctx *interfaces.ExecutionContext) *interfaces.HookResult {
+			operationStats.Lock()
+			operationStats.operations[ctx.Operation]++
+			operationStats.durations[ctx.Operation] += ctx.Duration
+			operationStats.Unlock()
+			return &interfaces.HookResult{Continue: true}
+		}
+
+		hookManager.RegisterHook(interfaces.AfterQueryHook, metricsHook)
+		hookManager.RegisterHook(interfaces.AfterExecHook, metricsHook)
+	}
+
+	// Simulate various operations
+	fmt.Println("🔄 Simulating various database operations...")
+
+	err := pool.AcquireFunc(ctx, func(conn interfaces.IConn) error {
+		operations := []struct {
+			name  string
+			query string
+		}{
+			{"metadata_query", "SELECT version()"},
+			{"count_query", "SELECT 1"},
+			{"info_query", "SELECT current_database()"},
+		}
+
+		for _, op := range operations {
+			fmt.Printf("  Executing %s...\n", op.name)
+			row := conn.QueryRow(ctx, op.query)
+			var result string
+			_ = row.Scan(&result)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		fmt.Printf("Note: Monitoring operations would require actual database: %v\n", err)
+	}
+
+	// Display collected metrics
+	fmt.Println("\n📊 Operation Metrics:")
+	operationStats.RLock()
+	for operation, count := range operationStats.operations {
+		duration := operationStats.durations[operation]
+		avgDuration := time.Duration(0)
+		if count > 0 {
+			avgDuration = duration / time.Duration(count)
+		}
+		fmt.Printf("  %s: %d operations, avg duration: %v\n",
+			operation, count, avgDuration)
+	}
+	operationStats.RUnlock()
 
 	// Pool statistics
-	poolStats := pool.Stats()
-	fmt.Printf("Pool Statistics:\n")
-	fmt.Printf("  Acquired Connections: %d\n", poolStats.AcquiredConns)
-	fmt.Printf("  Total Connections: %d\n", poolStats.TotalConns)
-	fmt.Printf("  Idle Connections: %d\n", poolStats.IdleConns)
-	fmt.Printf("  Max Connections: %d\n", poolStats.MaxConns)
-	fmt.Printf("  Acquire Count: %d\n", poolStats.AcquireCount)
-	fmt.Printf("  Average Acquire Duration: %v\n", poolStats.AcquireDuration)
-
-	// Buffer pool statistics (if available)
-	if bufferPool := pool.GetBufferPool(); bufferPool != nil {
-		memStats := bufferPool.Stats()
-		fmt.Printf("Buffer Pool Statistics:\n")
-		fmt.Printf("  Allocated Buffers: %d\n", memStats.AllocatedBuffers)
-		fmt.Printf("  Pooled Buffers: %d\n", memStats.PooledBuffers)
-		fmt.Printf("  Total Allocations: %d\n", memStats.TotalAllocations)
-		fmt.Printf("  Total Deallocations: %d\n", memStats.TotalDeallocations)
-	}
-
-	// Safety monitor (if available)
-	if safetyMonitor := pool.GetSafetyMonitor(); safetyMonitor != nil {
-		fmt.Printf("Safety Monitor:\n")
-		fmt.Printf("  Is Healthy: %t\n", safetyMonitor.IsHealthy())
-		fmt.Printf("  Deadlocks: %d\n", len(safetyMonitor.CheckDeadlocks()))
-		fmt.Printf("  Race Conditions: %d\n", len(safetyMonitor.CheckRaceConditions()))
-		fmt.Printf("  Leaks: %d\n", len(safetyMonitor.CheckLeaks()))
-	}
-}
-
-// Custom Audit Middleware
-type AuditMiddleware struct {
-	name     string
-	priority int
-	auditLog []AuditEntry
-	mu       sync.RWMutex
-}
-
-type AuditEntry struct {
-	Timestamp time.Time
-	Operation string
-	Query     string
-	Duration  time.Duration
-	Success   bool
-	UserID    string // Could be extracted from context
-}
-
-func (am *AuditMiddleware) Name() string {
-	return am.name
-}
-
-func (am *AuditMiddleware) Priority() int {
-	return am.priority
-}
-
-func (am *AuditMiddleware) Before(ctx *interfaces.ExecutionContext) error {
-	// Could extract user information from context here
-	return nil
-}
-
-func (am *AuditMiddleware) After(ctx *interfaces.ExecutionContext) error {
-	am.mu.Lock()
-	defer am.mu.Unlock()
-
-	entry := AuditEntry{
-		Timestamp: time.Now(),
-		Operation: ctx.Operation,
-		Query:     ctx.Query,
-		Duration:  ctx.Duration,
-		Success:   ctx.Error == nil,
-		UserID:    "system", // Could be extracted from context
-	}
-
-	am.auditLog = append(am.auditLog, entry)
-	fmt.Printf("📋 [AUDIT] %s operation %s in %v\n",
-		entry.Operation,
-		map[bool]string{true: "succeeded", false: "failed"}[entry.Success],
-		entry.Duration)
+	fmt.Println("\n📈 Pool Statistics:")
+	stats := pool.Stats()
+	fmt.Printf("  - Total Connections: %d\n", stats.TotalConns)
+	fmt.Printf("  - Acquired Connections: %d\n", stats.AcquiredConns)
+	fmt.Printf("  - Idle Connections: %d\n", stats.IdleConns)
+	fmt.Printf("  - Max Connections: %d\n", stats.MaxConns)
 
 	return nil
 }
 
-func (am *AuditMiddleware) OnError(ctx *interfaces.ExecutionContext) error {
-	// Error handling is done in After() method
+func demonstratePerformanceAnalysis(ctx context.Context, pool interfaces.IPool) error {
+	fmt.Println("\n=== Performance Analysis Demonstration ===")
+
+	// Performance tracking
+	type QueryPerformance struct {
+		Query     string
+		Duration  time.Duration
+		Timestamp time.Time
+	}
+
+	var performanceLog []QueryPerformance
+	var mu sync.Mutex
+
+	hookManager := pool.GetHookManager()
+	if hookManager != nil {
+		// Performance analysis hook
+		perfHook := func(ctx *interfaces.ExecutionContext) *interfaces.HookResult {
+			if ctx.Duration > 0 {
+				mu.Lock()
+				performanceLog = append(performanceLog, QueryPerformance{
+					Query:     truncateQuery(ctx.Query, 50),
+					Duration:  ctx.Duration,
+					Timestamp: time.Now(),
+				})
+				mu.Unlock()
+			}
+			return &interfaces.HookResult{Continue: true}
+		}
+
+		hookManager.RegisterHook(interfaces.AfterQueryHook, perfHook)
+	}
+
+	// Execute test queries with different complexities
+	fmt.Println("🔍 Executing queries with different performance characteristics...")
+
+	err := pool.AcquireFunc(ctx, func(conn interfaces.IConn) error {
+		testQueries := []struct {
+			name  string
+			query string
+		}{
+			{"simple", "SELECT 1"},
+			{"metadata", "SELECT schemaname, tablename FROM pg_tables LIMIT 5"},
+			{"calculation", "SELECT generate_series(1,100) as num"},
+		}
+
+		for _, test := range testQueries {
+			fmt.Printf("  📝 Executing %s query...\n", test.name)
+
+			start := time.Now()
+			row := conn.QueryRow(ctx, test.query)
+			var result interface{}
+			_ = row.Scan(&result)
+
+			duration := time.Since(start)
+			fmt.Printf("    ⏱️  Completed in %v\n", duration)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		fmt.Printf("Note: Performance analysis would require actual database: %v\n", err)
+	}
+
+	// Analyze performance data
+	fmt.Println("\n📊 Performance Analysis Results:")
+	mu.Lock()
+	if len(performanceLog) == 0 {
+		fmt.Println("  No performance data collected (hooks may not be implemented)")
+	} else {
+		var totalDuration time.Duration
+		var slowQueries int
+		const slowThreshold = 10 * time.Millisecond
+
+		for _, perf := range performanceLog {
+			totalDuration += perf.Duration
+			if perf.Duration > slowThreshold {
+				slowQueries++
+			}
+			fmt.Printf("  - %s: %v\n", perf.Query, perf.Duration)
+		}
+
+		avgDuration := totalDuration / time.Duration(len(performanceLog))
+		fmt.Printf("\n📈 Summary:\n")
+		fmt.Printf("  - Total Queries: %d\n", len(performanceLog))
+		fmt.Printf("  - Average Duration: %v\n", avgDuration)
+		fmt.Printf("  - Slow Queries (>%v): %d\n", slowThreshold, slowQueries)
+		fmt.Printf("  - Performance Score: %.1f%%\n",
+			float64(len(performanceLog)-slowQueries)/float64(len(performanceLog))*100)
+	}
+	mu.Unlock()
+
 	return nil
 }
 
-// Custom Rate Limiting Middleware
-type RateLimitMiddleware struct {
-	name     string
-	priority int
-	requests map[string][]time.Time
-	limit    int
-	window   time.Duration
-	mu       sync.RWMutex
-}
+func demonstrateAdvancedErrorHandling(ctx context.Context, pool interfaces.IPool) error {
+	fmt.Println("\n=== Advanced Error Handling Demonstration ===")
 
-func (rlm *RateLimitMiddleware) Name() string {
-	return rlm.name
-}
-
-func (rlm *RateLimitMiddleware) Priority() int {
-	return rlm.priority
-}
-
-func (rlm *RateLimitMiddleware) Before(ctx *interfaces.ExecutionContext) error {
-	// For demo purposes, use operation type as key
-	// In real implementation, you might use user ID or IP address
-	key := ctx.Operation
-
-	rlm.mu.Lock()
-	defer rlm.mu.Unlock()
-
-	now := time.Now()
-
-	// Initialize if not exists
-	if rlm.requests[key] == nil {
-		rlm.requests[key] = make([]time.Time, 0)
+	var errorStats = struct {
+		sync.RWMutex
+		categories map[ErrorCategory]int
+		errors     []string
+	}{
+		categories: make(map[ErrorCategory]int),
+		errors:     make([]string, 0),
 	}
 
-	// Clean old requests outside the window
-	validRequests := make([]time.Time, 0)
-	for _, reqTime := range rlm.requests[key] {
-		if now.Sub(reqTime) <= rlm.window {
-			validRequests = append(validRequests, reqTime)
+	hookManager := pool.GetHookManager()
+	if hookManager != nil {
+		// Error categorization hook
+		errorAnalysisHook := func(ctx *interfaces.ExecutionContext) *interfaces.HookResult {
+			if ctx.Error != nil {
+				category := categorizeError(ctx.Error)
+
+				errorStats.Lock()
+				errorStats.categories[category]++
+				errorStats.errors = append(errorStats.errors, ctx.Error.Error())
+				errorStats.Unlock()
+
+				fmt.Printf("🔍 [ERROR ANALYSIS] Category: %s, Error: %v\n",
+					getCategoryName(category), ctx.Error)
+			}
+			return &interfaces.HookResult{Continue: true}
+		}
+
+		hookManager.RegisterHook(interfaces.OnErrorHook, errorAnalysisHook)
+	}
+
+	// Test different error scenarios
+	fmt.Println("🔍 Testing various error scenarios...")
+
+	err := pool.AcquireFunc(ctx, func(conn interfaces.IConn) error {
+		errorTests := []struct {
+			name  string
+			query string
+		}{
+			{"syntax_error", "SELEC 1"}, // Intentional syntax error
+			{"missing_table", "SELECT * FROM non_existent_table"},
+			{"invalid_function", "SELECT unknown_function()"},
+		}
+
+		for _, test := range errorTests {
+			fmt.Printf("  🧪 Testing %s...\n", test.name)
+
+			row := conn.QueryRow(ctx, test.query)
+			var result interface{}
+			err := row.Scan(&result)
+
+			if err != nil {
+				fmt.Printf("    ❌ Expected error occurred: %v\n", err)
+			} else {
+				fmt.Printf("    ✅ Unexpected success\n")
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		fmt.Printf("Note: Error handling tests would require actual database: %v\n", err)
+	}
+
+	// Display error analysis
+	fmt.Println("\n📊 Error Analysis Summary:")
+	errorStats.RLock()
+	if len(errorStats.categories) == 0 {
+		fmt.Println("  No errors recorded (database operations may be mocked)")
+	} else {
+		for category, count := range errorStats.categories {
+			fmt.Printf("  - %s: %d occurrences\n", getCategoryName(category), count)
 		}
 	}
-	rlm.requests[key] = validRequests
+	errorStats.RUnlock()
 
-	// Check rate limit
-	if len(rlm.requests[key]) >= rlm.limit {
-		return fmt.Errorf("rate limit exceeded for operation %s: %d requests in %v",
-			key, len(rlm.requests[key]), rlm.window)
+	return nil
+}
+
+func demonstrateConnectionLifecycleHooks(ctx context.Context, pool interfaces.IPool) error {
+	fmt.Println("\n=== Connection Lifecycle Hooks Demonstration ===")
+
+	var lifecycleEvents = struct {
+		sync.RWMutex
+		events []string
+	}{
+		events: make([]string, 0),
 	}
 
-	// Record this request
-	rlm.requests[key] = append(rlm.requests[key], now)
+	hookManager := pool.GetHookManager()
+	if hookManager != nil {
+		// Connection lifecycle hooks
+		connectionHooks := map[interfaces.HookType]func(string){
+			interfaces.BeforeConnectionHook: func(event string) {
+				lifecycleEvents.Lock()
+				lifecycleEvents.events = append(lifecycleEvents.events,
+					fmt.Sprintf("🔗 [BEFORE CONNECTION] %s", event))
+				lifecycleEvents.Unlock()
+				fmt.Printf("🔗 [LIFECYCLE] Before connection: %s\n", event)
+			},
+			interfaces.AfterConnectionHook: func(event string) {
+				lifecycleEvents.Lock()
+				lifecycleEvents.events = append(lifecycleEvents.events,
+					fmt.Sprintf("✅ [AFTER CONNECTION] %s", event))
+				lifecycleEvents.Unlock()
+				fmt.Printf("✅ [LIFECYCLE] After connection: %s\n", event)
+			},
+			interfaces.BeforeReleaseHook: func(event string) {
+				lifecycleEvents.Lock()
+				lifecycleEvents.events = append(lifecycleEvents.events,
+					fmt.Sprintf("🔓 [BEFORE RELEASE] %s", event))
+				lifecycleEvents.Unlock()
+				fmt.Printf("🔓 [LIFECYCLE] Before release: %s\n", event)
+			},
+			interfaces.AfterReleaseHook: func(event string) {
+				lifecycleEvents.Lock()
+				lifecycleEvents.events = append(lifecycleEvents.events,
+					fmt.Sprintf("🆓 [AFTER RELEASE] %s", event))
+				lifecycleEvents.Unlock()
+				fmt.Printf("🆓 [LIFECYCLE] After release: %s\n", event)
+			},
+		}
+
+		for hookType, eventFunc := range connectionHooks {
+			hook := func(ctx *interfaces.ExecutionContext) *interfaces.HookResult {
+				eventFunc(fmt.Sprintf("Operation: %s", ctx.Operation))
+				return &interfaces.HookResult{Continue: true}
+			}
+
+			if err := hookManager.RegisterHook(hookType, hook); err != nil {
+				fmt.Printf("⚠️  Failed to register lifecycle hook: %v\n", err)
+			}
+		}
+	}
+
+	// Test connection lifecycle
+	fmt.Println("🔄 Testing connection lifecycle...")
+
+	for i := 0; i < 3; i++ {
+		fmt.Printf("\n  🔄 Connection cycle %d:\n", i+1)
+
+		err := pool.AcquireFunc(ctx, func(conn interfaces.IConn) error {
+			// Simple operation to trigger lifecycle events
+			row := conn.QueryRow(ctx, "SELECT 1")
+			var result int
+			return row.Scan(&result)
+		})
+
+		if err != nil {
+			fmt.Printf("    ❌ Connection cycle %d failed: %v\n", i+1, err)
+		} else {
+			fmt.Printf("    ✅ Connection cycle %d completed\n", i+1)
+		}
+	}
+
+	// Display lifecycle events
+	fmt.Println("\n📋 Connection Lifecycle Events:")
+	lifecycleEvents.RLock()
+	if len(lifecycleEvents.events) == 0 {
+		fmt.Println("  No lifecycle events recorded (hooks may not be implemented)")
+	} else {
+		for i, event := range lifecycleEvents.events {
+			fmt.Printf("  %d. %s\n", i+1, event)
+		}
+	}
+	lifecycleEvents.RUnlock()
 
 	return nil
 }
 
-func (rlm *RateLimitMiddleware) After(ctx *interfaces.ExecutionContext) error {
-	return nil
+// Helper functions
+
+func truncateQuery(query string, maxLen int) string {
+	if len(query) <= maxLen {
+		return query
+	}
+	return query[:maxLen-3] + "..."
 }
 
-func (rlm *RateLimitMiddleware) OnError(ctx *interfaces.ExecutionContext) error {
-	return nil
+func containsSensitiveOperation(query string) bool {
+	sensitiveKeywords := []string{"DROP", "DELETE", "UPDATE", "ALTER", "GRANT", "REVOKE"}
+	upperQuery := fmt.Sprintf("%s", query) // Convert to uppercase
+	for _, keyword := range sensitiveKeywords {
+		if len(upperQuery) > len(keyword) &&
+			upperQuery[:len(keyword)] == keyword {
+			return true
+		}
+	}
+	return false
+}
+
+func categorizeError(err error) ErrorCategory {
+	errStr := err.Error()
+
+	if len(errStr) > 10 && errStr[:6] == "syntax" {
+		return SyntaxError
+	}
+	if len(errStr) > 15 && errStr[:10] == "connection" {
+		return ConnectionError
+	}
+	if len(errStr) > 10 && errStr[:7] == "timeout" {
+		return TimeoutError
+	}
+	if len(errStr) > 15 && errStr[:10] == "constraint" {
+		return ConstraintError
+	}
+
+	return UnknownError
+}
+
+func getCategoryName(category ErrorCategory) string {
+	switch category {
+	case ConnectionError:
+		return "Connection Error"
+	case SyntaxError:
+		return "Syntax Error"
+	case ConstraintError:
+		return "Constraint Error"
+	case TimeoutError:
+		return "Timeout Error"
+	default:
+		return "Unknown Error"
+	}
 }

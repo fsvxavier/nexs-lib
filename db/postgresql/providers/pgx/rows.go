@@ -17,7 +17,7 @@ type PGXRows struct {
 
 // Next implements IRows.Next
 func (r *PGXRows) Next() bool {
-	if r.closed {
+	if r.closed || r.rows == nil {
 		return false
 	}
 	return r.rows.Next()
@@ -26,6 +26,9 @@ func (r *PGXRows) Next() bool {
 // Scan implements IRows.Scan
 func (r *PGXRows) Scan(dest ...interface{}) error {
 	if r.closed {
+		return pgx.ErrNoRows
+	}
+	if r.rows == nil {
 		return pgx.ErrNoRows
 	}
 	return r.rows.Scan(dest...)
@@ -37,18 +40,23 @@ func (r *PGXRows) Close() error {
 		return nil
 	}
 	r.closed = true
-	r.rows.Close()
+	if r.rows != nil {
+		r.rows.Close()
+	}
 	return nil
 }
 
 // Err implements IRows.Err
 func (r *PGXRows) Err() error {
+	if r.rows == nil {
+		return nil
+	}
 	return r.rows.Err()
 }
 
 // CommandTag implements IRows.CommandTag
 func (r *PGXRows) CommandTag() interfaces.CommandTag {
-	if r.closed {
+	if r.closed || r.rows == nil {
 		return &PGXCommandTag{tag: pgconn.CommandTag{}}
 	}
 	return &PGXCommandTag{tag: r.rows.CommandTag()}
@@ -56,7 +64,11 @@ func (r *PGXRows) CommandTag() interfaces.CommandTag {
 
 // FieldDescriptions implements IRows.FieldDescriptions
 func (r *PGXRows) FieldDescriptions() []interfaces.FieldDescription {
-	if r.closed {
+	if r.closed || r.rows == nil {
+		return nil
+	}
+
+	if r.rows == nil {
 		return nil
 	}
 
@@ -72,7 +84,7 @@ func (r *PGXRows) FieldDescriptions() []interfaces.FieldDescription {
 
 // RawValues implements IRows.RawValues
 func (r *PGXRows) RawValues() [][]byte {
-	if r.closed {
+	if r.closed || r.rows == nil {
 		return nil
 	}
 	return r.rows.RawValues()
@@ -88,6 +100,9 @@ type PGXRow struct {
 
 // Scan implements IRow.Scan
 func (r *PGXRow) Scan(dest ...interface{}) error {
+	if r.row == nil {
+		return pgx.ErrNoRows
+	}
 	return r.row.Scan(dest...)
 }
 

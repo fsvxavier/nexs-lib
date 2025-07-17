@@ -3,6 +3,7 @@ package pgx
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -71,7 +72,19 @@ func IsNoRowsError(err error) bool {
 
 // IsConnError checks if an error is related to connection issues
 func IsConnError(err error) bool {
-	return errors.Is(err, ErrConnectionClosed)
+	// Check for our custom connection error
+	if errors.Is(err, ErrConnectionClosed) {
+		return true
+	}
+
+	// Check for PostgreSQL connection errors
+	pgErr := GetPGError(err)
+	if pgErr != nil {
+		// PostgreSQL connection error codes (Class 08)
+		return strings.HasPrefix(pgErr.Code, "08")
+	}
+
+	return false
 }
 
 // IsTxError checks if an error is related to transaction issues
@@ -196,4 +209,80 @@ func IsRetryableError(err error) bool {
 	// Serialization failures and deadlocks are typically retryable
 	return pgErr.Code == PGErrorCodeSerializationFailure ||
 		pgErr.Code == PGErrorCodeDeadlockDetected
+}
+
+// GetErrorDetails extracts detailed information from an error
+func GetErrorDetails(err error) map[string]interface{} {
+	details := make(map[string]interface{})
+
+	if err == nil {
+		return details
+	}
+
+	details["error"] = err.Error()
+
+	// Check for PGX specific errors
+	if errors.Is(err, pgx.ErrNoRows) {
+		details["type"] = "no_rows"
+		return details
+	}
+
+	// Check for PostgreSQL errors
+	pgErr := GetPGError(err)
+	if pgErr != nil {
+		details["type"] = getErrorType(pgErr.Code)
+		details["code"] = pgErr.Code
+		details["severity"] = pgErr.Severity
+		details["message"] = pgErr.Message
+
+		if pgErr.Detail != "" {
+			details["detail"] = pgErr.Detail
+		}
+		if pgErr.Hint != "" {
+			details["hint"] = pgErr.Hint
+		}
+		if pgErr.SchemaName != "" {
+			details["schema"] = pgErr.SchemaName
+		}
+		if pgErr.TableName != "" {
+			details["table"] = pgErr.TableName
+		}
+		if pgErr.ColumnName != "" {
+			details["column"] = pgErr.ColumnName
+		}
+		if pgErr.ConstraintName != "" {
+			details["constraint"] = pgErr.ConstraintName
+		}
+
+		return details
+	}
+
+	details["type"] = "unknown"
+	return details
+}
+
+// getErrorType returns a human-readable error type based on PostgreSQL error code
+func getErrorType(code string) string {
+	switch code {
+	case "23505":
+		return "constraint_violation"
+	case "23503":
+		return "constraint_violation"
+	case "23502":
+		return "constraint_violation"
+	case "23514":
+		return "constraint_violation"
+	case "42601":
+		return "syntax_error"
+	case "42501":
+		return "permission_error"
+	case "08001", "08003", "08004", "08006":
+		return "connection_error"
+	case "40001":
+		return "transaction_error"
+	case "40P01":
+		return "transaction_error"
+	default:
+		return "database_error"
+	}
 }

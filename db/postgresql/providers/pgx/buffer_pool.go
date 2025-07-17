@@ -25,6 +25,64 @@ type MemoryStatsImpl struct {
 	mu                 sync.RWMutex
 }
 
+// GetStats returns current memory statistics
+func (ms *MemoryStatsImpl) GetStats() interfaces.MemoryStats {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+
+	return interfaces.MemoryStats{
+		BufferSize:         atomic.LoadInt64(&ms.bufferSize),
+		AllocatedBuffers:   atomic.LoadInt32(&ms.allocatedBuffers),
+		PooledBuffers:      atomic.LoadInt32(&ms.pooledBuffers),
+		TotalAllocations:   atomic.LoadInt64(&ms.totalAllocations),
+		TotalDeallocations: atomic.LoadInt64(&ms.totalDeallocations),
+	}
+}
+
+// IncrementAllocatedBuffers increments the allocated buffers count
+func (ms *MemoryStatsImpl) IncrementAllocatedBuffers() {
+	atomic.AddInt32(&ms.allocatedBuffers, 1)
+}
+
+// DecrementAllocatedBuffers decrements the allocated buffers count
+func (ms *MemoryStatsImpl) DecrementAllocatedBuffers() {
+	atomic.AddInt32(&ms.allocatedBuffers, -1)
+}
+
+// IncrementPooledBuffers increments the pooled buffers count
+func (ms *MemoryStatsImpl) IncrementPooledBuffers() {
+	atomic.AddInt32(&ms.pooledBuffers, 1)
+}
+
+// DecrementPooledBuffers decrements the pooled buffers count
+func (ms *MemoryStatsImpl) DecrementPooledBuffers() {
+	atomic.AddInt32(&ms.pooledBuffers, -1)
+}
+
+// IncrementTotalAllocations increments the total allocations count
+func (ms *MemoryStatsImpl) IncrementTotalAllocations() {
+	atomic.AddInt64(&ms.totalAllocations, 1)
+}
+
+// IncrementTotalDeallocations increments the total deallocations count
+func (ms *MemoryStatsImpl) IncrementTotalDeallocations() {
+	atomic.AddInt64(&ms.totalDeallocations, 1)
+}
+
+// SetBufferSize sets the buffer size
+func (ms *MemoryStatsImpl) SetBufferSize(size int64) {
+	atomic.StoreInt64(&ms.bufferSize, size)
+}
+
+// Reset resets all memory statistics
+func (ms *MemoryStatsImpl) Reset() {
+	atomic.StoreInt64(&ms.bufferSize, 0)
+	atomic.StoreInt32(&ms.allocatedBuffers, 0)
+	atomic.StoreInt32(&ms.pooledBuffers, 0)
+	atomic.StoreInt64(&ms.totalAllocations, 0)
+	atomic.StoreInt64(&ms.totalDeallocations, 0)
+}
+
 // NewBufferPool creates a new buffer pool
 func NewBufferPool() interfaces.BufferPool {
 	return &BufferPoolImpl{
@@ -35,6 +93,14 @@ func NewBufferPool() interfaces.BufferPool {
 
 // Get retrieves a buffer of the specified size
 func (bp *BufferPoolImpl) Get(size int) []byte {
+	// Handle edge cases
+	if size < 0 {
+		return nil
+	}
+	if size == 0 {
+		return make([]byte, 0)
+	}
+
 	bp.mu.RLock()
 	pool, exists := bp.pools[size]
 	bp.mu.RUnlock()

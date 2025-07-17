@@ -385,6 +385,9 @@ func (t *PGXTransaction) Commit(ctx context.Context) error {
 	if t.rolledback {
 		return pgx.ErrTxClosed
 	}
+	if t.tx == nil {
+		return pgx.ErrTxClosed
+	}
 
 	// Execute hooks and middlewares
 	execCtx := &interfaces.ExecutionContext{
@@ -439,6 +442,9 @@ func (t *PGXTransaction) Rollback(ctx context.Context) error {
 		return nil
 	}
 	if t.committed {
+		return pgx.ErrTxClosed
+	}
+	if t.tx == nil {
 		return pgx.ErrTxClosed
 	}
 

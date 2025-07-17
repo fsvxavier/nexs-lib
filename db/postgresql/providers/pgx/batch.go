@@ -5,6 +5,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// NewBatch creates a new batch
+func NewBatch() interfaces.IBatch {
+	return &PGXBatch{
+		batch: &pgx.Batch{},
+	}
+}
+
 // PGXBatch implements the IBatch interface
 type PGXBatch struct {
 	batch *pgx.Batch
@@ -85,6 +92,12 @@ func (br *PGXBatchResults) Close() error {
 		return nil
 	}
 	br.closed = true
+
+	// Check if results is nil to prevent panic
+	if br.results == nil {
+		return nil
+	}
+
 	return br.results.Close()
 }
 

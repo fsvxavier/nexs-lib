@@ -10,6 +10,7 @@ import (
 	"github.com/fsvxavier/nexs-lib/db/postgres/interfaces"
 	"github.com/fsvxavier/nexs-lib/db/postgres/providers/pgx/internal/memory"
 	"github.com/fsvxavier/nexs-lib/db/postgres/providers/pgx/internal/monitoring"
+	"github.com/fsvxavier/nexs-lib/db/postgres/providers/pgx/internal/replicas"
 	"github.com/fsvxavier/nexs-lib/db/postgres/providers/pgx/internal/resilience"
 )
 
@@ -20,6 +21,7 @@ type Provider struct {
 	supportedFeatures []string
 	retryManager      interfaces.IRetryManager
 	failoverManager   interfaces.IFailoverManager
+	replicaManager    interfaces.IReplicaManager
 	hookManager       interfaces.IHookManager
 	bufferPool        interfaces.IBufferPool
 	safetyMonitor     interfaces.ISafetyMonitor
@@ -65,12 +67,19 @@ func NewProvider() interfaces.IPostgreSQLProvider {
 			"retry",
 			"buffer_pooling",
 			"safety_monitoring",
+			"read_replicas",
 		},
 		retryManager:    resilience.NewRetryManager(retryConfig),
 		failoverManager: resilience.NewFailoverManager(failoverConfig),
-		hookManager:     hooks.NewDefaultHookManager(),
-		bufferPool:      memory.NewBufferPool(1024, 1024*1024), // 1KB min, 1MB max
-		safetyMonitor:   monitoring.NewSafetyMonitor(),
+		replicaManager: replicas.NewReplicaManager(replicas.ReplicaManagerConfig{
+			LoadBalancingStrategy: interfaces.LoadBalancingRoundRobin,
+			ReadPreference:        interfaces.ReadPreferenceSecondaryPreferred,
+			HealthCheckInterval:   30 * time.Second,
+			HealthCheckTimeout:    5 * time.Second,
+		}),
+		hookManager:   hooks.NewDefaultHookManager(),
+		bufferPool:    memory.NewBufferPool(1024, 1024*1024), // 1KB min, 1MB max
+		safetyMonitor: monitoring.NewSafetyMonitor(),
 	}
 }
 
@@ -303,6 +312,11 @@ func (p *Provider) GetRetryManager() interfaces.IRetryManager {
 // GetFailoverManager retorna o failover manager
 func (p *Provider) GetFailoverManager() interfaces.IFailoverManager {
 	return p.failoverManager
+}
+
+// GetReplicaManager retorna o replica manager
+func (p *Provider) GetReplicaManager() interfaces.IReplicaManager {
+	return p.replicaManager
 }
 
 // GetHookManager retorna o hook manager

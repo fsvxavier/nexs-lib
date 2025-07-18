@@ -12,6 +12,46 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Funções de conversão para mapear enums da biblioteca para pgx
+func convertTxIsoLevel(isoLevel interfaces.TxIsoLevel) pgx.TxIsoLevel {
+	switch isoLevel {
+	case interfaces.TxIsoLevelDefault:
+		return pgx.TxIsoLevel("") // pgx usa string vazia para default
+	case interfaces.TxIsoLevelReadUncommitted:
+		return pgx.ReadUncommitted
+	case interfaces.TxIsoLevelReadCommitted:
+		return pgx.ReadCommitted
+	case interfaces.TxIsoLevelRepeatableRead:
+		return pgx.RepeatableRead
+	case interfaces.TxIsoLevelSerializable:
+		return pgx.Serializable
+	default:
+		return pgx.TxIsoLevel("") // default seguro
+	}
+}
+
+func convertTxAccessMode(accessMode interfaces.TxAccessMode) pgx.TxAccessMode {
+	switch accessMode {
+	case interfaces.TxAccessModeReadWrite:
+		return pgx.ReadWrite
+	case interfaces.TxAccessModeReadOnly:
+		return pgx.ReadOnly
+	default:
+		return pgx.TxAccessMode("") // default seguro
+	}
+}
+
+func convertTxDeferrableMode(deferrableMode interfaces.TxDeferrableMode) pgx.TxDeferrableMode {
+	switch deferrableMode {
+	case interfaces.TxDeferrableModeNotDeferrable:
+		return pgx.NotDeferrable
+	case interfaces.TxDeferrableModeDeferrable:
+		return pgx.Deferrable
+	default:
+		return pgx.TxDeferrableMode("") // default seguro
+	}
+}
+
 // Conn implementa IConn usando pgx.Conn ou pgxpool.Conn
 type Conn struct {
 	conn        interface{} // *pgx.Conn ou *pgxpool.Conn
@@ -247,11 +287,11 @@ func (c *Conn) BeginTx(ctx context.Context, txOptions interfaces.TxOptions) (int
 		return nil, ErrConnClosed
 	}
 
-	// Converter opções para pgx.TxOptions
+	// Converter opções para pgx.TxOptions com mapeamento correto
 	pgxTxOptions := pgx.TxOptions{
-		IsoLevel:       pgx.TxIsoLevel(txOptions.IsoLevel),
-		AccessMode:     pgx.TxAccessMode(txOptions.AccessMode),
-		DeferrableMode: pgx.TxDeferrableMode(txOptions.DeferrableMode),
+		IsoLevel:       convertTxIsoLevel(txOptions.IsoLevel),
+		AccessMode:     convertTxAccessMode(txOptions.AccessMode),
+		DeferrableMode: convertTxDeferrableMode(txOptions.DeferrableMode),
 	}
 
 	tx, err := c.getConn().BeginTx(ctx, pgxTxOptions)

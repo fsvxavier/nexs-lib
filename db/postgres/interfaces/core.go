@@ -48,6 +48,7 @@ type IPostgreSQLProvider interface {
 	WithRetry(ctx context.Context, operation func() error) error
 	WithFailover(ctx context.Context, operation func(conn IConn) error) error
 	GetRetryManager() IRetryManager
+	GetReplicaManager() IReplicaManager
 	GetFailoverManager() IFailoverManager
 }
 

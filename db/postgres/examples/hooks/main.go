@@ -143,10 +143,11 @@ func demonstrateBasicHooks(ctx context.Context, conn postgres.IConn, hookManager
 
 	for i, query := range queries {
 		fmt.Printf("   Executando query %d...\n", i+1)
-		_, err := conn.Query(ctx, query)
+		rows, err := conn.Query(ctx, query)
 		if err != nil {
 			fmt.Printf("   ❌ Erro na query %d: %v\n", i+1, err)
 		} else {
+			rows.Close() // Fechar rows para liberar conexão
 			fmt.Printf("   ✅ Query %d executada com sucesso\n", i+1)
 		}
 		time.Sleep(50 * time.Millisecond) // Pequeno delay para demonstrar timing
@@ -218,12 +219,13 @@ func demonstratePerformanceHooks(ctx context.Context, conn postgres.IConn, hookM
 	for _, pq := range performanceQueries {
 		fmt.Printf("   Executando %s...\n", pq.name)
 		startTime := time.Now()
-		_, err := conn.Query(ctx, pq.query)
+		rows, err := conn.Query(ctx, pq.query)
 		duration := time.Since(startTime)
 
 		if err != nil {
 			fmt.Printf("   ❌ Erro em %s: %v\n", pq.name, err)
 		} else {
+			rows.Close() // Fechar rows para liberar conexão
 			fmt.Printf("   ✅ %s executada em %v\n", pq.name, duration)
 		}
 	}
@@ -307,10 +309,11 @@ func demonstrateAuditHooks(ctx context.Context, conn postgres.IConn, hookManager
 
 	for _, aq := range auditQueries {
 		fmt.Printf("   Executando %s...\n", aq.name)
-		_, err := conn.Query(ctx, aq.query)
+		rows, err := conn.Query(ctx, aq.query)
 		if err != nil {
 			fmt.Printf("   ❌ Erro em %s: %v\n", aq.name, err)
 		} else {
+			rows.Close() // Fechar rows para liberar conexão
 			fmt.Printf("   ✅ %s executada com sucesso\n", aq.name)
 		}
 	}
@@ -400,10 +403,11 @@ func demonstrateErrorHandlingHooks(ctx context.Context, conn postgres.IConn, hoo
 
 	for _, eq := range errorQueries {
 		fmt.Printf("   Executando %s...\n", eq.name)
-		_, err := conn.Query(ctx, eq.query)
+		rows, err := conn.Query(ctx, eq.query)
 		if err != nil {
 			fmt.Printf("   ❌ Erro esperado em %s: %v\n", eq.name, err)
 		} else {
+			rows.Close() // Fechar rows para liberar conexão
 			fmt.Printf("   ✅ %s executada com sucesso\n", eq.name)
 		}
 	}
@@ -476,10 +480,11 @@ func demonstrateCustomHooks(ctx context.Context, conn postgres.IConn, hookManage
 
 	for i, query := range customQueries {
 		fmt.Printf("   Executando query customizada %d...\n", i+1)
-		_, err := conn.Query(ctx, query)
+		rows, err := conn.Query(ctx, query)
 		if err != nil {
 			fmt.Printf("   ❌ Erro na query customizada %d: %v\n", i+1, err)
 		} else {
+			rows.Close() // Fechar rows para liberar conexão
 			fmt.Printf("   ✅ Query customizada %d executada com sucesso\n", i+1)
 		}
 	}

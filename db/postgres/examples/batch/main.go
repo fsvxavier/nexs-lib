@@ -150,9 +150,8 @@ func demonstrateBasicBatch(ctx context.Context, conn postgres.IConn) error {
 	fmt.Println("   Executando batch...")
 	startTime := time.Now()
 	results := conn.SendBatch(ctx, batch)
-	defer results.Close()
 
-	// Processar resultados
+	// CORREÇÃO: Processar TODOS os resultados antes de usar a conexão novamente
 	successful := 0
 	failed := 0
 
@@ -166,11 +165,16 @@ func demonstrateBasicBatch(ctx context.Context, conn postgres.IConn) error {
 		}
 	}
 
+	// CORREÇÃO: Fechar o BatchResults ANTES de usar a conexão novamente
+	if err := results.Close(); err != nil {
+		return fmt.Errorf("erro ao fechar batch results: %w", err)
+	}
+
 	duration := time.Since(startTime)
 	fmt.Printf("   ✅ Batch concluído em %v\n", duration)
 	fmt.Printf("   📊 Resultado: %d sucessos, %d falhas\n", successful, failed)
 
-	// Verificar resultados
+	// CORREÇÃO: Agora pode usar a conexão novamente
 	fmt.Println("   Verificando produtos inseridos:")
 	rows, err := conn.Query(ctx, "SELECT name, price, category FROM products ORDER BY name")
 	if err != nil {
@@ -261,14 +265,14 @@ func demonstrateBatchWithTransaction(ctx context.Context, conn postgres.IConn) e
 	fmt.Println("   Executando batch na transação...")
 	startTime := time.Now()
 	results := tx.SendBatch(ctx, batch)
-	defer results.Close()
 
-	// Processar resultados
+	// CORREÇÃO: Processar TODOS os resultados antes de usar a transação novamente
 	successful := 0
 	for _, op := range operations {
 		cmdTag, err := results.Exec()
 		if err != nil {
 			fmt.Printf("   ❌ Erro em '%s': %v\n", op.desc, err)
+			results.Close()
 			commitTx = false
 			return nil
 		}
@@ -277,11 +281,17 @@ func demonstrateBatchWithTransaction(ctx context.Context, conn postgres.IConn) e
 		successful++
 	}
 
+	// CORREÇÃO: Fechar BatchResults ANTES de usar a transação novamente
+	if err := results.Close(); err != nil {
+		commitTx = false
+		return fmt.Errorf("erro ao fechar batch results: %w", err)
+	}
+
 	duration := time.Since(startTime)
 	fmt.Printf("   ⏱️ Batch executado em %v\n", duration)
 	fmt.Printf("   📊 %d/%d operações bem-sucedidas\n", successful, len(operations))
 
-	// Verificar dentro da transação
+	// CORREÇÃO: Agora pode usar a transação novamente
 	fmt.Println("   Verificando dados dentro da transação:")
 	rows, err := tx.Query(ctx, "SELECT COUNT(*) FROM products")
 	if err != nil {
@@ -372,8 +382,8 @@ func demonstratePerformanceComparison(ctx context.Context, conn postgres.IConn) 
 	}
 
 	results := conn.SendBatch(ctx, batch)
-	defer results.Close()
 
+	// CORREÇÃO: Processar todos os resultados antes de usar a conexão
 	for i := 0; i < len(testData); i++ {
 		_, err := results.Exec()
 		if err != nil {
@@ -381,9 +391,14 @@ func demonstratePerformanceComparison(ctx context.Context, conn postgres.IConn) 
 		}
 	}
 
+	// CORREÇÃO: Fechar BatchResults ANTES de usar a conexão novamente
+	if err := results.Close(); err != nil {
+		return fmt.Errorf("erro ao fechar batch results: %w", err)
+	}
+
 	batchDuration := time.Since(startTime)
 
-	// Verificar contagem
+	// CORREÇÃO: Agora pode usar a conexão novamente
 	var count2 int
 	err = conn.QueryRow(ctx, "SELECT COUNT(*) FROM products").Scan(&count2)
 	if err != nil {
@@ -417,9 +432,7 @@ func demonstrateErrorHandling(ctx context.Context, conn postgres.IConn) error {
 		return fmt.Errorf("erro ao limpar dados: %w", err)
 	}
 
-	// Criar batch com operações válidas e inválidas
-	batch := pgxprovider.NewBatch()
-
+	// Criar lista de operações válidas e inválidas
 	operations := []struct {
 		desc  string
 		query string
@@ -433,22 +446,10 @@ func demonstrateErrorHandling(ctx context.Context, conn postgres.IConn) error {
 			true,
 		},
 		{
-			"Inserir produto com erro (preço negativo)",
-			"INSERT INTO products (name, price, category) VALUES ($1, $2, $3)",
-			[]interface{}{"Produto Inválido", -100.00, "Categoria"},
-			false, // Pode gerar erro se houver constraint
-		},
-		{
 			"Inserir produto válido 2",
 			"INSERT INTO products (name, price, category) VALUES ($1, $2, $3)",
 			[]interface{}{"Produto Válido 2", 200.00, "Categoria"},
 			true,
-		},
-		{
-			"Query inválida",
-			"INSERT INTO tabela_inexistente (campo) VALUES ($1)",
-			[]interface{}{"valor"},
-			false,
 		},
 		{
 			"Inserir produto válido 3",
@@ -456,23 +457,36 @@ func demonstrateErrorHandling(ctx context.Context, conn postgres.IConn) error {
 			[]interface{}{"Produto Válido 3", 300.00, "Categoria"},
 			true,
 		},
+		{
+			"Query com sintaxe inválida",
+			"INSERT INTO products (name, price, category) VALEUS ($1, $2, $3)", // VALEUS em vez de VALUES
+			[]interface{}{"Produto Inválido", 250.00, "Categoria"},
+			false,
+		},
+		{
+			"Inserir produto válido 4",
+			"INSERT INTO products (name, price, category) VALUES ($1, $2, $3)",
+			[]interface{}{"Produto Válido 4", 400.00, "Categoria"},
+			true,
+		},
 	}
 
 	fmt.Printf("   Adicionando %d operações ao batch (algumas com erro)...\n", len(operations))
-	for _, op := range operations {
-		batch.Queue(op.query, op.args...)
-	}
 
-	// Executar batch
-	fmt.Println("   Executando batch com tratamento de erros...")
-	results := conn.SendBatch(ctx, batch)
-	defer results.Close()
-
-	// Processar resultados com tratamento de erro
+	// Processar operações individualmente para evitar que uma operação inválida afete todo o batch
 	successful := 0
 	failed := 0
 
 	for _, op := range operations {
+		fmt.Printf("   Processando '%s'...\n", op.desc)
+
+		// Criar batch individual para cada operação
+		batch := pgxprovider.NewBatch()
+		batch.Queue(op.query, op.args...)
+
+		// Executar batch individual
+		results := conn.SendBatch(ctx, batch)
+
 		cmdTag, err := results.Exec()
 		if err != nil {
 			fmt.Printf("   ❌ Erro em '%s': %v\n", op.desc, err)
@@ -480,6 +494,11 @@ func demonstrateErrorHandling(ctx context.Context, conn postgres.IConn) error {
 		} else {
 			fmt.Printf("   ✅ Sucesso '%s': %d linhas afetadas\n", op.desc, cmdTag.RowsAffected())
 			successful++
+		}
+
+		// Fechar BatchResults imediatamente após uso
+		if err := results.Close(); err != nil {
+			fmt.Printf("   ⚠️ Erro ao fechar results para '%s': %v\n", op.desc, err)
 		}
 	}
 
@@ -489,7 +508,7 @@ func demonstrateErrorHandling(ctx context.Context, conn postgres.IConn) error {
 	fmt.Printf("   ❌ Operações com falha: %d\n", failed)
 	fmt.Printf("   📈 Taxa de sucesso: %.1f%%\n", float64(successful)/float64(len(operations))*100)
 
-	// Verificar dados inseridos
+	// CORREÇÃO: Agora pode usar a conexão novamente
 	fmt.Println("\n   Verificando dados inseridos com sucesso:")
 	rows, err := conn.Query(ctx, "SELECT name, price FROM products ORDER BY name")
 	if err != nil {

@@ -275,15 +275,16 @@ func demonstrateSchemaContextSwitching(ctx context.Context, conn postgres.IConn)
 		if err != nil {
 			return fmt.Errorf("erro ao consultar usuários do tenant %s: %w", schema, err)
 		}
-		defer rows.Close()
 
 		if rows.Next() {
 			var count int
 			if err := rows.Scan(&count); err != nil {
+				rows.Close()
 				return fmt.Errorf("erro ao ler contagem: %w", err)
 			}
 			fmt.Printf("   📊 Usuários encontrados no contexto: %d\n", count)
 		}
+		rows.Close() // Fechar rows imediatamente após uso
 	}
 
 	// Restaurar search_path padrão

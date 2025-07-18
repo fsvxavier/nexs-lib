@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/fsvxavier/nexs-lib/db/postgres"
+	pgxprovider "github.com/fsvxavier/nexs-lib/db/postgres/providers/pgx"
+	"github.com/jackc/pgx/v5"
 )
 
 func main() {
@@ -143,12 +145,12 @@ func demonstrateCopyFrom(ctx context.Context, conn postgres.IConn) error {
 		{"Carlos Lima", "carlos@email.com", 29, 4800.00, "Marketing", "2023-05-12", true},
 	}
 
-	// Criar CopyFromSource
+	// Criar CopyFromSource usando PGX
 	fmt.Printf("   Preparando %d registros para COPY FROM...\n", len(testData))
-	copySource := &TestCopyFromSource{
-		data:  testData,
-		index: 0,
-	}
+
+	// Usar CopyFromRows do PGX
+	pgxCopySource := pgx.CopyFromRows(testData)
+	copySource := pgxprovider.NewCopyFromSource(pgxCopySource)
 
 	// Executar COPY FROM
 	fmt.Println("   Executando COPY FROM...")
@@ -256,11 +258,12 @@ func demonstrateBulkCopyFrom(ctx context.Context, conn postgres.IConn) error {
 		}
 	}
 
-	// Criar CopyFromSource para dados grandes
-	copySource := &TestCopyFromSource{
-		data:  bulkData,
-		index: 0,
-	}
+	// Criar CopyFromSource usando PGX para dados grandes
+	fmt.Printf("   Preparando %d registros para COPY FROM...\n", bulkSize)
+
+	// Usar CopyFromRows do PGX
+	pgxCopySource := pgx.CopyFromRows(bulkData)
+	copySource := pgxprovider.NewCopyFromSource(pgxCopySource)
 
 	// Executar COPY FROM
 	fmt.Println("   Executando COPY FROM em massa...")
@@ -377,10 +380,10 @@ func demonstratePerformanceComparison(ctx context.Context, conn postgres.IConn) 
 
 	// Teste 2: COPY FROM
 	fmt.Printf("   Teste 2: COPY FROM (%d registros)...\n", testSize)
-	copySource := &TestCopyFromSource{
-		data:  testData,
-		index: 0,
-	}
+
+	// Usar CopyFromRows do PGX
+	pgxCopySource := pgx.CopyFromRows(testData)
+	copySource := pgxprovider.NewCopyFromSource(pgxCopySource)
 
 	startTime = time.Now()
 
@@ -434,10 +437,9 @@ func demonstrateErrorHandling(ctx context.Context, conn postgres.IConn) error {
 		{"Pedro Oliveira", "pedro@email.com", 35, 6000.00, "Vendas", "2023-03-10", true},
 	}
 
-	copySource := &TestCopyFromSource{
-		data:  invalidData,
-		index: 0,
-	}
+	// Usar CopyFromRows do PGX
+	pgxCopySource := pgx.CopyFromRows(invalidData)
+	copySource := pgxprovider.NewCopyFromSource(pgxCopySource)
 
 	_, err := conn.CopyFrom(ctx, "copy_test",
 		[]string{"name", "email", "age", "salary", "department", "hire_date", "active"},
@@ -456,10 +458,9 @@ func demonstrateErrorHandling(ctx context.Context, conn postgres.IConn) error {
 		{"João Silva", "joao@email.com", 30, 5000.00, "TI", "2023-01-15", true},
 	}
 
-	copySource2 := &TestCopyFromSource{
-		data:  validData,
-		index: 0,
-	}
+	// Usar CopyFromRows do PGX
+	pgxCopySource2 := pgx.CopyFromRows(validData)
+	copySource2 := pgxprovider.NewCopyFromSource(pgxCopySource2)
 
 	_, err = conn.CopyFrom(ctx, "tabela_inexistente",
 		[]string{"name", "email", "age", "salary", "department", "hire_date", "active"},
@@ -474,10 +475,9 @@ func demonstrateErrorHandling(ctx context.Context, conn postgres.IConn) error {
 	// Teste 3: Colunas incorretas
 	fmt.Println("   Teste 3: Colunas incorretas...")
 
-	copySource3 := &TestCopyFromSource{
-		data:  validData,
-		index: 0,
-	}
+	// Usar CopyFromRows do PGX
+	pgxCopySource3 := pgx.CopyFromRows(validData)
+	copySource3 := pgxprovider.NewCopyFromSource(pgxCopySource3)
 
 	_, err = conn.CopyFrom(ctx, "copy_test",
 		[]string{"coluna_inexistente", "outra_coluna_inexistente"},

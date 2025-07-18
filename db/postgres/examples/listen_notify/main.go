@@ -112,21 +112,27 @@ func demonstrateBasicListenNotify(ctx context.Context, conn postgres.IConn) erro
 	}
 
 	// Função para receber notificações
+	done := make(chan bool)
 	go func() {
 		fmt.Println("   🎧 Aguardando notificações...")
 		for {
-			notification, err := listenerConn.WaitForNotification(ctx, 5*time.Second)
-			if err != nil {
-				if err == context.DeadlineExceeded {
-					fmt.Println("   ⏰ Timeout aguardando notificação")
+			select {
+			case <-done:
+				return
+			default:
+				notification, err := listenerConn.WaitForNotification(ctx, 2*time.Second)
+				if err != nil {
+					if err == context.DeadlineExceeded {
+						// Timeout normal, continua aguardando
+						continue
+					}
+					fmt.Printf("   ❌ Erro ao aguardar notificação: %v\n", err)
 					return
 				}
-				fmt.Printf("   ❌ Erro ao aguardar notificação: %v\n", err)
-				return
-			}
 
-			fmt.Printf("   📨 Notificação recebida: Canal='%s', Payload='%s', PID=%d\n",
-				notification.Channel, notification.Payload, notification.PID)
+				fmt.Printf("   📨 Notificação recebida: Canal='%s', Payload='%s', PID=%d\n",
+					notification.Channel, notification.Payload, notification.PID)
+			}
 		}
 	}()
 
@@ -143,7 +149,7 @@ func demonstrateBasicListenNotify(ctx context.Context, conn postgres.IConn) erro
 
 	for i, message := range notifications {
 		fmt.Printf("   📤 Enviando notificação %d: '%s'\n", i+1, message)
-		_, err := conn.Exec(ctx, "NOTIFY "+channelName+", $1", message)
+		_, err := conn.Exec(ctx, fmt.Sprintf("NOTIFY %s, '%s'", channelName, message))
 		if err != nil {
 			fmt.Printf("   ❌ Erro ao enviar notificação %d: %v\n", i+1, err)
 		} else {
@@ -154,6 +160,10 @@ func demonstrateBasicListenNotify(ctx context.Context, conn postgres.IConn) erro
 
 	// Aguardar processamento
 	time.Sleep(1 * time.Second)
+
+	// Parar goroutine
+	close(done)
+	time.Sleep(100 * time.Millisecond)
 
 	// Parar de escutar
 	fmt.Printf("   Parando de escutar canal '%s'...\n", channelName)
@@ -195,22 +205,28 @@ func demonstrateMultipleChannels(ctx context.Context, conn postgres.IConn) error
 	}
 
 	// Função para receber notificações
+	done := make(chan bool)
 	go func() {
 		fmt.Println("   🎧 Aguardando notificações em múltiplos canais...")
 		for {
-			notification, err := listenerConn.WaitForNotification(ctx, 2*time.Second)
-			if err != nil {
-				if err == context.DeadlineExceeded {
-					fmt.Println("   ⏰ Timeout aguardando notificação")
+			select {
+			case <-done:
+				return
+			default:
+				notification, err := listenerConn.WaitForNotification(ctx, 2*time.Second)
+				if err != nil {
+					if err == context.DeadlineExceeded {
+						// Timeout normal, continua aguardando
+						continue
+					}
+					fmt.Printf("   ❌ Erro ao aguardar notificação: %v\n", err)
 					return
 				}
-				fmt.Printf("   ❌ Erro ao aguardar notificação: %v\n", err)
-				return
-			}
 
-			notificationCount[notification.Channel]++
-			fmt.Printf("   📨 [%s] Notificação #%d: '%s'\n",
-				notification.Channel, notificationCount[notification.Channel], notification.Payload)
+				notificationCount[notification.Channel]++
+				fmt.Printf("   📨 [%s] Notificação #%d: '%s'\n",
+					notification.Channel, notificationCount[notification.Channel], notification.Payload)
+			}
 		}
 	}()
 
@@ -236,7 +252,7 @@ func demonstrateMultipleChannels(ctx context.Context, conn postgres.IConn) error
 
 	for i, notif := range notifications {
 		fmt.Printf("   📤 [%s] Enviando: '%s'\n", notif.channel, notif.message)
-		_, err := conn.Exec(ctx, "NOTIFY "+notif.channel+", $1", notif.message)
+		_, err := conn.Exec(ctx, fmt.Sprintf("NOTIFY %s, '%s'", notif.channel, notif.message))
 		if err != nil {
 			fmt.Printf("   ❌ Erro ao enviar notificação %d: %v\n", i+1, err)
 		}
@@ -245,6 +261,10 @@ func demonstrateMultipleChannels(ctx context.Context, conn postgres.IConn) error
 
 	// Aguardar processamento
 	time.Sleep(1 * time.Second)
+
+	// Parar goroutine
+	close(done)
+	time.Sleep(100 * time.Millisecond)
 
 	// Mostrar estatísticas
 	fmt.Println("\n   📊 Estatísticas por canal:")
@@ -284,27 +304,33 @@ func demonstrateNotificationsWithPayload(ctx context.Context, conn postgres.ICon
 	}
 
 	// Função para receber notificações
+	done := make(chan bool)
 	go func() {
 		fmt.Println("   🎧 Aguardando notificações com payload JSON...")
 		for {
-			notification, err := listenerConn.WaitForNotification(ctx, 3*time.Second)
-			if err != nil {
-				if err == context.DeadlineExceeded {
-					fmt.Println("   ⏰ Timeout aguardando notificação")
+			select {
+			case <-done:
+				return
+			default:
+				notification, err := listenerConn.WaitForNotification(ctx, 3*time.Second)
+				if err != nil {
+					if err == context.DeadlineExceeded {
+						// Timeout normal, continua aguardando
+						continue
+					}
+					fmt.Printf("   ❌ Erro ao aguardar notificação: %v\n", err)
 					return
 				}
-				fmt.Printf("   ❌ Erro ao aguardar notificação: %v\n", err)
-				return
-			}
 
-			fmt.Printf("   📨 Payload JSON recebido:\n")
-			fmt.Printf("       Canal: %s\n", notification.Channel)
-			fmt.Printf("       PID: %d\n", notification.PID)
-			fmt.Printf("       Payload: %s\n", notification.Payload)
+				fmt.Printf("   📨 Payload JSON recebido:\n")
+				fmt.Printf("       Canal: %s\n", notification.Channel)
+				fmt.Printf("       PID: %d\n", notification.PID)
+				fmt.Printf("       Payload: %s\n", notification.Payload)
 
-			// Em aplicação real, você faria parse do JSON aqui
-			if len(notification.Payload) > 0 {
-				fmt.Printf("       Tamanho: %d bytes\n", len(notification.Payload))
+				// Em aplicação real, você faria parse do JSON aqui
+				if len(notification.Payload) > 0 {
+					fmt.Printf("       Tamanho: %d bytes\n", len(notification.Payload))
+				}
 			}
 		}
 	}()
@@ -324,7 +350,7 @@ func demonstrateNotificationsWithPayload(ctx context.Context, conn postgres.ICon
 
 	for i, payload := range jsonPayloads {
 		fmt.Printf("   📤 Enviando payload %d (%d bytes)...\n", i+1, len(payload))
-		_, err := conn.Exec(ctx, "NOTIFY "+channelName+", $1", payload)
+		_, err := conn.Exec(ctx, fmt.Sprintf("NOTIFY %s, '%s'", channelName, payload))
 		if err != nil {
 			fmt.Printf("   ❌ Erro ao enviar payload %d: %v\n", i+1, err)
 		} else {
@@ -342,7 +368,7 @@ func demonstrateNotificationsWithPayload(ctx context.Context, conn postgres.ICon
 		`], "total": 3, "timestamp": "2025-01-01T11:00:00Z"}`
 
 	fmt.Printf("   📤 Enviando payload grande (%d bytes)...\n", len(largePayload))
-	_, err = conn.Exec(ctx, "NOTIFY "+channelName+", $1", largePayload)
+	_, err = conn.Exec(ctx, fmt.Sprintf("NOTIFY %s, '%s'", channelName, largePayload))
 	if err != nil {
 		fmt.Printf("   ❌ Erro ao enviar payload grande: %v\n", err)
 	} else {
@@ -351,6 +377,10 @@ func demonstrateNotificationsWithPayload(ctx context.Context, conn postgres.ICon
 
 	// Aguardar processamento
 	time.Sleep(1 * time.Second)
+
+	// Parar goroutine
+	close(done)
+	time.Sleep(100 * time.Millisecond)
 
 	// Parar de escutar
 	err = listenerConn.Unlisten(ctx, channelName)
@@ -381,20 +411,26 @@ func demonstrateSimpleChat(ctx context.Context, conn postgres.IConn) error {
 	}
 
 	// Simulação de usuário ouvindo mensagens
+	done := make(chan bool)
 	go func() {
 		fmt.Println("   💬 Aguardando mensagens do chat...")
 		for {
-			notification, err := listenerConn.WaitForNotification(ctx, 2*time.Second)
-			if err != nil {
-				if err == context.DeadlineExceeded {
-					fmt.Println("   ⏰ Nenhuma mensagem nova")
+			select {
+			case <-done:
+				return
+			default:
+				notification, err := listenerConn.WaitForNotification(ctx, 2*time.Second)
+				if err != nil {
+					if err == context.DeadlineExceeded {
+						// Timeout normal, continua aguardando
+						continue
+					}
+					fmt.Printf("   ❌ Erro ao aguardar mensagem: %v\n", err)
 					return
 				}
-				fmt.Printf("   ❌ Erro ao aguardar mensagem: %v\n", err)
-				return
-			}
 
-			fmt.Printf("   💬 Nova mensagem: %s\n", notification.Payload)
+				fmt.Printf("   💬 Nova mensagem: %s\n", notification.Payload)
+			}
 		}
 	}()
 
@@ -422,7 +458,7 @@ func demonstrateSimpleChat(ctx context.Context, conn postgres.IConn) error {
 		chatMessage := fmt.Sprintf("[%s] %s", msg.user, msg.message)
 		fmt.Printf("   📤 Enviando: %s\n", chatMessage)
 
-		_, err := conn.Exec(ctx, "NOTIFY "+chatChannel+", $1", chatMessage)
+		_, err := conn.Exec(ctx, fmt.Sprintf("NOTIFY %s, '%s'", chatChannel, chatMessage))
 		if err != nil {
 			fmt.Printf("   ❌ Erro ao enviar mensagem %d: %v\n", i+1, err)
 		}
@@ -431,6 +467,10 @@ func demonstrateSimpleChat(ctx context.Context, conn postgres.IConn) error {
 
 	// Aguardar processamento
 	time.Sleep(1 * time.Second)
+
+	// Parar goroutine
+	close(done)
+	time.Sleep(100 * time.Millisecond)
 
 	// Sair da sala
 	fmt.Printf("   Saindo da sala de chat '%s'...\n", chatChannel)
@@ -524,21 +564,27 @@ func demonstrateChangeMonitoring(ctx context.Context, conn postgres.IConn) error
 	changeCount := 0
 
 	// Função para receber notificações de mudanças
+	done := make(chan bool)
 	go func() {
 		fmt.Println("   🔍 Aguardando mudanças na tabela...")
 		for {
-			notification, err := listenerConn.WaitForNotification(ctx, 2*time.Second)
-			if err != nil {
-				if err == context.DeadlineExceeded {
-					fmt.Println("   ⏰ Timeout aguardando mudanças")
+			select {
+			case <-done:
+				return
+			default:
+				notification, err := listenerConn.WaitForNotification(ctx, 2*time.Second)
+				if err != nil {
+					if err == context.DeadlineExceeded {
+						// Timeout normal, continua aguardando
+						continue
+					}
+					fmt.Printf("   ❌ Erro ao aguardar mudanças: %v\n", err)
 					return
 				}
-				fmt.Printf("   ❌ Erro ao aguardar mudanças: %v\n", err)
-				return
-			}
 
-			changeCount++
-			fmt.Printf("   🔄 Mudança #%d detectada: %s\n", changeCount, notification.Payload)
+				changeCount++
+				fmt.Printf("   🔄 Mudança #%d detectada: %s\n", changeCount, notification.Payload)
+			}
 		}
 	}()
 
@@ -580,6 +626,10 @@ func demonstrateChangeMonitoring(ctx context.Context, conn postgres.IConn) error
 
 	// Aguardar processamento
 	time.Sleep(1 * time.Second)
+
+	// Parar goroutine
+	close(done)
+	time.Sleep(100 * time.Millisecond)
 
 	// Parar de escutar
 	err = listenerConn.Unlisten(ctx, changeChannel)

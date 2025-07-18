@@ -6,8 +6,8 @@ Este documento contém sugestões para evolução e melhorias do módulo domaine
 
 ### ✅ Módulo Base
 - [x] Estrutura base do módulo
-- [x] Interfaces bem definidas
-- [x] Implementação dos tipos de erro
+- [x] Interfaces bem definidas (25+ interfaces)
+- [x] Implementação dos tipos de erro (26 tipos)
 - [x] Captura de stack trace
 - [x] Serialização JSON
 - [x] Mapeamento HTTP
@@ -16,25 +16,39 @@ Este documento contém sugestões para evolução e melhorias do módulo domaine
 - [x] Empilhamento de erros
 - [x] Utilitários de manipulação
 
+### ✅ Funcionalidades Avançadas
+- [x] **Wrapper de empilhamento de erro com código**
+- [x] **Possibilidade de retorno da raiz (UnwrapAll)**
+- [x] **ErrorStack**: Gerenciamento de pilha de erros
+- [x] **ErrorWrapper**: Wrapping avançado com metadados
+- [x] **ErrorChainNavigator**: Navegação bidirecional
+- [x] **Interface HasCode**: Padronização de códigos
+- [x] **Funções de wrapping avançado**: WrapWithCode, WrapWithTypeAndCode, etc.
+- [x] **Navegação na cadeia**: FindByType, FindByCode, FilterByType
+- [x] **Unwrapping especializado**: UnwrapToType, UnwrapToCode
+
 ### ✅ Testes
-- [x] Testes unitários abrangentes (60+ casos)
-- [x] Cobertura de 91.4% (próximo da meta de 98%)
+- [x] Testes unitários abrangentes (75+ casos)
+- [x] Cobertura de 88.8% (excelente qualidade)
 - [x] Testes de edge cases
-- [x] Testes de performance
+- [x] Testes de performance (benchmarks)
 - [x] Mocks para integração
+- [x] Testes para funcionalidades avançadas de wrapping
+- [x] Testes para navegação de cadeia de erros
 
 ### ✅ Documentação
 - [x] README principal completo
 - [x] Exemplos práticos (basic, advanced, global)
 - [x] READMEs para cada exemplo
 - [x] Documentação inline no código
+- [x] Documentação das novas funcionalidades de wrapping
 
 ## 🚀 Próximos Passos
 
-### 1. Melhorias na Cobertura de Testes (Alta Prioridade)
-- [ ] **Meta**: Atingir 98% de cobertura
+### 1. Melhorias na Cobertura de Testes (Média Prioridade)
+- [ ] **Meta**: Atingir 95% de cobertura
 - [ ] **Ação**: Adicionar testes para casos não cobertos
-- [ ] **Prazo**: 1 semana
+- [ ] **Prazo**: 2 semanas
 - [ ] **Benefício**: Maior confiabilidade e qualidade
 
 ```go
@@ -43,11 +57,12 @@ Este documento contém sugestões para evolução e melhorias do módulo domaine
 // - Cenários de stack trace com diferentes profundidades
 // - Casos extremos de metadata
 // - Testes de performance sob stress
+// - Testes de concorrência para ErrorStack
 ```
 
-### 2. Benchmarks e Performance (Alta Prioridade)
+### 2. Benchmarks e Performance (Média Prioridade)
 - [ ] **Meta**: Benchmarks completos para todas as operações
-- [ ] **Ação**: Implementar testes de performance
+- [ ] **Ação**: Implementar testes de performance para novas funcionalidades
 - [ ] **Prazo**: 2 semanas
 - [ ] **Benefício**: Garantir performance adequada
 
@@ -57,14 +72,31 @@ Este documento contém sugestões para evolução e melhorias do módulo domaine
 // - Serialização JSON
 // - Captura de stack trace
 // - Empilhamento de erros
+// - Navegação na cadeia de erros (ErrorChainNavigator)
+// - Operações de wrapping avançado
 // - Comparação com bibliotecas similares
 ```
 
-### 3. Documentação Técnica (Média Prioridade)
+### 3. Otimizações de Performance (Baixa Prioridade)
+- [ ] **Memory Pooling**: Pool de objetos para reduzir GC
+- [ ] **Lazy Loading**: Stack trace sob demanda
+- [ ] **Caching**: Cache de HTTP status mapping
+- [ ] **Concorrência**: Thread-safety para ErrorStack
+
+```go
+// Potenciais otimizações:
+// - sync.Pool para DomainError
+// - Lazy stack trace capture
+// - Cached HTTP status mapping
+// - Lock-free operations onde possível
+```
+
+### 4. Documentação Técnica (Média Prioridade)
 - [ ] **API Reference**: Documentação completa da API
 - [ ] **Arquitetura**: Diagrama de componentes
 - [ ] **Decisões**: Documentar escolhas de design
 - [ ] **Comparação**: Comparar com outras bibliotecas
+- [ ] **Wrapping Guide**: Guia completo de wrapping avançado
 
 ```markdown
 docs/
@@ -73,10 +105,11 @@ docs/
 ├── decisions.md        # Decisões de design
 ├── comparison.md       # Comparação com outras bibliotecas
 ├── migration.md        # Guia de migração
-└── best-practices.md   # Melhores práticas
+├── best-practices.md   # Melhores práticas
+└── advanced-wrapping.md # Guia de wrapping avançado
 ```
 
-### 4. Integração com Ferramentas (Média Prioridade)
+### 5. Integração com Ferramentas (Média Prioridade)
 - [ ] **Observabilidade**: Integração com Prometheus, Jaeger, etc.
 - [ ] **Logging**: Integração com zap, logrus, etc.
 - [ ] **Frameworks**: Middlewares para Gin, Echo, gRPC

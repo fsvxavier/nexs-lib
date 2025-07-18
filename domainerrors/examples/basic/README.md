@@ -1,78 +1,63 @@
-# Exemplo Básico - DomainErrors
+# Basic Domain Errors Examples
 
-Este exemplo demonstra o uso básico do módulo domainerrors, incluindo:
+Este exemplo demonstra o uso básico da biblioteca de erros de domínio.
 
-## Funcionalidades Demonstradas
-
-### 1. Criação de Erros Básicos
-- `domainerrors.New()` - Erro básico com código e mensagem
-- `domainerrors.NewWithError()` - Erro com causa subjacente
-- `domainerrors.NewWithType()` - Erro com tipo específico
-
-### 2. Tipos de Erro Específicos
-- **ValidationError**: Erros de validação com campos específicos
-- **NotFoundError**: Recursos não encontrados
-- **BusinessError**: Violações de regras de negócio
-- **DatabaseError**: Falhas de banco de dados
-- **ExternalServiceError**: Falhas em serviços externos
-
-### 3. Metadados e Contexto
-- Adicionar metadados com `WithMetadata()`
-- Verificar tipos de erro com `IsType()`
-- Serialização JSON com `JSON()`
-
-### 4. Empilhamento de Erros
-- Encadear erros com `Wrap()`
-- Formatação de cadeia de erros
-- Identificação de causa raiz
-
-### 5. Grupo de Erros
-- Coletar múltiplos erros
-- Filtrar por tipo
-- Operações em lote
-
-### 6. Utilitários
-- Verificação de severidade
-- Lógica de retry
-- Mapeamento HTTP
-
-## Como Executar
+## Executar o Exemplo
 
 ```bash
-cd domainerrors/examples/basic
+cd examples/basic
 go run main.go
 ```
 
-## Saída Esperada
+## Exemplos Incluídos
 
-O exemplo produzirá uma saída detalhada mostrando:
-- Diferentes tipos de erro criados
-- Metadados e contexto adicionados
-- Serialização JSON
-- Empilhamento e formatação de erros
-- Operações com grupos de erros
-- Mapeamento para códigos HTTP
+### 1. Criação Básica de Erro
+- Como criar um erro de domínio simples
+- Propriedades básicas do erro (code, message, type)
+
+### 2. Erro com Causa
+- Criando erro com uma causa subjacente
+- Uso do método `Unwrap()` para acessar a causa raiz
+
+### 3. Erro com Metadados
+- Adicionando metadados personalizados aos erros
+- Útil para informações de contexto (request_id, user_id, etc.)
+
+### 4. Encadeamento de Erros
+- Criando uma cadeia de erros com contexto
+- Empilhamento de erros através de diferentes camadas
+- Visualização do stack trace
+
+### 5. Mapeamento de Status HTTP
+- Como diferentes tipos de erro mapeiam para códigos HTTP
+- Uso prático em APIs REST
+
+### 6. Verificação de Tipos
+- Verificando se um erro é de um tipo específico
+- Usando `IsType()` para lógica condicional
+
+### 7. Compatibilidade com Interface Padrão
+- Demonstrando compatibilidade com `errors.Is` e `errors.As`
+- Integração com o pacote `errors` padrão do Go
 
 ## Conceitos Importantes
 
-### Códigos de Erro
-- Use códigos únicos e descritivos (ex: "USER_001", "DB_001")
-- Siga um padrão consistente na aplicação
-
 ### Tipos de Erro
-- Escolha o tipo apropriado para cada situação
-- Tipos determinam o comportamento e mapeamento HTTP
+- **Validation**: Erros de validação → HTTP 400
+- **NotFound**: Recurso não encontrado → HTTP 404
+- **Authentication**: Falha de autenticação → HTTP 401
+- **Authorization**: Falha de autorização → HTTP 403
+- **RateLimit**: Limite de taxa excedido → HTTP 429
+- **Server**: Erro interno do servidor → HTTP 500
+
+### Stack Trace
+O stack trace é capturado automaticamente quando um erro é criado, fornecendo informações detalhadas sobre onde o erro ocorreu.
 
 ### Metadados
-- Adicione contexto relevante para debugging
-- Evite informações sensíveis nos metadados
-
-### Empilhamento
-- Preserve a causa original do erro
-- Use `Wrap()` para adicionar contexto sem perder informações
+Use metadados para adicionar informações contextuais que podem ser úteis para debugging e logging.
 
 ## Próximos Passos
 
-Após dominar este exemplo básico, veja:
-- `examples/advanced/` - Padrões avançados e integração
-- `examples/global/` - Configuração global e middleware
+- Veja os exemplos avançados em `../advanced/`
+- Explore os diferentes tipos de erro em `../types/`
+- Aprenda sobre integração com APIs em `../api/`

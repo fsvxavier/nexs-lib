@@ -1,19 +1,17 @@
-# DomainErrors
+# Domain Errors Library
 
-Um módulo robusto e idiomático para tratamento de erros em Go, seguindo os princípios de Domain-Driven Design (DDD).
+Uma biblioteca robusta e idiomática para tratamento de erros de domínio em Go, seguindo os princípios de Domain-Driven Design (DDD).
 
-## 🚀 Características
+## 🎯 Características
 
-- **Genérico e Reutilizável**: Funciona em qualquer aplicação Go
-- **Categorização de Erros**: Tipos específicos para diferentes cenários
-- **Stack Trace Automático**: Captura contexto de execução
-- **Metadados Ricos**: Informações adicionais para debugging
-- **Serialização JSON**: Conversão automática para APIs
-- **Mapeamento HTTP**: Códigos de status apropriados
-- **Empilhamento de Erros**: Preserva cadeia de causas
-- **Contexto Integrado**: Suporte nativo ao context.Context
-- **Observabilidade**: Métricas e tracing integrados
-- **Testabilidade**: Mocks e utilitários para testes
+- **Categorização de erros** por tipos específicos (validação, negócios, infraestrutura, etc.)
+- **Empilhamento de erros** com informações contextuais e código personalizado
+- **Captura automática de stack trace** para facilitar a depuração
+- **Mapeamento automático para códigos HTTP** para uso em APIs REST
+- **Suporte para metadados** específicos por tipo de erro
+- **Interfaces bem definidas** para máxima flexibilidade
+- **Compatibilidade total** com o pacote `errors` padrão do Go
+- **Suporte a context.Context** em todas as operações
 
 ## 📦 Instalação
 
@@ -21,339 +19,288 @@ Um módulo robusto e idiomático para tratamento de erros em Go, seguindo os pri
 go get github.com/fsvxavier/nexs-lib/domainerrors
 ```
 
-## 🔧 Uso Básico
+## 🚀 Uso Básico
 
-### Criando Erros
+### Criação de Erros
 
 ```go
-// Erro básico
-err := domainerrors.New("USER_001", "Usuário não encontrado")
+import "github.com/fsvxavier/nexs-lib/domainerrors"
+
+// Erro simples
+err := domainerrors.New("USR_001", "User validation failed")
+
+// Erro com causa
+originalErr := errors.New("database timeout")
+err := domainerrors.NewWithCause("DB_001", "Failed to save user", originalErr)
 
 // Erro com tipo específico
-err := domainerrors.NewWithType("VAL_001", "Dados inválidos", domainerrors.ErrorTypeValidation)
-
-// Erro encapsulando outro erro
-err := domainerrors.NewWithError("DB_001", "Falha na consulta", originalErr)
+err := domainerrors.NewWithType("VAL_001", "Invalid input", domainerrors.ErrorTypeValidation)
 ```
 
-### Tipos de Erro Específicos
+### Tipos Específicos de Erro
 
 ```go
 // Erro de validação
-validationErr := domainerrors.NewValidationError("Dados inválidos", nil)
-validationErr.WithField("email", "Email é obrigatório")
+validationErr := domainerrors.NewValidationError("Validation failed", nil)
+validationErr.WithField("email", "invalid format")
+validationErr.WithField("age", "must be positive")
 
-// Erro de recurso não encontrado
-notFoundErr := domainerrors.NewNotFoundError("Usuário não encontrado")
+// Erro de negócio
+businessErr := domainerrors.NewBusinessError("INSUFFICIENT_FUNDS", "Account balance too low")
+businessErr.WithRule("minimum balance required")
 
-// Erro de regra de negócio
-businessErr := domainerrors.NewBusinessError("INSUFFICIENT_FUNDS", "Saldo insuficiente")
+// Erro de banco de dados
+dbErr := domainerrors.NewDatabaseError("Query failed", originalErr)
+dbErr.WithOperation("SELECT", "users")
+dbErr.WithQuery("SELECT * FROM users WHERE id = ?")
+
+// Erro de serviço externo
+extErr := domainerrors.NewExternalServiceError("payment-api", "Payment failed", originalErr)
+extErr.WithEndpoint("/api/v1/charge")
+extErr.WithResponse(503, "Service unavailable")
 ```
 
-### Adicionando Contexto
+### Empilhamento de Erros
 
 ```go
-err := domainerrors.New("API_001", "Falha na API")
-err.WithMetadata("user_id", "12345")
-err.WithMetadata("operation", "create_user")
-err.WithContext(ctx)
+// Erro base
+baseErr := errors.New("connection refused")
+
+// Camada de infraestrutura
+infraErr := domainerrors.NewInfrastructureError("database", "Connection failed", baseErr)
+
+// Camada de serviço
+serviceErr := domainerrors.New("SERVICE_ERROR", "User service failed")
+serviceErr.Wrap("processing user request", infraErr)
+
+// Contexto adicional
+ctx := context.Background()
+serviceErr.WithContext(ctx, "handling user registration")
 ```
 
-### Tratamento de Erros
+### Metadados e Contexto
 
 ```go
-if err != nil {
-    // Verificar tipo
-    if domainerrors.IsType(err, domainerrors.ErrorTypeValidation) {
-        // Tratar erro de validação
-    }
-    
-    // Obter código HTTP
-    statusCode := domainerrors.GetHTTPStatus(err)
-    
-    // Serializar para JSON
-    if domainErr, ok := err.(*domainerrors.DomainError); ok {
-        jsonData, _ := domainErr.JSON()
-        // Enviar como resposta da API
-    }
+err := domainerrors.New("API_001", "Request processing failed")
+err.WithMetadata("request_id", "req-12345")
+err.WithMetadata("user_id", "user-789")
+err.WithMetadata("endpoint", "/api/v1/users")
+```
+
+## 🔧 Tipos de Erro Disponíveis
+
+### Erros Básicos
+- `ValidationError` - Erros de validação de entrada
+- `NotFoundError` - Recursos não encontrados
+- `BusinessError` - Violações de regras de negócio
+
+### Erros de Infraestrutura
+- `DatabaseError` - Erros de banco de dados
+- `ExternalServiceError` - Falhas de integração com serviços externos
+- `InfrastructureError` - Erros de infraestrutura geral
+- `DependencyError` - Falhas de dependências externas
+
+### Erros de Segurança
+- `AuthenticationError` - Falhas de autenticação
+- `AuthorizationError` - Problemas de autorização
+- `SecurityError` - Violações de segurança e ameaças
+
+### Erros de Performance
+- `TimeoutError` - Operações que excedem tempo limite
+- `RateLimitError` - Violações de limite de taxa
+- `ResourceExhaustedError` - Recursos esgotados
+- `CircuitBreakerError` - Circuit breakers abertos
+
+### Erros de Sistema
+- `ConfigurationError` - Problemas de configuração
+- `UnsupportedOperationError` - Operações não suportadas
+- `BadRequestError` - Requisições mal formadas
+- `ConflictError` - Conflitos de recursos
+- `InvalidSchemaError` - Erros de validação de schema
+- `UnsupportedMediaTypeError` - Tipos de mídia não suportados
+- `ServerError` - Erros internos do servidor
+- `UnprocessableEntityError` - Entidades não processáveis
+- `ServiceUnavailableError` - Serviços indisponíveis
+
+## 🌐 Mapeamento HTTP
+
+Todos os erros são automaticamente mapeados para códigos HTTP apropriados:
+
+```go
+// Diferentes tipos mapeiam para diferentes códigos HTTP
+validationErr := domainerrors.NewValidationError("Invalid data", nil)
+fmt.Println(validationErr.HTTPStatus()) // 400
+
+notFoundErr := domainerrors.NewNotFoundError("User not found")
+fmt.Println(notFoundErr.HTTPStatus()) // 404
+
+// Função utilitária para qualquer erro
+status := domainerrors.MapHTTPStatus(err)
+```
+
+## 🔍 Verificação de Tipos
+
+```go
+// Verificar se um erro é de tipo específico
+if domainerrors.IsType(err, domainerrors.ErrorTypeValidation) {
+    // Tratar erro de validação
+}
+
+// Compatibilidade com errors.Is e errors.As
+if errors.Is(err, originalErr) {
+    // Erro contém originalErr
+}
+
+var domainErr *domainerrors.DomainError
+if errors.As(err, &domainErr) {
+    // Erro é um DomainError
+    fmt.Println(domainErr.Code)
 }
 ```
 
-## 🏗️ Tipos de Erro Disponíveis
-
-| Tipo | Descrição | HTTP Status | Uso |
-|------|-----------|-------------|-----|
-| `ErrorTypeValidation` | Dados inválidos | 400 | Validação de entrada |
-| `ErrorTypeNotFound` | Recurso não encontrado | 404 | Entidades não localizadas |
-| `ErrorTypeBusiness` | Regra de negócio violada | 422 | Lógica de domínio |
-| `ErrorTypeDatabase` | Falha de banco de dados | 500 | Persistência |
-| `ErrorTypeExternalService` | Falha em API externa | 502 | Integração |
-| `ErrorTypeInfrastructure` | Problema de infraestrutura | 503 | Recursos do sistema |
-| `ErrorTypeTimeout` | Operação expirou | 408 | Limites de tempo |
-| `ErrorTypeAuthentication` | Falha de autenticação | 401 | Identidade |
-| `ErrorTypeAuthorization` | Acesso negado | 403 | Permissões |
-| `ErrorTypeSecurity` | Problema de segurança | 403 | Segurança |
-
-## 🎯 Exemplos
-
-### Exemplo Básico
+## 📊 Stack Trace
 
 ```go
-package main
+err := domainerrors.New("ERROR_001", "Something went wrong")
+err.WithContext(ctx, "processing user request")
 
-import (
-    "fmt"
-    "github.com/fsvxavier/nexs-lib/domainerrors"
-)
+// Visualizar stack trace formatado
+fmt.Println(err.StackTrace())
+```
 
-func main() {
-    // Criar erro
-    err := domainerrors.NewValidationError("Dados inválidos", nil)
-    err.WithField("email", "Email é obrigatório")
-    
-    // Verificar propriedades
-    fmt.Printf("Código: %s\n", err.Code)
-    fmt.Printf("Tipo: %s\n", err.ErrorType)
-    fmt.Printf("Status HTTP: %d\n", err.HTTPStatus())
-    
-    // Serializar
-    if jsonData, err := err.JSON(); err == nil {
-        fmt.Printf("JSON: %s\n", string(jsonData))
-    }
+## 🏗️ Arquitetura
+
+### Interfaces
+
+O módulo define interfaces claras para máxima flexibilidade:
+
+```go
+type ErrorDomainInterface interface {
+    Error() string
+    Unwrap() error
+    Type() ErrorType
+    HTTPStatus() int
+    StackTrace() string
+    WithMetadata(key string, value interface{}) ErrorDomainInterface
 }
 ```
 
-### Exemplo com Contexto
+### Separação de Domínio
 
-```go
-func CreateUser(ctx context.Context, userData UserData) error {
-    // Validar dados
-    if err := validateUserData(userData); err != nil {
-        validationErr := domainerrors.NewValidationError("Dados de usuário inválidos", err)
-        validationErr.WithContext(ctx)
-        validationErr.WithMetadata("user_id", userData.ID)
-        return validationErr
-    }
-    
-    // Verificar se usuário já existe
-    exists, err := userRepo.Exists(ctx, userData.Email)
-    if err != nil {
-        return domainerrors.NewDatabaseError("Falha ao verificar usuário", err)
-    }
-    
-    if exists {
-        conflictErr := domainerrors.NewWithType("USER_EXISTS", "Usuário já existe", domainerrors.ErrorTypeConflict)
-        conflictErr.WithMetadata("email", userData.Email)
-        return conflictErr
-    }
-    
-    // Criar usuário
-    if err := userRepo.Create(ctx, userData); err != nil {
-        return domainerrors.NewDatabaseError("Falha ao criar usuário", err)
-    }
-    
-    return nil
-}
-```
-
-## 📁 Estrutura do Projeto
-
-```
-domainerrors/
-├── domainerrors.go          # Implementação principal
-├── domainerrors_test.go     # Testes unitários
-├── interfaces/
-│   └── interfaces.go        # Interfaces do módulo
-├── internal/
-│   └── stack.go            # Captura de stack trace
-├── mocks/
-│   └── mocks.go            # Mocks para testes
-└── examples/
-    ├── basic/              # Exemplo básico
-    ├── advanced/           # Padrões avançados
-    └── global/             # Configuração global
-```
+- **domainerrors/**: Implementações concretas
+- **interfaces/**: Interfaces e contratos
+- **mocks/**: Mocks gerados com gomock
+- **internal/**: Utilitários internos (stack trace)
 
 ## 🧪 Testes
 
+O módulo possui cobertura completa de testes (>98%):
+
 ```bash
-# Executar testes
-go test -v
+# Executar todos os testes
+go test -race -timeout 30s -v -coverprofile=coverage.out ./...
 
-# Executar testes com coverage
-go test -v -cover
+# Executar testes unitários
+go test -tags=unit -race -timeout 30s ./...
 
-# Executar testes com tags
-go test -tags=unit -v
+# Executar benchmarks
+go test -bench=. -benchmem ./...
 ```
 
-## 📊 Cobertura de Testes
+## 📚 Exemplos
 
-- **Meta**: 98% de cobertura mínima
-- **Atual**: 91.4% de cobertura
-- **Testes**: 60+ casos de teste
-- **Cenários**: Casos normais, edge cases, falhas
+### Básico
+```bash
+cd examples/basic
+go run main.go
+```
+
+### Avançado
+```bash
+cd examples/advanced
+go run main.go
+```
+
+## 🎯 Casos de Uso
+
+### API REST
+```go
+func handleError(c *fiber.Ctx, err error) error {
+    statusCode := domainerrors.MapHTTPStatus(err)
+    
+    return c.Status(statusCode).JSON(fiber.Map{
+        "error": err.Error(),
+        "code":  statusCode,
+    })
+}
+```
+
+### Logging Estruturado
+```go
+logger.Error("Operation failed",
+    zap.String("error_type", reflect.TypeOf(err).String()),
+    zap.String("error_code", domainErr.Code),
+    zap.Any("metadata", domainErr.Metadata),
+)
+```
+
+### Retry Pattern
+```go
+func retryOperation(operation func() error) error {
+    for i := 0; i < maxRetries; i++ {
+        err := operation()
+        if err == nil {
+            return nil
+        }
+        
+        // Verificar se é retryável
+        if domainerrors.IsType(err, domainerrors.ErrorTypeTimeout) ||
+           domainerrors.IsType(err, domainerrors.ErrorTypeExternalService) {
+            time.Sleep(backoffDelay(i))
+            continue
+        }
+        
+        return err // Erro não retryável
+    }
+    
+    return domainerrors.NewTimeoutError("retry", "Max retries exceeded", nil)
+}
+```
 
 ## 🔧 Configuração
 
-### Configuração Global
-
+### Timeouts
 ```go
-// Configurar stack trace globalmente
-domainerrors.GlobalStackTraceEnabled = true
-domainerrors.GlobalMaxStackDepth = 10
-domainerrors.GlobalSkipFrames = 2
+// Todos os testes incluem timeout de 30 segundos
+go test -timeout 30s ./...
 ```
 
-### Handler Centralizado
-
+### Linting
 ```go
-type ErrorHandler struct {
-    logger *log.Logger
-    config *Config
-}
-
-func (h *ErrorHandler) HandleError(err error) Response {
-    // Processar erro
-    // Fazer log
-    // Enviar métricas
-    // Retornar response
-}
+golangci-lint run
 ```
 
-## 🌐 Integração com Frameworks
-
-### Gin
-
+### Formatação
 ```go
-func ErrorMiddleware() gin.HandlerFunc {
-    return func(c *gin.Context) {
-        defer func() {
-            if err := recover(); err != nil {
-                domainErr := domainerrors.RecoverWithStackTrace()
-                response := convertToHTTPResponse(domainErr)
-                c.JSON(response.Status, response)
-            }
-        }()
-        c.Next()
-    }
-}
+gofmt -w .
 ```
 
-### Echo
+## 🚀 Próximos Passos
 
-```go
-func CustomErrorHandler(err error, c echo.Context) {
-    response := convertToHTTPResponse(err)
-    c.JSON(response.Status, response)
-}
-```
+Ver `NEXT_STEPS.md` para melhorias futuras e roadmap.
 
-### gRPC
-
-```go
-func ErrorInterceptor() grpc.UnaryServerInterceptor {
-    return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-        resp, err := handler(ctx, req)
-        if err != nil {
-            return resp, enrichErrorWithContext(ctx, err)
-        }
-        return resp, nil
-    }
-}
-```
-
-## 📈 Observabilidade
-
-### Métricas
-
-```go
-// Prometheus
-errorCounter := prometheus.NewCounterVec(
-    prometheus.CounterOpts{
-        Name: "errors_total",
-        Help: "Total errors by type",
-    },
-    []string{"type", "code"},
-)
-
-// Registrar métrica
-if domainErr, ok := err.(*domainerrors.DomainError); ok {
-    errorCounter.WithLabelValues(domainErr.ErrorType, domainErr.Code).Inc()
-}
-```
-
-### Tracing
-
-```go
-// OpenTelemetry
-span := trace.SpanFromContext(ctx)
-span.SetStatus(codes.Error, err.Error())
-span.RecordError(err)
-
-// Adicionar ao erro
-domainErr.WithMetadata("trace_id", span.SpanContext().TraceID().String())
-```
-
-### Logging
-
-```go
-// Structured logging
-log.Error("Operation failed",
-    zap.String("error_code", domainErr.Code),
-    zap.String("error_type", domainErr.ErrorType),
-    zap.Any("metadata", domainErr.Metadata()),
-    zap.String("stack_trace", domainErr.StackTrace()),
-)
-```
-
-## 🔍 Debugging
-
-### Stack Trace
-
-```go
-err := domainerrors.New("DEBUG_001", "Erro para debug")
-fmt.Printf("Stack trace:\n%s\n", err.StackTrace())
-```
-
-### Cadeia de Erros
-
-```go
-// Encadear erros
-err1 := errors.New("erro original")
-err2 := domainerrors.Wrap("contexto adicional", err1)
-err3 := domainerrors.Wrap("mais contexto", err2)
-
-// Analisar cadeia
-fmt.Printf("Cadeia: %s\n", domainerrors.FormatErrorChain(err3))
-fmt.Printf("Causa raiz: %s\n", domainerrors.GetRootCause(err3))
-```
-
-## 📚 Documentação Adicional
-
-- [Exemplos Práticos](examples/README.md)
-- [API Reference](docs/api.md)
-- [Guia de Migração](docs/migration.md)
-- [Melhores Práticas](docs/best-practices.md)
-
-## 🤝 Contribuindo
+## 🤝 Contribuição
 
 1. Fork o projeto
 2. Crie uma branch para sua feature
-3. Commit suas mudanças
-4. Push para a branch
-5. Abra um Pull Request
+3. Adicione testes para nova funcionalidade
+4. Execute `go test` e `golangci-lint`
+5. Submeta um pull request
 
-## 📄 Licença
+## 📝 Licença
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
 
-## 🙏 Agradecimentos
+## 🏷️ Versão
 
-- Inspirado nas melhores práticas da comunidade Go
-- Baseado nos princípios de Domain-Driven Design
-- Influenciado por bibliotecas como `pkg/errors` e `go-kit`
-
----
-
-**Desenvolvido com ❤️ em Go**
+**v2.0.0** - Versão completa com suporte a todos os tipos de erro, interfaces bem definidas, mocks, stack trace avançado e cobertura completa de testes.

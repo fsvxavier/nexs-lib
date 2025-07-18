@@ -5,38 +5,37 @@
 package mocks
 
 import (
-	context "context"
 	reflect "reflect"
 
-	interfaces "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+	domainerrors "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
 	gomock "github.com/golang/mock/gomock"
 )
 
-// MockDomainError is a mock of DomainError interface.
-type MockDomainError struct {
+// MockErrorDomainInterface is a mock of ErrorDomainInterface interface.
+type MockErrorDomainInterface struct {
 	ctrl     *gomock.Controller
-	recorder *MockDomainErrorMockRecorder
+	recorder *MockErrorDomainInterfaceMockRecorder
 }
 
-// MockDomainErrorMockRecorder is the mock recorder for MockDomainError.
-type MockDomainErrorMockRecorder struct {
-	mock *MockDomainError
+// MockErrorDomainInterfaceMockRecorder is the mock recorder for MockErrorDomainInterface.
+type MockErrorDomainInterfaceMockRecorder struct {
+	mock *MockErrorDomainInterface
 }
 
-// NewMockDomainError creates a new mock instance.
-func NewMockDomainError(ctrl *gomock.Controller) *MockDomainError {
-	mock := &MockDomainError{ctrl: ctrl}
-	mock.recorder = &MockDomainErrorMockRecorder{mock}
+// NewMockErrorDomainInterface creates a new mock instance.
+func NewMockErrorDomainInterface(ctrl *gomock.Controller) *MockErrorDomainInterface {
+	mock := &MockErrorDomainInterface{ctrl: ctrl}
+	mock.recorder = &MockErrorDomainInterfaceMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockDomainError) EXPECT() *MockDomainErrorMockRecorder {
+func (m *MockErrorDomainInterface) EXPECT() *MockErrorDomainInterfaceMockRecorder {
 	return m.recorder
 }
 
 // Error mocks base method.
-func (m *MockDomainError) Error() string {
+func (m *MockErrorDomainInterface) Error() string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Error")
 	ret0, _ := ret[0].(string)
@@ -44,13 +43,13 @@ func (m *MockDomainError) Error() string {
 }
 
 // Error indicates an expected call of Error.
-func (mr *MockDomainErrorMockRecorder) Error() *gomock.Call {
+func (mr *MockErrorDomainInterfaceMockRecorder) Error() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Error", reflect.TypeOf((*MockDomainError)(nil).Error))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Error", reflect.TypeOf((*MockErrorDomainInterface)(nil).Error))
 }
 
 // HTTPStatus mocks base method.
-func (m *MockDomainError) HTTPStatus() int {
+func (m *MockErrorDomainInterface) HTTPStatus() int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HTTPStatus")
 	ret0, _ := ret[0].(int)
@@ -58,42 +57,13 @@ func (m *MockDomainError) HTTPStatus() int {
 }
 
 // HTTPStatus indicates an expected call of HTTPStatus.
-func (mr *MockDomainErrorMockRecorder) HTTPStatus() *gomock.Call {
+func (mr *MockErrorDomainInterfaceMockRecorder) HTTPStatus() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HTTPStatus", reflect.TypeOf((*MockDomainError)(nil).HTTPStatus))
-}
-
-// JSON mocks base method.
-func (m *MockDomainError) JSON() ([]byte, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "JSON")
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// JSON indicates an expected call of JSON.
-func (mr *MockDomainErrorMockRecorder) JSON() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "JSON", reflect.TypeOf((*MockDomainError)(nil).JSON))
-}
-
-// Metadata mocks base method.
-func (m *MockDomainError) Metadata() map[string]interface{} {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Metadata")
-	ret0, _ := ret[0].(map[string]interface{})
-	return ret0
-}
-
-// Metadata indicates an expected call of Metadata.
-func (mr *MockDomainErrorMockRecorder) Metadata() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockDomainError)(nil).Metadata))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HTTPStatus", reflect.TypeOf((*MockErrorDomainInterface)(nil).HTTPStatus))
 }
 
 // StackTrace mocks base method.
-func (m *MockDomainError) StackTrace() string {
+func (m *MockErrorDomainInterface) StackTrace() string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StackTrace")
 	ret0, _ := ret[0].(string)
@@ -101,27 +71,27 @@ func (m *MockDomainError) StackTrace() string {
 }
 
 // StackTrace indicates an expected call of StackTrace.
-func (mr *MockDomainErrorMockRecorder) StackTrace() *gomock.Call {
+func (mr *MockErrorDomainInterfaceMockRecorder) StackTrace() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StackTrace", reflect.TypeOf((*MockDomainError)(nil).StackTrace))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StackTrace", reflect.TypeOf((*MockErrorDomainInterface)(nil).StackTrace))
 }
 
 // Type mocks base method.
-func (m *MockDomainError) Type() interfaces.ErrorType {
+func (m *MockErrorDomainInterface) Type() domainerrors.ErrorType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Type")
-	ret0, _ := ret[0].(interfaces.ErrorType)
+	ret0, _ := ret[0].(domainerrors.ErrorType)
 	return ret0
 }
 
 // Type indicates an expected call of Type.
-func (mr *MockDomainErrorMockRecorder) Type() *gomock.Call {
+func (mr *MockErrorDomainInterfaceMockRecorder) Type() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockDomainError)(nil).Type))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockErrorDomainInterface)(nil).Type))
 }
 
 // Unwrap mocks base method.
-func (m *MockDomainError) Unwrap() error {
+func (m *MockErrorDomainInterface) Unwrap() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Unwrap")
 	ret0, _ := ret[0].(error)
@@ -129,667 +99,23 @@ func (m *MockDomainError) Unwrap() error {
 }
 
 // Unwrap indicates an expected call of Unwrap.
-func (mr *MockDomainErrorMockRecorder) Unwrap() *gomock.Call {
+func (mr *MockErrorDomainInterfaceMockRecorder) Unwrap() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unwrap", reflect.TypeOf((*MockDomainError)(nil).Unwrap))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unwrap", reflect.TypeOf((*MockErrorDomainInterface)(nil).Unwrap))
 }
 
-// WithContext mocks base method.
-func (m *MockDomainError) WithContext(ctx context.Context) interfaces.DomainError {
+// WithMetadata mocks base method.
+func (m *MockErrorDomainInterface) WithMetadata(key string, value interface{}) domainerrors.ErrorDomainInterface {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WithContext", ctx)
-	ret0, _ := ret[0].(interfaces.DomainError)
+	ret := m.ctrl.Call(m, "WithMetadata", key, value)
+	ret0, _ := ret[0].(domainerrors.ErrorDomainInterface)
 	return ret0
 }
 
-// WithContext indicates an expected call of WithContext.
-func (mr *MockDomainErrorMockRecorder) WithContext(ctx interface{}) *gomock.Call {
+// WithMetadata indicates an expected call of WithMetadata.
+func (mr *MockErrorDomainInterfaceMockRecorder) WithMetadata(key, value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithContext", reflect.TypeOf((*MockDomainError)(nil).WithContext), ctx)
-}
-
-// Wrap mocks base method.
-func (m *MockDomainError) Wrap(message string, err error) interfaces.DomainError {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Wrap", message, err)
-	ret0, _ := ret[0].(interfaces.DomainError)
-	return ret0
-}
-
-// Wrap indicates an expected call of Wrap.
-func (mr *MockDomainErrorMockRecorder) Wrap(message, err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Wrap", reflect.TypeOf((*MockDomainError)(nil).Wrap), message, err)
-}
-
-// MockErrorValidator is a mock of ErrorValidator interface.
-type MockErrorValidator struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorValidatorMockRecorder
-}
-
-// MockErrorValidatorMockRecorder is the mock recorder for MockErrorValidator.
-type MockErrorValidatorMockRecorder struct {
-	mock *MockErrorValidator
-}
-
-// NewMockErrorValidator creates a new mock instance.
-func NewMockErrorValidator(ctrl *gomock.Controller) *MockErrorValidator {
-	mock := &MockErrorValidator{ctrl: ctrl}
-	mock.recorder = &MockErrorValidatorMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorValidator) EXPECT() *MockErrorValidatorMockRecorder {
-	return m.recorder
-}
-
-// ExtractType mocks base method.
-func (m *MockErrorValidator) ExtractType(err error) (interfaces.ErrorType, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ExtractType", err)
-	ret0, _ := ret[0].(interfaces.ErrorType)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// ExtractType indicates an expected call of ExtractType.
-func (mr *MockErrorValidatorMockRecorder) ExtractType(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExtractType", reflect.TypeOf((*MockErrorValidator)(nil).ExtractType), err)
-}
-
-// IsType mocks base method.
-func (m *MockErrorValidator) IsType(err error, errorType interfaces.ErrorType) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsType", err, errorType)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsType indicates an expected call of IsType.
-func (mr *MockErrorValidatorMockRecorder) IsType(err, errorType interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsType", reflect.TypeOf((*MockErrorValidator)(nil).IsType), err, errorType)
-}
-
-// MockErrorHandler is a mock of ErrorHandler interface.
-type MockErrorHandler struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorHandlerMockRecorder
-}
-
-// MockErrorHandlerMockRecorder is the mock recorder for MockErrorHandler.
-type MockErrorHandlerMockRecorder struct {
-	mock *MockErrorHandler
-}
-
-// NewMockErrorHandler creates a new mock instance.
-func NewMockErrorHandler(ctrl *gomock.Controller) *MockErrorHandler {
-	mock := &MockErrorHandler{ctrl: ctrl}
-	mock.recorder = &MockErrorHandlerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorHandler) EXPECT() *MockErrorHandlerMockRecorder {
-	return m.recorder
-}
-
-// GetRetryDelay mocks base method.
-func (m *MockErrorHandler) GetRetryDelay(err error, attempt int) int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRetryDelay", err, attempt)
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// GetRetryDelay indicates an expected call of GetRetryDelay.
-func (mr *MockErrorHandlerMockRecorder) GetRetryDelay(err, attempt interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRetryDelay", reflect.TypeOf((*MockErrorHandler)(nil).GetRetryDelay), err, attempt)
-}
-
-// Handle mocks base method.
-func (m *MockErrorHandler) Handle(ctx context.Context, err error) interface{} {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Handle", ctx, err)
-	ret0, _ := ret[0].(interface{})
-	return ret0
-}
-
-// Handle indicates an expected call of Handle.
-func (mr *MockErrorHandlerMockRecorder) Handle(ctx, err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Handle", reflect.TypeOf((*MockErrorHandler)(nil).Handle), ctx, err)
-}
-
-// ShouldRetry mocks base method.
-func (m *MockErrorHandler) ShouldRetry(err error) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ShouldRetry", err)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// ShouldRetry indicates an expected call of ShouldRetry.
-func (mr *MockErrorHandlerMockRecorder) ShouldRetry(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShouldRetry", reflect.TypeOf((*MockErrorHandler)(nil).ShouldRetry), err)
-}
-
-// MockErrorRegistry is a mock of ErrorRegistry interface.
-type MockErrorRegistry struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorRegistryMockRecorder
-}
-
-// MockErrorRegistryMockRecorder is the mock recorder for MockErrorRegistry.
-type MockErrorRegistryMockRecorder struct {
-	mock *MockErrorRegistry
-}
-
-// NewMockErrorRegistry creates a new mock instance.
-func NewMockErrorRegistry(ctrl *gomock.Controller) *MockErrorRegistry {
-	mock := &MockErrorRegistry{ctrl: ctrl}
-	mock.recorder = &MockErrorRegistryMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorRegistry) EXPECT() *MockErrorRegistryMockRecorder {
-	return m.recorder
-}
-
-// GetDescription mocks base method.
-func (m *MockErrorRegistry) GetDescription(code string) (string, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDescription", code)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// GetDescription indicates an expected call of GetDescription.
-func (mr *MockErrorRegistryMockRecorder) GetDescription(code interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDescription", reflect.TypeOf((*MockErrorRegistry)(nil).GetDescription), code)
-}
-
-// GetHTTPStatus mocks base method.
-func (m *MockErrorRegistry) GetHTTPStatus(code string) (int, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetHTTPStatus", code)
-	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// GetHTTPStatus indicates an expected call of GetHTTPStatus.
-func (mr *MockErrorRegistryMockRecorder) GetHTTPStatus(code interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHTTPStatus", reflect.TypeOf((*MockErrorRegistry)(nil).GetHTTPStatus), code)
-}
-
-// ListCodes mocks base method.
-func (m *MockErrorRegistry) ListCodes() map[string]string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListCodes")
-	ret0, _ := ret[0].(map[string]string)
-	return ret0
-}
-
-// ListCodes indicates an expected call of ListCodes.
-func (mr *MockErrorRegistryMockRecorder) ListCodes() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCodes", reflect.TypeOf((*MockErrorRegistry)(nil).ListCodes))
-}
-
-// RegisterCode mocks base method.
-func (m *MockErrorRegistry) RegisterCode(code, description string, httpStatus int) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RegisterCode", code, description, httpStatus)
-}
-
-// RegisterCode indicates an expected call of RegisterCode.
-func (mr *MockErrorRegistryMockRecorder) RegisterCode(code, description, httpStatus interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterCode", reflect.TypeOf((*MockErrorRegistry)(nil).RegisterCode), code, description, httpStatus)
-}
-
-// MockErrorMetrics is a mock of ErrorMetrics interface.
-type MockErrorMetrics struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorMetricsMockRecorder
-}
-
-// MockErrorMetricsMockRecorder is the mock recorder for MockErrorMetrics.
-type MockErrorMetricsMockRecorder struct {
-	mock *MockErrorMetrics
-}
-
-// NewMockErrorMetrics creates a new mock instance.
-func NewMockErrorMetrics(ctrl *gomock.Controller) *MockErrorMetrics {
-	mock := &MockErrorMetrics{ctrl: ctrl}
-	mock.recorder = &MockErrorMetricsMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorMetrics) EXPECT() *MockErrorMetricsMockRecorder {
-	return m.recorder
-}
-
-// GetErrorCount mocks base method.
-func (m *MockErrorMetrics) GetErrorCount(errorType interfaces.ErrorType) int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetErrorCount", errorType)
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-// GetErrorCount indicates an expected call of GetErrorCount.
-func (mr *MockErrorMetricsMockRecorder) GetErrorCount(errorType interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetErrorCount", reflect.TypeOf((*MockErrorMetrics)(nil).GetErrorCount), errorType)
-}
-
-// GetErrorRate mocks base method.
-func (m *MockErrorMetrics) GetErrorRate(errorType interfaces.ErrorType) float64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetErrorRate", errorType)
-	ret0, _ := ret[0].(float64)
-	return ret0
-}
-
-// GetErrorRate indicates an expected call of GetErrorRate.
-func (mr *MockErrorMetricsMockRecorder) GetErrorRate(errorType interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetErrorRate", reflect.TypeOf((*MockErrorMetrics)(nil).GetErrorRate), errorType)
-}
-
-// RecordError mocks base method.
-func (m *MockErrorMetrics) RecordError(errorType interfaces.ErrorType, code string) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RecordError", errorType, code)
-}
-
-// RecordError indicates an expected call of RecordError.
-func (mr *MockErrorMetricsMockRecorder) RecordError(errorType, code interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordError", reflect.TypeOf((*MockErrorMetrics)(nil).RecordError), errorType, code)
-}
-
-// MockStackTraceProvider is a mock of StackTraceProvider interface.
-type MockStackTraceProvider struct {
-	ctrl     *gomock.Controller
-	recorder *MockStackTraceProviderMockRecorder
-}
-
-// MockStackTraceProviderMockRecorder is the mock recorder for MockStackTraceProvider.
-type MockStackTraceProviderMockRecorder struct {
-	mock *MockStackTraceProvider
-}
-
-// NewMockStackTraceProvider creates a new mock instance.
-func NewMockStackTraceProvider(ctrl *gomock.Controller) *MockStackTraceProvider {
-	mock := &MockStackTraceProvider{ctrl: ctrl}
-	mock.recorder = &MockStackTraceProviderMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockStackTraceProvider) EXPECT() *MockStackTraceProviderMockRecorder {
-	return m.recorder
-}
-
-// CaptureStackTrace mocks base method.
-func (m *MockStackTraceProvider) CaptureStackTrace(skip int) string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CaptureStackTrace", skip)
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// CaptureStackTrace indicates an expected call of CaptureStackTrace.
-func (mr *MockStackTraceProviderMockRecorder) CaptureStackTrace(skip interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CaptureStackTrace", reflect.TypeOf((*MockStackTraceProvider)(nil).CaptureStackTrace), skip)
-}
-
-// FormatStackTrace mocks base method.
-func (m *MockStackTraceProvider) FormatStackTrace(trace string) string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FormatStackTrace", trace)
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// FormatStackTrace indicates an expected call of FormatStackTrace.
-func (mr *MockStackTraceProviderMockRecorder) FormatStackTrace(trace interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FormatStackTrace", reflect.TypeOf((*MockStackTraceProvider)(nil).FormatStackTrace), trace)
-}
-
-// MockErrorContextProvider is a mock of ErrorContextProvider interface.
-type MockErrorContextProvider struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorContextProviderMockRecorder
-}
-
-// MockErrorContextProviderMockRecorder is the mock recorder for MockErrorContextProvider.
-type MockErrorContextProviderMockRecorder struct {
-	mock *MockErrorContextProvider
-}
-
-// NewMockErrorContextProvider creates a new mock instance.
-func NewMockErrorContextProvider(ctrl *gomock.Controller) *MockErrorContextProvider {
-	mock := &MockErrorContextProvider{ctrl: ctrl}
-	mock.recorder = &MockErrorContextProviderMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorContextProvider) EXPECT() *MockErrorContextProviderMockRecorder {
-	return m.recorder
-}
-
-// AddContext mocks base method.
-func (m *MockErrorContextProvider) AddContext(key string, value interface{}) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddContext", key, value)
-}
-
-// AddContext indicates an expected call of AddContext.
-func (mr *MockErrorContextProviderMockRecorder) AddContext(key, value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddContext", reflect.TypeOf((*MockErrorContextProvider)(nil).AddContext), key, value)
-}
-
-// GetAllContext mocks base method.
-func (m *MockErrorContextProvider) GetAllContext() map[string]interface{} {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllContext")
-	ret0, _ := ret[0].(map[string]interface{})
-	return ret0
-}
-
-// GetAllContext indicates an expected call of GetAllContext.
-func (mr *MockErrorContextProviderMockRecorder) GetAllContext() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllContext", reflect.TypeOf((*MockErrorContextProvider)(nil).GetAllContext))
-}
-
-// GetContext mocks base method.
-func (m *MockErrorContextProvider) GetContext(key string) (interface{}, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetContext", key)
-	ret0, _ := ret[0].(interface{})
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// GetContext indicates an expected call of GetContext.
-func (mr *MockErrorContextProviderMockRecorder) GetContext(key interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetContext", reflect.TypeOf((*MockErrorContextProvider)(nil).GetContext), key)
-}
-
-// MockHTTPStatusProvider is a mock of HTTPStatusProvider interface.
-type MockHTTPStatusProvider struct {
-	ctrl     *gomock.Controller
-	recorder *MockHTTPStatusProviderMockRecorder
-}
-
-// MockHTTPStatusProviderMockRecorder is the mock recorder for MockHTTPStatusProvider.
-type MockHTTPStatusProviderMockRecorder struct {
-	mock *MockHTTPStatusProvider
-}
-
-// NewMockHTTPStatusProvider creates a new mock instance.
-func NewMockHTTPStatusProvider(ctrl *gomock.Controller) *MockHTTPStatusProvider {
-	mock := &MockHTTPStatusProvider{ctrl: ctrl}
-	mock.recorder = &MockHTTPStatusProviderMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockHTTPStatusProvider) EXPECT() *MockHTTPStatusProviderMockRecorder {
-	return m.recorder
-}
-
-// StatusCode mocks base method.
-func (m *MockHTTPStatusProvider) StatusCode() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StatusCode")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// StatusCode indicates an expected call of StatusCode.
-func (mr *MockHTTPStatusProviderMockRecorder) StatusCode() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StatusCode", reflect.TypeOf((*MockHTTPStatusProvider)(nil).StatusCode))
-}
-
-// MockErrorSerializer is a mock of ErrorSerializer interface.
-type MockErrorSerializer struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorSerializerMockRecorder
-}
-
-// MockErrorSerializerMockRecorder is the mock recorder for MockErrorSerializer.
-type MockErrorSerializerMockRecorder struct {
-	mock *MockErrorSerializer
-}
-
-// NewMockErrorSerializer creates a new mock instance.
-func NewMockErrorSerializer(ctrl *gomock.Controller) *MockErrorSerializer {
-	mock := &MockErrorSerializer{ctrl: ctrl}
-	mock.recorder = &MockErrorSerializerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorSerializer) EXPECT() *MockErrorSerializerMockRecorder {
-	return m.recorder
-}
-
-// Deserialize mocks base method.
-func (m *MockErrorSerializer) Deserialize(data []byte) (error, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Deserialize", data)
-	ret0, _ := ret[0].(error)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Deserialize indicates an expected call of Deserialize.
-func (mr *MockErrorSerializerMockRecorder) Deserialize(data interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Deserialize", reflect.TypeOf((*MockErrorSerializer)(nil).Deserialize), data)
-}
-
-// Format mocks base method.
-func (m *MockErrorSerializer) Format(err error) string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Format", err)
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// Format indicates an expected call of Format.
-func (mr *MockErrorSerializerMockRecorder) Format(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Format", reflect.TypeOf((*MockErrorSerializer)(nil).Format), err)
-}
-
-// Serialize mocks base method.
-func (m *MockErrorSerializer) Serialize(err error) ([]byte, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Serialize", err)
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Serialize indicates an expected call of Serialize.
-func (mr *MockErrorSerializerMockRecorder) Serialize(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Serialize", reflect.TypeOf((*MockErrorSerializer)(nil).Serialize), err)
-}
-
-// MockErrorAggregator is a mock of ErrorAggregator interface.
-type MockErrorAggregator struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorAggregatorMockRecorder
-}
-
-// MockErrorAggregatorMockRecorder is the mock recorder for MockErrorAggregator.
-type MockErrorAggregatorMockRecorder struct {
-	mock *MockErrorAggregator
-}
-
-// NewMockErrorAggregator creates a new mock instance.
-func NewMockErrorAggregator(ctrl *gomock.Controller) *MockErrorAggregator {
-	mock := &MockErrorAggregator{ctrl: ctrl}
-	mock.recorder = &MockErrorAggregatorMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorAggregator) EXPECT() *MockErrorAggregatorMockRecorder {
-	return m.recorder
-}
-
-// AddError mocks base method.
-func (m *MockErrorAggregator) AddError(err error) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddError", err)
-}
-
-// AddError indicates an expected call of AddError.
-func (mr *MockErrorAggregatorMockRecorder) AddError(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddError", reflect.TypeOf((*MockErrorAggregator)(nil).AddError), err)
-}
-
-// Clear mocks base method.
-func (m *MockErrorAggregator) Clear() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Clear")
-}
-
-// Clear indicates an expected call of Clear.
-func (mr *MockErrorAggregatorMockRecorder) Clear() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clear", reflect.TypeOf((*MockErrorAggregator)(nil).Clear))
-}
-
-// GetErrors mocks base method.
-func (m *MockErrorAggregator) GetErrors() []error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetErrors")
-	ret0, _ := ret[0].([]error)
-	return ret0
-}
-
-// GetErrors indicates an expected call of GetErrors.
-func (mr *MockErrorAggregatorMockRecorder) GetErrors() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetErrors", reflect.TypeOf((*MockErrorAggregator)(nil).GetErrors))
-}
-
-// GetFirstError mocks base method.
-func (m *MockErrorAggregator) GetFirstError() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetFirstError")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// GetFirstError indicates an expected call of GetFirstError.
-func (mr *MockErrorAggregatorMockRecorder) GetFirstError() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFirstError", reflect.TypeOf((*MockErrorAggregator)(nil).GetFirstError))
-}
-
-// HasErrors mocks base method.
-func (m *MockErrorAggregator) HasErrors() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasErrors")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// HasErrors indicates an expected call of HasErrors.
-func (mr *MockErrorAggregatorMockRecorder) HasErrors() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasErrors", reflect.TypeOf((*MockErrorAggregator)(nil).HasErrors))
-}
-
-// MockErrorChainWalker is a mock of ErrorChainWalker interface.
-type MockErrorChainWalker struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorChainWalkerMockRecorder
-}
-
-// MockErrorChainWalkerMockRecorder is the mock recorder for MockErrorChainWalker.
-type MockErrorChainWalkerMockRecorder struct {
-	mock *MockErrorChainWalker
-}
-
-// NewMockErrorChainWalker creates a new mock instance.
-func NewMockErrorChainWalker(ctrl *gomock.Controller) *MockErrorChainWalker {
-	mock := &MockErrorChainWalker{ctrl: ctrl}
-	mock.recorder = &MockErrorChainWalkerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorChainWalker) EXPECT() *MockErrorChainWalkerMockRecorder {
-	return m.recorder
-}
-
-// FindFirst mocks base method.
-func (m *MockErrorChainWalker) FindFirst(err error, fn func(error) bool) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindFirst", err, fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// FindFirst indicates an expected call of FindFirst.
-func (mr *MockErrorChainWalkerMockRecorder) FindFirst(err, fn interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindFirst", reflect.TypeOf((*MockErrorChainWalker)(nil).FindFirst), err, fn)
-}
-
-// GetChain mocks base method.
-func (m *MockErrorChainWalker) GetChain(err error) []error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChain", err)
-	ret0, _ := ret[0].([]error)
-	return ret0
-}
-
-// GetChain indicates an expected call of GetChain.
-func (mr *MockErrorChainWalkerMockRecorder) GetChain(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChain", reflect.TypeOf((*MockErrorChainWalker)(nil).GetChain), err)
-}
-
-// Walk mocks base method.
-func (m *MockErrorChainWalker) Walk(err error, fn func(error) bool) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Walk", err, fn)
-}
-
-// Walk indicates an expected call of Walk.
-func (mr *MockErrorChainWalkerMockRecorder) Walk(err, fn interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Walk", reflect.TypeOf((*MockErrorChainWalker)(nil).Walk), err, fn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithMetadata", reflect.TypeOf((*MockErrorDomainInterface)(nil).WithMetadata), key, value)
 }
 
 // MockErrorFactory is a mock of ErrorFactory interface.
@@ -815,606 +141,257 @@ func (m *MockErrorFactory) EXPECT() *MockErrorFactoryMockRecorder {
 	return m.recorder
 }
 
-// NewError mocks base method.
-func (m *MockErrorFactory) NewError(code, message string) interfaces.DomainError {
+// CreateBusinessError mocks base method.
+func (m *MockErrorFactory) CreateBusinessError(code, message string) domainerrors.BusinessErrorInterface {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewError", code, message)
-	ret0, _ := ret[0].(interfaces.DomainError)
+	ret := m.ctrl.Call(m, "CreateBusinessError", code, message)
+	ret0, _ := ret[0].(domainerrors.BusinessErrorInterface)
 	return ret0
 }
 
-// NewError indicates an expected call of NewError.
-func (mr *MockErrorFactoryMockRecorder) NewError(code, message interface{}) *gomock.Call {
+// CreateBusinessError indicates an expected call of CreateBusinessError.
+func (mr *MockErrorFactoryMockRecorder) CreateBusinessError(code, message interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewError", reflect.TypeOf((*MockErrorFactory)(nil).NewError), code, message)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBusinessError", reflect.TypeOf((*MockErrorFactory)(nil).CreateBusinessError), code, message)
 }
 
-// NewErrorFromTemplate mocks base method.
-func (m *MockErrorFactory) NewErrorFromTemplate(template string, args ...interface{}) interfaces.DomainError {
+// CreateCircuitBreakerError mocks base method.
+func (m *MockErrorFactory) CreateCircuitBreakerError(circuitName, message string) domainerrors.CircuitBreakerErrorInterface {
 	m.ctrl.T.Helper()
-	varargs := []interface{}{template}
-	for _, a := range args {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "NewErrorFromTemplate", varargs...)
-	ret0, _ := ret[0].(interfaces.DomainError)
+	ret := m.ctrl.Call(m, "CreateCircuitBreakerError", circuitName, message)
+	ret0, _ := ret[0].(domainerrors.CircuitBreakerErrorInterface)
 	return ret0
 }
 
-// NewErrorFromTemplate indicates an expected call of NewErrorFromTemplate.
-func (mr *MockErrorFactoryMockRecorder) NewErrorFromTemplate(template interface{}, args ...interface{}) *gomock.Call {
+// CreateCircuitBreakerError indicates an expected call of CreateCircuitBreakerError.
+func (mr *MockErrorFactoryMockRecorder) CreateCircuitBreakerError(circuitName, message interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{template}, args...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewErrorFromTemplate", reflect.TypeOf((*MockErrorFactory)(nil).NewErrorFromTemplate), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateCircuitBreakerError", reflect.TypeOf((*MockErrorFactory)(nil).CreateCircuitBreakerError), circuitName, message)
 }
 
-// NewErrorWithType mocks base method.
-func (m *MockErrorFactory) NewErrorWithType(code, message string, errorType interfaces.ErrorType) interfaces.DomainError {
+// CreateDatabaseError mocks base method.
+func (m *MockErrorFactory) CreateDatabaseError(message string, cause error) domainerrors.DatabaseErrorInterface {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewErrorWithType", code, message, errorType)
-	ret0, _ := ret[0].(interfaces.DomainError)
+	ret := m.ctrl.Call(m, "CreateDatabaseError", message, cause)
+	ret0, _ := ret[0].(domainerrors.DatabaseErrorInterface)
 	return ret0
 }
 
-// NewErrorWithType indicates an expected call of NewErrorWithType.
-func (mr *MockErrorFactoryMockRecorder) NewErrorWithType(code, message, errorType interface{}) *gomock.Call {
+// CreateDatabaseError indicates an expected call of CreateDatabaseError.
+func (mr *MockErrorFactoryMockRecorder) CreateDatabaseError(message, cause interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewErrorWithType", reflect.TypeOf((*MockErrorFactory)(nil).NewErrorWithType), code, message, errorType)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDatabaseError", reflect.TypeOf((*MockErrorFactory)(nil).CreateDatabaseError), message, cause)
 }
 
-// WrapError mocks base method.
-func (m *MockErrorFactory) WrapError(message string, err error) interfaces.DomainError {
+// CreateExternalServiceError mocks base method.
+func (m *MockErrorFactory) CreateExternalServiceError(service, message string, cause error) domainerrors.ExternalServiceErrorInterface {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WrapError", message, err)
-	ret0, _ := ret[0].(interfaces.DomainError)
+	ret := m.ctrl.Call(m, "CreateExternalServiceError", service, message, cause)
+	ret0, _ := ret[0].(domainerrors.ExternalServiceErrorInterface)
 	return ret0
 }
 
-// WrapError indicates an expected call of WrapError.
-func (mr *MockErrorFactoryMockRecorder) WrapError(message, err interface{}) *gomock.Call {
+// CreateExternalServiceError indicates an expected call of CreateExternalServiceError.
+func (mr *MockErrorFactoryMockRecorder) CreateExternalServiceError(service, message, cause interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WrapError", reflect.TypeOf((*MockErrorFactory)(nil).WrapError), message, err)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateExternalServiceError", reflect.TypeOf((*MockErrorFactory)(nil).CreateExternalServiceError), service, message, cause)
 }
 
-// MockErrorRecovery is a mock of ErrorRecovery interface.
-type MockErrorRecovery struct {
+// CreateNotFoundError mocks base method.
+func (m *MockErrorFactory) CreateNotFoundError(message string) domainerrors.NotFoundErrorInterface {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateNotFoundError", message)
+	ret0, _ := ret[0].(domainerrors.NotFoundErrorInterface)
+	return ret0
+}
+
+// CreateNotFoundError indicates an expected call of CreateNotFoundError.
+func (mr *MockErrorFactoryMockRecorder) CreateNotFoundError(message interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNotFoundError", reflect.TypeOf((*MockErrorFactory)(nil).CreateNotFoundError), message)
+}
+
+// CreateRateLimitError mocks base method.
+func (m *MockErrorFactory) CreateRateLimitError(message string) domainerrors.RateLimitErrorInterface {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateRateLimitError", message)
+	ret0, _ := ret[0].(domainerrors.RateLimitErrorInterface)
+	return ret0
+}
+
+// CreateRateLimitError indicates an expected call of CreateRateLimitError.
+func (mr *MockErrorFactoryMockRecorder) CreateRateLimitError(message interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRateLimitError", reflect.TypeOf((*MockErrorFactory)(nil).CreateRateLimitError), message)
+}
+
+// CreateTimeoutError mocks base method.
+func (m *MockErrorFactory) CreateTimeoutError(operation, message string, cause error) domainerrors.TimeoutErrorInterface {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateTimeoutError", operation, message, cause)
+	ret0, _ := ret[0].(domainerrors.TimeoutErrorInterface)
+	return ret0
+}
+
+// CreateTimeoutError indicates an expected call of CreateTimeoutError.
+func (mr *MockErrorFactoryMockRecorder) CreateTimeoutError(operation, message, cause interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTimeoutError", reflect.TypeOf((*MockErrorFactory)(nil).CreateTimeoutError), operation, message, cause)
+}
+
+// CreateValidationError mocks base method.
+func (m *MockErrorFactory) CreateValidationError(message string, cause error) domainerrors.ValidationErrorInterface {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateValidationError", message, cause)
+	ret0, _ := ret[0].(domainerrors.ValidationErrorInterface)
+	return ret0
+}
+
+// CreateValidationError indicates an expected call of CreateValidationError.
+func (mr *MockErrorFactoryMockRecorder) CreateValidationError(message, cause interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateValidationError", reflect.TypeOf((*MockErrorFactory)(nil).CreateValidationError), message, cause)
+}
+
+// MockErrorRegistry is a mock of ErrorRegistry interface.
+type MockErrorRegistry struct {
 	ctrl     *gomock.Controller
-	recorder *MockErrorRecoveryMockRecorder
+	recorder *MockErrorRegistryMockRecorder
 }
 
-// MockErrorRecoveryMockRecorder is the mock recorder for MockErrorRecovery.
-type MockErrorRecoveryMockRecorder struct {
-	mock *MockErrorRecovery
+// MockErrorRegistryMockRecorder is the mock recorder for MockErrorRegistry.
+type MockErrorRegistryMockRecorder struct {
+	mock *MockErrorRegistry
 }
 
-// NewMockErrorRecovery creates a new mock instance.
-func NewMockErrorRecovery(ctrl *gomock.Controller) *MockErrorRecovery {
-	mock := &MockErrorRecovery{ctrl: ctrl}
-	mock.recorder = &MockErrorRecoveryMockRecorder{mock}
+// NewMockErrorRegistry creates a new mock instance.
+func NewMockErrorRegistry(ctrl *gomock.Controller) *MockErrorRegistry {
+	mock := &MockErrorRegistry{ctrl: ctrl}
+	mock.recorder = &MockErrorRegistryMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorRecovery) EXPECT() *MockErrorRecoveryMockRecorder {
+func (m *MockErrorRegistry) EXPECT() *MockErrorRegistryMockRecorder {
 	return m.recorder
 }
 
-// CanRecover mocks base method.
-func (m *MockErrorRecovery) CanRecover(err error) bool {
+// Get mocks base method.
+func (m *MockErrorRegistry) Get(code string) (domainerrors.ErrorCodeInfo, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CanRecover", err)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// CanRecover indicates an expected call of CanRecover.
-func (mr *MockErrorRecoveryMockRecorder) CanRecover(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanRecover", reflect.TypeOf((*MockErrorRecovery)(nil).CanRecover), err)
-}
-
-// GetRecoveryStrategy mocks base method.
-func (m *MockErrorRecovery) GetRecoveryStrategy(err error) string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRecoveryStrategy", err)
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// GetRecoveryStrategy indicates an expected call of GetRecoveryStrategy.
-func (mr *MockErrorRecoveryMockRecorder) GetRecoveryStrategy(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRecoveryStrategy", reflect.TypeOf((*MockErrorRecovery)(nil).GetRecoveryStrategy), err)
-}
-
-// Recover mocks base method.
-func (m *MockErrorRecovery) Recover(ctx context.Context, err error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Recover", ctx, err)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Recover indicates an expected call of Recover.
-func (mr *MockErrorRecoveryMockRecorder) Recover(ctx, err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recover", reflect.TypeOf((*MockErrorRecovery)(nil).Recover), ctx, err)
-}
-
-// MockErrorNotifier is a mock of ErrorNotifier interface.
-type MockErrorNotifier struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorNotifierMockRecorder
-}
-
-// MockErrorNotifierMockRecorder is the mock recorder for MockErrorNotifier.
-type MockErrorNotifierMockRecorder struct {
-	mock *MockErrorNotifier
-}
-
-// NewMockErrorNotifier creates a new mock instance.
-func NewMockErrorNotifier(ctrl *gomock.Controller) *MockErrorNotifier {
-	mock := &MockErrorNotifier{ctrl: ctrl}
-	mock.recorder = &MockErrorNotifierMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorNotifier) EXPECT() *MockErrorNotifierMockRecorder {
-	return m.recorder
-}
-
-// GetNotificationLevel mocks base method.
-func (m *MockErrorNotifier) GetNotificationLevel(err error) string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNotificationLevel", err)
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// GetNotificationLevel indicates an expected call of GetNotificationLevel.
-func (mr *MockErrorNotifierMockRecorder) GetNotificationLevel(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationLevel", reflect.TypeOf((*MockErrorNotifier)(nil).GetNotificationLevel), err)
-}
-
-// Notify mocks base method.
-func (m *MockErrorNotifier) Notify(ctx context.Context, err error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Notify", ctx, err)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Notify indicates an expected call of Notify.
-func (mr *MockErrorNotifierMockRecorder) Notify(ctx, err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Notify", reflect.TypeOf((*MockErrorNotifier)(nil).Notify), ctx, err)
-}
-
-// ShouldNotify mocks base method.
-func (m *MockErrorNotifier) ShouldNotify(err error) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ShouldNotify", err)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// ShouldNotify indicates an expected call of ShouldNotify.
-func (mr *MockErrorNotifierMockRecorder) ShouldNotify(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShouldNotify", reflect.TypeOf((*MockErrorNotifier)(nil).ShouldNotify), err)
-}
-
-// MockErrorLocalizer is a mock of ErrorLocalizer interface.
-type MockErrorLocalizer struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorLocalizerMockRecorder
-}
-
-// MockErrorLocalizerMockRecorder is the mock recorder for MockErrorLocalizer.
-type MockErrorLocalizerMockRecorder struct {
-	mock *MockErrorLocalizer
-}
-
-// NewMockErrorLocalizer creates a new mock instance.
-func NewMockErrorLocalizer(ctrl *gomock.Controller) *MockErrorLocalizer {
-	mock := &MockErrorLocalizer{ctrl: ctrl}
-	mock.recorder = &MockErrorLocalizerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorLocalizer) EXPECT() *MockErrorLocalizerMockRecorder {
-	return m.recorder
-}
-
-// GetSupportedLocales mocks base method.
-func (m *MockErrorLocalizer) GetSupportedLocales() []string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSupportedLocales")
-	ret0, _ := ret[0].([]string)
-	return ret0
-}
-
-// GetSupportedLocales indicates an expected call of GetSupportedLocales.
-func (mr *MockErrorLocalizerMockRecorder) GetSupportedLocales() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSupportedLocales", reflect.TypeOf((*MockErrorLocalizer)(nil).GetSupportedLocales))
-}
-
-// Localize mocks base method.
-func (m *MockErrorLocalizer) Localize(ctx context.Context, err error) string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Localize", ctx, err)
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// Localize indicates an expected call of Localize.
-func (mr *MockErrorLocalizerMockRecorder) Localize(ctx, err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Localize", reflect.TypeOf((*MockErrorLocalizer)(nil).Localize), ctx, err)
-}
-
-// SetLocale mocks base method.
-func (m *MockErrorLocalizer) SetLocale(locale string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetLocale", locale)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetLocale indicates an expected call of SetLocale.
-func (mr *MockErrorLocalizerMockRecorder) SetLocale(locale interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLocale", reflect.TypeOf((*MockErrorLocalizer)(nil).SetLocale), locale)
-}
-
-// MockErrorTransformer is a mock of ErrorTransformer interface.
-type MockErrorTransformer struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorTransformerMockRecorder
-}
-
-// MockErrorTransformerMockRecorder is the mock recorder for MockErrorTransformer.
-type MockErrorTransformerMockRecorder struct {
-	mock *MockErrorTransformer
-}
-
-// NewMockErrorTransformer creates a new mock instance.
-func NewMockErrorTransformer(ctrl *gomock.Controller) *MockErrorTransformer {
-	mock := &MockErrorTransformer{ctrl: ctrl}
-	mock.recorder = &MockErrorTransformerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorTransformer) EXPECT() *MockErrorTransformerMockRecorder {
-	return m.recorder
-}
-
-// CanTransform mocks base method.
-func (m *MockErrorTransformer) CanTransform(err error) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CanTransform", err)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// CanTransform indicates an expected call of CanTransform.
-func (mr *MockErrorTransformerMockRecorder) CanTransform(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanTransform", reflect.TypeOf((*MockErrorTransformer)(nil).CanTransform), err)
-}
-
-// GetTransformationRules mocks base method.
-func (m *MockErrorTransformer) GetTransformationRules() map[string]string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTransformationRules")
-	ret0, _ := ret[0].(map[string]string)
-	return ret0
-}
-
-// GetTransformationRules indicates an expected call of GetTransformationRules.
-func (mr *MockErrorTransformerMockRecorder) GetTransformationRules() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransformationRules", reflect.TypeOf((*MockErrorTransformer)(nil).GetTransformationRules))
-}
-
-// Transform mocks base method.
-func (m *MockErrorTransformer) Transform(err error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Transform", err)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Transform indicates an expected call of Transform.
-func (mr *MockErrorTransformerMockRecorder) Transform(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Transform", reflect.TypeOf((*MockErrorTransformer)(nil).Transform), err)
-}
-
-// MockErrorFilter is a mock of ErrorFilter interface.
-type MockErrorFilter struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorFilterMockRecorder
-}
-
-// MockErrorFilterMockRecorder is the mock recorder for MockErrorFilter.
-type MockErrorFilterMockRecorder struct {
-	mock *MockErrorFilter
-}
-
-// NewMockErrorFilter creates a new mock instance.
-func NewMockErrorFilter(ctrl *gomock.Controller) *MockErrorFilter {
-	mock := &MockErrorFilter{ctrl: ctrl}
-	mock.recorder = &MockErrorFilterMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorFilter) EXPECT() *MockErrorFilterMockRecorder {
-	return m.recorder
-}
-
-// Filter mocks base method.
-func (m *MockErrorFilter) Filter(err error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Filter", err)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Filter indicates an expected call of Filter.
-func (mr *MockErrorFilterMockRecorder) Filter(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*MockErrorFilter)(nil).Filter), err)
-}
-
-// GetFilterRules mocks base method.
-func (m *MockErrorFilter) GetFilterRules() []string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetFilterRules")
-	ret0, _ := ret[0].([]string)
-	return ret0
-}
-
-// GetFilterRules indicates an expected call of GetFilterRules.
-func (mr *MockErrorFilterMockRecorder) GetFilterRules() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFilterRules", reflect.TypeOf((*MockErrorFilter)(nil).GetFilterRules))
-}
-
-// ShouldFilter mocks base method.
-func (m *MockErrorFilter) ShouldFilter(err error) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ShouldFilter", err)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// ShouldFilter indicates an expected call of ShouldFilter.
-func (mr *MockErrorFilterMockRecorder) ShouldFilter(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShouldFilter", reflect.TypeOf((*MockErrorFilter)(nil).ShouldFilter), err)
-}
-
-// MockErrorEnricher is a mock of ErrorEnricher interface.
-type MockErrorEnricher struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorEnricherMockRecorder
-}
-
-// MockErrorEnricherMockRecorder is the mock recorder for MockErrorEnricher.
-type MockErrorEnricherMockRecorder struct {
-	mock *MockErrorEnricher
-}
-
-// NewMockErrorEnricher creates a new mock instance.
-func NewMockErrorEnricher(ctrl *gomock.Controller) *MockErrorEnricher {
-	mock := &MockErrorEnricher{ctrl: ctrl}
-	mock.recorder = &MockErrorEnricherMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorEnricher) EXPECT() *MockErrorEnricherMockRecorder {
-	return m.recorder
-}
-
-// Enrich mocks base method.
-func (m *MockErrorEnricher) Enrich(ctx context.Context, err error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Enrich", ctx, err)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Enrich indicates an expected call of Enrich.
-func (mr *MockErrorEnricherMockRecorder) Enrich(ctx, err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enrich", reflect.TypeOf((*MockErrorEnricher)(nil).Enrich), ctx, err)
-}
-
-// GetEnrichmentData mocks base method.
-func (m *MockErrorEnricher) GetEnrichmentData(err error) map[string]interface{} {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEnrichmentData", err)
-	ret0, _ := ret[0].(map[string]interface{})
-	return ret0
-}
-
-// GetEnrichmentData indicates an expected call of GetEnrichmentData.
-func (mr *MockErrorEnricherMockRecorder) GetEnrichmentData(err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnrichmentData", reflect.TypeOf((*MockErrorEnricher)(nil).GetEnrichmentData), err)
-}
-
-// SetEnrichmentProvider mocks base method.
-func (m *MockErrorEnricher) SetEnrichmentProvider(provider interface{}) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetEnrichmentProvider", provider)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetEnrichmentProvider indicates an expected call of SetEnrichmentProvider.
-func (mr *MockErrorEnricherMockRecorder) SetEnrichmentProvider(provider interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEnrichmentProvider", reflect.TypeOf((*MockErrorEnricher)(nil).SetEnrichmentProvider), provider)
-}
-
-// MockErrorMarshalJSON is a mock of ErrorMarshalJSON interface.
-type MockErrorMarshalJSON struct {
-	ctrl     *gomock.Controller
-	recorder *MockErrorMarshalJSONMockRecorder
-}
-
-// MockErrorMarshalJSONMockRecorder is the mock recorder for MockErrorMarshalJSON.
-type MockErrorMarshalJSONMockRecorder struct {
-	mock *MockErrorMarshalJSON
-}
-
-// NewMockErrorMarshalJSON creates a new mock instance.
-func NewMockErrorMarshalJSON(ctrl *gomock.Controller) *MockErrorMarshalJSON {
-	mock := &MockErrorMarshalJSON{ctrl: ctrl}
-	mock.recorder = &MockErrorMarshalJSONMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorMarshalJSON) EXPECT() *MockErrorMarshalJSONMockRecorder {
-	return m.recorder
-}
-
-// MarshalJSON mocks base method.
-func (m *MockErrorMarshalJSON) MarshalJSON() ([]byte, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MarshalJSON")
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
+	ret := m.ctrl.Call(m, "Get", code)
+	ret0, _ := ret[0].(domainerrors.ErrorCodeInfo)
+	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
-// MarshalJSON indicates an expected call of MarshalJSON.
-func (mr *MockErrorMarshalJSONMockRecorder) MarshalJSON() *gomock.Call {
+// Get indicates an expected call of Get.
+func (mr *MockErrorRegistryMockRecorder) Get(code interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarshalJSON", reflect.TypeOf((*MockErrorMarshalJSON)(nil).MarshalJSON))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockErrorRegistry)(nil).Get), code)
 }
 
-// UnmarshalJSON mocks base method.
-func (m *MockErrorMarshalJSON) UnmarshalJSON(arg0 []byte) error {
+// Register mocks base method.
+func (m *MockErrorRegistry) Register(code, description string, httpStatus int) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UnmarshalJSON", arg0)
-	ret0, _ := ret[0].(error)
+	m.ctrl.Call(m, "Register", code, description, httpStatus)
+}
+
+// Register indicates an expected call of Register.
+func (mr *MockErrorRegistryMockRecorder) Register(code, description, httpStatus interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockErrorRegistry)(nil).Register), code, description, httpStatus)
+}
+
+// WrapWithCode mocks base method.
+func (m *MockErrorRegistry) WrapWithCode(code string, err error) domainerrors.ErrorDomainInterface {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WrapWithCode", code, err)
+	ret0, _ := ret[0].(domainerrors.ErrorDomainInterface)
 	return ret0
 }
 
-// UnmarshalJSON indicates an expected call of UnmarshalJSON.
-func (mr *MockErrorMarshalJSONMockRecorder) UnmarshalJSON(arg0 interface{}) *gomock.Call {
+// WrapWithCode indicates an expected call of WrapWithCode.
+func (mr *MockErrorRegistryMockRecorder) WrapWithCode(code, err interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnmarshalJSON", reflect.TypeOf((*MockErrorMarshalJSON)(nil).UnmarshalJSON), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WrapWithCode", reflect.TypeOf((*MockErrorRegistry)(nil).WrapWithCode), code, err)
 }
 
-// MockErrorConfig is a mock of ErrorConfig interface.
-type MockErrorConfig struct {
+// MockErrorAnalyzer is a mock of ErrorAnalyzer interface.
+type MockErrorAnalyzer struct {
 	ctrl     *gomock.Controller
-	recorder *MockErrorConfigMockRecorder
+	recorder *MockErrorAnalyzerMockRecorder
 }
 
-// MockErrorConfigMockRecorder is the mock recorder for MockErrorConfig.
-type MockErrorConfigMockRecorder struct {
-	mock *MockErrorConfig
+// MockErrorAnalyzerMockRecorder is the mock recorder for MockErrorAnalyzer.
+type MockErrorAnalyzerMockRecorder struct {
+	mock *MockErrorAnalyzer
 }
 
-// NewMockErrorConfig creates a new mock instance.
-func NewMockErrorConfig(ctrl *gomock.Controller) *MockErrorConfig {
-	mock := &MockErrorConfig{ctrl: ctrl}
-	mock.recorder = &MockErrorConfigMockRecorder{mock}
+// NewMockErrorAnalyzer creates a new mock instance.
+func NewMockErrorAnalyzer(ctrl *gomock.Controller) *MockErrorAnalyzer {
+	mock := &MockErrorAnalyzer{ctrl: ctrl}
+	mock.recorder = &MockErrorAnalyzerMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockErrorConfig) EXPECT() *MockErrorConfigMockRecorder {
+func (m *MockErrorAnalyzer) EXPECT() *MockErrorAnalyzerMockRecorder {
 	return m.recorder
 }
 
-// GetDefaultHTTPStatus mocks base method.
-func (m *MockErrorConfig) GetDefaultHTTPStatus() int {
+// GetErrorChain mocks base method.
+func (m *MockErrorAnalyzer) GetErrorChain(err error) []error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDefaultHTTPStatus")
-	ret0, _ := ret[0].(int)
+	ret := m.ctrl.Call(m, "GetErrorChain", err)
+	ret0, _ := ret[0].([]error)
 	return ret0
 }
 
-// GetDefaultHTTPStatus indicates an expected call of GetDefaultHTTPStatus.
-func (mr *MockErrorConfigMockRecorder) GetDefaultHTTPStatus() *gomock.Call {
+// GetErrorChain indicates an expected call of GetErrorChain.
+func (mr *MockErrorAnalyzerMockRecorder) GetErrorChain(err interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDefaultHTTPStatus", reflect.TypeOf((*MockErrorConfig)(nil).GetDefaultHTTPStatus))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetErrorChain", reflect.TypeOf((*MockErrorAnalyzer)(nil).GetErrorChain), err)
 }
 
-// GetMaxStackDepth mocks base method.
-func (m *MockErrorConfig) GetMaxStackDepth() int {
+// GetRootCause mocks base method.
+func (m *MockErrorAnalyzer) GetRootCause(err error) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMaxStackDepth")
-	ret0, _ := ret[0].(int)
+	ret := m.ctrl.Call(m, "GetRootCause", err)
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// GetMaxStackDepth indicates an expected call of GetMaxStackDepth.
-func (mr *MockErrorConfigMockRecorder) GetMaxStackDepth() *gomock.Call {
+// GetRootCause indicates an expected call of GetRootCause.
+func (mr *MockErrorAnalyzerMockRecorder) GetRootCause(err interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxStackDepth", reflect.TypeOf((*MockErrorConfig)(nil).GetMaxStackDepth))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRootCause", reflect.TypeOf((*MockErrorAnalyzer)(nil).GetRootCause), err)
 }
 
-// IsStackTraceEnabled mocks base method.
-func (m *MockErrorConfig) IsStackTraceEnabled() bool {
+// IsRetryable mocks base method.
+func (m *MockErrorAnalyzer) IsRetryable(err error) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsStackTraceEnabled")
+	ret := m.ctrl.Call(m, "IsRetryable", err)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// IsStackTraceEnabled indicates an expected call of IsStackTraceEnabled.
-func (mr *MockErrorConfigMockRecorder) IsStackTraceEnabled() *gomock.Call {
+// IsRetryable indicates an expected call of IsRetryable.
+func (mr *MockErrorAnalyzerMockRecorder) IsRetryable(err interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsStackTraceEnabled", reflect.TypeOf((*MockErrorConfig)(nil).IsStackTraceEnabled))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsRetryable", reflect.TypeOf((*MockErrorAnalyzer)(nil).IsRetryable), err)
 }
 
-// SetDefaultHTTPStatus mocks base method.
-func (m *MockErrorConfig) SetDefaultHTTPStatus(status int) {
+// IsTemporary mocks base method.
+func (m *MockErrorAnalyzer) IsTemporary(err error) bool {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetDefaultHTTPStatus", status)
+	ret := m.ctrl.Call(m, "IsTemporary", err)
+	ret0, _ := ret[0].(bool)
+	return ret0
 }
 
-// SetDefaultHTTPStatus indicates an expected call of SetDefaultHTTPStatus.
-func (mr *MockErrorConfigMockRecorder) SetDefaultHTTPStatus(status interface{}) *gomock.Call {
+// IsTemporary indicates an expected call of IsTemporary.
+func (mr *MockErrorAnalyzerMockRecorder) IsTemporary(err interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDefaultHTTPStatus", reflect.TypeOf((*MockErrorConfig)(nil).SetDefaultHTTPStatus), status)
-}
-
-// SetMaxStackDepth mocks base method.
-func (m *MockErrorConfig) SetMaxStackDepth(depth int) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetMaxStackDepth", depth)
-}
-
-// SetMaxStackDepth indicates an expected call of SetMaxStackDepth.
-func (mr *MockErrorConfigMockRecorder) SetMaxStackDepth(depth interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxStackDepth", reflect.TypeOf((*MockErrorConfig)(nil).SetMaxStackDepth), depth)
-}
-
-// SetStackTraceEnabled mocks base method.
-func (m *MockErrorConfig) SetStackTraceEnabled(enabled bool) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetStackTraceEnabled", enabled)
-}
-
-// SetStackTraceEnabled indicates an expected call of SetStackTraceEnabled.
-func (mr *MockErrorConfigMockRecorder) SetStackTraceEnabled(enabled interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetStackTraceEnabled", reflect.TypeOf((*MockErrorConfig)(nil).SetStackTraceEnabled), enabled)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsTemporary", reflect.TypeOf((*MockErrorAnalyzer)(nil).IsTemporary), err)
 }

@@ -1,309 +1,201 @@
-package interfaces
+package domainerrors
 
-import (
-	"context"
-	"encoding/json"
-)
-
-// ErrorType define os tipos de erro disponíveis
+// ErrorType representa o tipo de erro de domínio
 type ErrorType string
 
-// Definição dos tipos de erro
-const (
-	ErrorTypeValidation         ErrorType = "validation"
-	ErrorTypeNotFound           ErrorType = "not_found"
-	ErrorTypeBusiness           ErrorType = "business"
-	ErrorTypeDatabase           ErrorType = "database"
-	ErrorTypeExternalService    ErrorType = "external_service"
-	ErrorTypeInfrastructure     ErrorType = "infrastructure"
-	ErrorTypeDependency         ErrorType = "dependency"
-	ErrorTypeAuthentication     ErrorType = "authentication"
-	ErrorTypeAuthorization      ErrorType = "authorization"
-	ErrorTypeSecurity           ErrorType = "security"
-	ErrorTypeTimeout            ErrorType = "timeout"
-	ErrorTypeRateLimit          ErrorType = "rate_limit"
-	ErrorTypeResourceExhausted  ErrorType = "resource_exhausted"
-	ErrorTypeCircuitBreaker     ErrorType = "circuit_breaker"
-	ErrorTypeSerialization      ErrorType = "serialization"
-	ErrorTypeCache              ErrorType = "cache"
-	ErrorTypeMigration          ErrorType = "migration"
-	ErrorTypeConfiguration      ErrorType = "configuration"
-	ErrorTypeUnsupported        ErrorType = "unsupported"
-	ErrorTypeBadRequest         ErrorType = "bad_request"
-	ErrorTypeConflict           ErrorType = "conflict"
-	ErrorTypeInvalidSchema      ErrorType = "invalid_schema"
-	ErrorTypeUnsupportedMedia   ErrorType = "unsupported_media"
-	ErrorTypeServer             ErrorType = "server"
-	ErrorTypeUnprocessable      ErrorType = "unprocessable"
-	ErrorTypeServiceUnavailable ErrorType = "service_unavailable"
-	ErrorTypeWorkflow           ErrorType = "workflow"
-)
-
-// DomainError é a interface base para todos os erros de domínio
-type DomainError interface {
-	error
-
-	// Error retorna a mensagem de erro
-	Error() string
-
-	// Unwrap retorna o erro encapsulado
-	Unwrap() error
-
-	// Type retorna o tipo do erro
-	Type() ErrorType
-
-	// Metadata retorna metadados adicionais
-	Metadata() map[string]interface{}
-
-	// HTTPStatus retorna o código de status HTTP apropriado
-	HTTPStatus() int
-
-	// StackTrace retorna o stack trace capturado
-	StackTrace() string
-
-	// WithContext adiciona contexto ao erro
-	WithContext(ctx context.Context) DomainError
-
-	// Wrap encapsula outro erro com contexto opcional
-	Wrap(message string, err error) DomainError
-
-	// JSON serializa o erro para JSON
-	JSON() ([]byte, error)
+// StackFrame representa um frame do stack trace
+type StackFrame struct {
+	Function string `json:"function"`
+	File     string `json:"file"`
+	Line     int    `json:"line"`
+	Message  string `json:"message,omitempty"`
+	Time     string `json:"time"`
 }
 
-// ErrorValidator define interface para validação de erros
-type ErrorValidator interface {
-	// IsType verifica se o erro é do tipo especificado
-	IsType(err error, errorType ErrorType) bool
+// ErrorDomainInterface define a interface principal para erros de domínio
+type ErrorDomainInterface interface {
+	Error() string
+	Unwrap() error
+	Type() ErrorType
+	HTTPStatus() int
+	StackTrace() string
+	WithMetadata(key string, value interface{}) ErrorDomainInterface
+}
 
-	// ExtractType extrai o tipo do erro
-	ExtractType(err error) (ErrorType, bool)
+// ErrorTypeChecker define interface para verificação de tipos
+type ErrorTypeChecker interface {
+	IsType(err error, errorType ErrorType) bool
+}
+
+// HTTPStatusProvider define interface para provedores de status HTTP
+type HTTPStatusProvider interface {
+	HTTPStatus() int
+}
+
+// MetadataProvider define interface para provedores de metadados
+type MetadataProvider interface {
+	GetMetadata() map[string]interface{}
+	SetMetadata(key string, value interface{})
+}
+
+// StackTraceProvider define interface para provedores de stack trace
+type StackTraceProvider interface {
+	StackTrace() string
+	GetStackFrames() []StackFrame
+}
+
+// ContextualError define interface para erros com contexto
+type ContextualError interface {
+	WithContext(message string) ErrorDomainInterface
+	Wrap(message string, cause error) ErrorDomainInterface
+}
+
+// ValidationErrorInterface define interface específica para erros de validação
+type ValidationErrorInterface interface {
+	ErrorDomainInterface
+	WithField(field, message string) ValidationErrorInterface
+	GetFields() map[string][]string
+}
+
+// NotFoundErrorInterface define interface específica para erros de não encontrado
+type NotFoundErrorInterface interface {
+	ErrorDomainInterface
+	WithResource(resourceType, resourceID string) NotFoundErrorInterface
+	GetResourceInfo() (resourceType, resourceID string)
+}
+
+// BusinessErrorInterface define interface específica para erros de negócio
+type BusinessErrorInterface interface {
+	ErrorDomainInterface
+	WithRule(rule string) BusinessErrorInterface
+	GetRules() []string
+}
+
+// DatabaseErrorInterface define interface específica para erros de banco
+type DatabaseErrorInterface interface {
+	ErrorDomainInterface
+	WithOperation(operation, table string) DatabaseErrorInterface
+	WithQuery(query string) DatabaseErrorInterface
+	GetOperationInfo() (operation, table, query string)
+}
+
+// ExternalServiceErrorInterface define interface específica para erros de serviço externo
+type ExternalServiceErrorInterface interface {
+	ErrorDomainInterface
+	WithEndpoint(endpoint string) ExternalServiceErrorInterface
+	WithResponse(statusCode int, response string) ExternalServiceErrorInterface
+	GetServiceInfo() (service, endpoint string, statusCode int)
+}
+
+// TimeoutErrorInterface define interface específica para erros de timeout
+type TimeoutErrorInterface interface {
+	ErrorDomainInterface
+	WithDuration(duration, timeout interface{}) TimeoutErrorInterface
+	GetTimeoutInfo() (operation string, duration, timeout interface{})
+}
+
+// RateLimitErrorInterface define interface específica para erros de limite de taxa
+type RateLimitErrorInterface interface {
+	ErrorDomainInterface
+	WithRateLimit(limit, remaining int, resetTime, window string) RateLimitErrorInterface
+	GetRateLimitInfo() (limit, remaining int, resetTime, window string)
+}
+
+// CircuitBreakerErrorInterface define interface específica para erros de circuit breaker
+type CircuitBreakerErrorInterface interface {
+	ErrorDomainInterface
+	WithCircuitState(state string, failures int) CircuitBreakerErrorInterface
+	GetCircuitInfo() (circuitName, state string, failures int)
+}
+
+// ErrorFactory define interface para factory de erros
+type ErrorFactory interface {
+	CreateValidationError(message string, cause error) ValidationErrorInterface
+	CreateNotFoundError(message string) NotFoundErrorInterface
+	CreateBusinessError(code, message string) BusinessErrorInterface
+	CreateDatabaseError(message string, cause error) DatabaseErrorInterface
+	CreateExternalServiceError(service, message string, cause error) ExternalServiceErrorInterface
+	CreateTimeoutError(operation, message string, cause error) TimeoutErrorInterface
+	CreateRateLimitError(message string) RateLimitErrorInterface
+	CreateCircuitBreakerError(circuitName, message string) CircuitBreakerErrorInterface
+}
+
+// ErrorRegistry define interface para registro de erros
+type ErrorRegistry interface {
+	Register(code, description string, httpStatus int)
+	Get(code string) (ErrorCodeInfo, bool)
+	WrapWithCode(code string, err error) ErrorDomainInterface
+}
+
+// ErrorCodeInfo representa informações sobre um código de erro
+type ErrorCodeInfo struct {
+	Code        string
+	Description string
+	HTTPStatus  int
+}
+
+// ErrorAnalyzer define interface para análise de erros
+type ErrorAnalyzer interface {
+	IsTemporary(err error) bool
+	IsRetryable(err error) bool
+	GetErrorChain(err error) []error
+	GetRootCause(err error) error
 }
 
 // ErrorHandler define interface para manipulação de erros
 type ErrorHandler interface {
-	// Handle processa o erro e retorna uma resposta apropriada
-	Handle(ctx context.Context, err error) interface{}
-
-	// ShouldRetry determina se a operação deve ser repetida
-	ShouldRetry(err error) bool
-
-	// GetRetryDelay retorna o delay para retry
-	GetRetryDelay(err error, attempt int) int
+	Handle(err error) error
+	CanHandle(err error) bool
+	GetPriority() int
 }
 
-// ErrorRegistry define interface para registro de códigos de erro
-type ErrorRegistry interface {
-	// RegisterCode registra um código de erro
-	RegisterCode(code string, description string, httpStatus int)
-
-	// GetDescription retorna a descrição do código
-	GetDescription(code string) (string, bool)
-
-	// GetHTTPStatus retorna o status HTTP do código
-	GetHTTPStatus(code string) (int, bool)
-
-	// ListCodes lista todos os códigos registrados
-	ListCodes() map[string]string
+// ErrorMiddleware define interface para middleware de erro
+type ErrorMiddleware interface {
+	ProcessError(err error, next func(error) error) error
 }
 
-// ErrorMetrics define interface para métricas de erro
-type ErrorMetrics interface {
-	// RecordError registra um erro nas métricas
-	RecordError(errorType ErrorType, code string)
-
-	// GetErrorCount retorna o contador de erros
-	GetErrorCount(errorType ErrorType) int64
-
-	// GetErrorRate retorna a taxa de erros
-	GetErrorRate(errorType ErrorType) float64
-}
-
-// StackTraceProvider define interface para captura de stack trace
-type StackTraceProvider interface {
-	// CaptureStackTrace captura o stack trace atual
-	CaptureStackTrace(skip int) string
-
-	// FormatStackTrace formata o stack trace
-	FormatStackTrace(trace string) string
-}
-
-// ErrorContextProvider define interface para contexto de erro
-type ErrorContextProvider interface {
-	// AddContext adiciona contexto ao erro
-	AddContext(key string, value interface{})
-
-	// GetContext retorna o contexto do erro
-	GetContext(key string) (interface{}, bool)
-
-	// GetAllContext retorna todo o contexto
-	GetAllContext() map[string]interface{}
-}
-
-// HTTPStatusProvider define interface para códigos de status HTTP
-type HTTPStatusProvider interface {
-	// StatusCode retorna o código de status HTTP
-	StatusCode() int
-}
-
-// HasCode define interface para erros que têm código
-type HasCode interface {
-	// Code retorna o código do erro
-	Code() string
+// ErrorLogger define interface para logging de erros
+type ErrorLogger interface {
+	LogError(err error, context map[string]interface{})
+	LogErrorWithLevel(err error, level string, context map[string]interface{})
 }
 
 // ErrorSerializer define interface para serialização de erros
 type ErrorSerializer interface {
-	// Serialize serializa o erro
-	Serialize(err error) ([]byte, error)
-
-	// Deserialize deserializa o erro
-	Deserialize(data []byte) (error, error)
-
-	// Format formata o erro para apresentação
-	Format(err error) string
-}
-
-// ErrorAggregator define interface para agregação de erros
-type ErrorAggregator interface {
-	// AddError adiciona um erro à agregação
-	AddError(err error)
-
-	// HasErrors retorna se há erros
-	HasErrors() bool
-
-	// GetErrors retorna todos os erros
-	GetErrors() []error
-
-	// GetFirstError retorna o primeiro erro
-	GetFirstError() error
-
-	// Clear limpa todos os erros
-	Clear()
-}
-
-// ErrorChainWalker define interface para percorrer cadeia de erros
-type ErrorChainWalker interface {
-	// Walk percorre a cadeia de erros
-	Walk(err error, fn func(error) bool)
-
-	// FindFirst encontra o primeiro erro que satisfaz a condição
-	FindFirst(err error, fn func(error) bool) error
-
-	// GetChain retorna toda a cadeia de erros
-	GetChain(err error) []error
-}
-
-// ErrorFactory define interface para criação de erros
-type ErrorFactory interface {
-	// NewError cria um novo erro
-	NewError(code string, message string) DomainError
-
-	// NewErrorWithType cria um novo erro com tipo específico
-	NewErrorWithType(code string, message string, errorType ErrorType) DomainError
-
-	// NewErrorFromTemplate cria um erro a partir de template
-	NewErrorFromTemplate(template string, args ...interface{}) DomainError
-
-	// WrapError encapsula um erro existente
-	WrapError(message string, err error) DomainError
-}
-
-// ErrorRecovery define interface para recuperação de erros
-type ErrorRecovery interface {
-	// CanRecover verifica se pode recuperar do erro
-	CanRecover(err error) bool
-
-	// Recover tenta recuperar do erro
-	Recover(ctx context.Context, err error) error
-
-	// GetRecoveryStrategy retorna a estratégia de recuperação
-	GetRecoveryStrategy(err error) string
-}
-
-// ErrorNotifier define interface para notificação de erros
-type ErrorNotifier interface {
-	// Notify notifica sobre um erro
-	Notify(ctx context.Context, err error) error
-
-	// ShouldNotify verifica se deve notificar
-	ShouldNotify(err error) bool
-
-	// GetNotificationLevel retorna o nível de notificação
-	GetNotificationLevel(err error) string
-}
-
-// ErrorLocalizer define interface para localização de erros
-type ErrorLocalizer interface {
-	// Localize localiza a mensagem do erro
-	Localize(ctx context.Context, err error) string
-
-	// GetSupportedLocales retorna os locales suportados
-	GetSupportedLocales() []string
-
-	// SetLocale define o locale
-	SetLocale(locale string) error
+	SerializeError(err error) ([]byte, error)
+	DeserializeError(data []byte) (error, error)
 }
 
 // ErrorTransformer define interface para transformação de erros
 type ErrorTransformer interface {
-	// Transform transforma um erro
-	Transform(err error) error
-
-	// CanTransform verifica se pode transformar
+	TransformError(err error) error
 	CanTransform(err error) bool
-
-	// GetTransformationRules retorna as regras de transformação
-	GetTransformationRules() map[string]string
 }
 
-// ErrorFilter define interface para filtro de erros
-type ErrorFilter interface {
-	// ShouldFilter verifica se deve filtrar o erro
-	ShouldFilter(err error) bool
-
-	// Filter filtra o erro
-	Filter(err error) error
-
-	// GetFilterRules retorna as regras de filtro
-	GetFilterRules() []string
+// ErrorPolicyProvider define interface para políticas de erro
+type ErrorPolicyProvider interface {
+	GetRetryPolicy(err error) RetryPolicy
+	GetCircuitBreakerPolicy(err error) CircuitBreakerPolicy
+	GetTimeoutPolicy(err error) TimeoutPolicy
 }
 
-// ErrorEnricher define interface para enriquecimento de erros
-type ErrorEnricher interface {
-	// Enrich enriquece o erro com informações adicionais
-	Enrich(ctx context.Context, err error) error
-
-	// GetEnrichmentData retorna dados de enriquecimento
-	GetEnrichmentData(err error) map[string]interface{}
-
-	// SetEnrichmentProvider define o provedor de enriquecimento
-	SetEnrichmentProvider(provider interface{}) error
+// RetryPolicy define configuração de retry
+type RetryPolicy struct {
+	MaxRetries int
+	Delay      interface{} // time.Duration
+	Backoff    string      // "linear", "exponential", "constant"
 }
 
-// ErrorMarshalJSON define interface para serialização JSON customizada
-type ErrorMarshalJSON interface {
-	json.Marshaler
-	json.Unmarshaler
+// CircuitBreakerPolicy define configuração de circuit breaker
+type CircuitBreakerPolicy struct {
+	FailureThreshold int
+	RecoveryTimeout  interface{} // time.Duration
+	HalfOpenRequests int
 }
 
-// ErrorConfig define interface para configuração de erros
-type ErrorConfig interface {
-	// SetStackTraceEnabled habilita/desabilita stack trace
-	SetStackTraceEnabled(enabled bool)
-
-	// IsStackTraceEnabled retorna se stack trace está habilitado
-	IsStackTraceEnabled() bool
-
-	// SetMaxStackDepth define a profundidade máxima do stack
-	SetMaxStackDepth(depth int)
-
-	// GetMaxStackDepth retorna a profundidade máxima do stack
-	GetMaxStackDepth() int
-
-	// SetDefaultHTTPStatus define o status HTTP padrão
-	SetDefaultHTTPStatus(status int)
-
-	// GetDefaultHTTPStatus retorna o status HTTP padrão
-	GetDefaultHTTPStatus() int
+// TimeoutPolicy define configuração de timeout
+type TimeoutPolicy struct {
+	RequestTimeout interface{} // time.Duration
+	ReadTimeout    interface{} // time.Duration
+	WriteTimeout   interface{} // time.Duration
 }

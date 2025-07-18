@@ -1,229 +1,243 @@
-# Exemplos - DomainErrors
+# Domain Errors Examples
 
-Esta pasta contém exemplos práticos de uso do módulo domainerrors em diferentes cenários e níveis de complexidade.
+This directory contains comprehensive examples demonstrating how to use the Domain Errors library in various scenarios. Each example focuses on different aspects of error handling in domain-driven design.
 
-## Estrutura dos Exemplos
+## Available Examples
 
-### 📁 [basic/](basic/)
-**Exemplo Básico** - Introdução ao módulo
-- ✅ Criação de erros básicos
-- ✅ Tipos de erro específicos
-- ✅ Metadados e contexto
-- ✅ Empilhamento de erros
-- ✅ Grupo de erros
-- ✅ Utilitários e mapeamento HTTP
+### 1. Basic Usage (`basic/`)
+**Purpose**: Introduction to basic domain error usage
+**Key Features**:
+- Creating different types of domain errors
+- Basic error handling patterns
+- Error code and message usage
+- Simple error type demonstrations
 
-**Ideal para**: Primeiro contato com o módulo
+**Best For**: Getting started with the library, understanding basic concepts
 
-### 📁 [advanced/](advanced/)
-**Exemplo Avançado** - Padrões de produção
-- ✅ Cenários complexos de erro
-- ✅ Middleware de error handling
-- ✅ Padrões de recovery (Circuit Breaker, Retry)
-- ✅ Observabilidade e monitoramento
-- ✅ Validação contextual
-- ✅ Integração com serviços
+### 2. Advanced Usage (`advanced/`)
+**Purpose**: Complex error handling scenarios
+**Key Features**:
+- Error composition and chaining
+- Context-aware error handling
+- Custom error types and patterns
+- Error aggregation and collection
 
-**Ideal para**: Aplicações em produção
+**Best For**: Production applications requiring sophisticated error handling
 
-### 📁 [global/](global/)
-**Configuração Global** - Setup de aplicação
-- ✅ Configuração global do módulo
-- ✅ Handler centralizado
-- ✅ Integração com contexto
-- ✅ Panic recovery global
-- ✅ Logging e métricas
-- ✅ Customização de tipos
+### 3. Specific Errors (`specific-errors/`)
+**Purpose**: Comprehensive demonstration of all 26 error types
+**Key Features**:
+- All error types with real-world examples
+- Proper error construction with context
+- Error-specific method usage
+- Complete error type coverage
 
-**Ideal para**: Configuração de aplicações
+**Best For**: Understanding all available error types and their use cases
 
-## Guia de Uso
+### 4. HTTP Integration (`http-integration/`)
+**Purpose**: Web API error handling
+**Key Features**:
+- HTTP status code mapping
+- JSON error responses
+- REST API error handling
+- Structured error responses
 
-### 1. Iniciantes
-Comece com o exemplo básico:
+**Best For**: Web applications, REST APIs, HTTP services
+
+### 5. Error Recovery (`error-recovery/`)
+**Purpose**: Resilient error handling patterns
+**Key Features**:
+- Retry mechanisms with backoff
+- Circuit breaker patterns
+- Fallback strategies
+- Bulk operation error handling
+
+**Best For**: Microservices, distributed systems, resilient applications
+
+### 6. Serialization (`serialization/`)
+**Purpose**: Error serialization and deserialization
+**Key Features**:
+- JSON and XML serialization
+- Error reconstruction
+- Error collections
+- Compact serialization formats
+
+**Best For**: Cross-service communication, logging, monitoring
+
+## Quick Start
+
+1. **Clone the repository**:
 ```bash
-cd basic/
-go run main.go
+git clone https://github.com/fsvxavier/nexs-lib.git
+cd nexs-lib/domainerrors/examples
 ```
 
-### 2. Desenvolvedores Experientes
-Explore padrões avançados:
+2. **Run any example**:
 ```bash
-cd advanced/
-go run main.go
+# Basic usage
+cd basic && go run main.go
+
+# HTTP integration
+cd http-integration && go run main.go
+
+# Error recovery patterns
+cd error-recovery && go run main.go
 ```
 
-### 3. Configuração de Aplicações
-Configure seu ambiente:
+3. **Run all examples**:
 ```bash
-cd global/
-go run main.go
-```
-
-## Dependências
-
-Todos os exemplos usam:
-- Go 1.19+
-- Módulo domainerrors
-- Biblioteca padrão do Go
-
-## Execução
-
-### Executar Todos os Exemplos
-```bash
-# Executar script de exemplo
 ./run_all_examples.sh
 ```
 
-### Executar Individualmente
-```bash
-# Exemplo básico
-cd basic && go run main.go
+## Example Structure
 
-# Exemplo avançado
-cd advanced && go run main.go
+Each example directory contains:
+- `main.go` - Main example code
+- `README.md` - Detailed documentation
+- Additional files as needed
 
-# Configuração global
-cd global && go run main.go
+## Error Types Covered
+
+All examples demonstrate various combinations of these error types:
+
+| Error Type | HTTP Status | Description |
+|-----------|-------------|-------------|
+| ValidationError | 400 | Input validation failures |
+| BusinessError | 422 | Business rule violations |
+| NotFoundError | 404 | Resource not found |
+| ConflictError | 409 | Resource conflicts |
+| TimeoutError | 504 | Operation timeouts |
+| RateLimitError | 429 | Rate limit exceeded |
+| ExternalServiceError | 502 | External service failures |
+| DatabaseError | 500 | Database operation errors |
+| AuthenticationError | 401 | Authentication failures |
+| AuthorizationError | 403 | Authorization failures |
+| ServerError | 500 | Internal server errors |
+| NetworkError | 503 | Network-related errors |
+| SecurityError | 403 | Security violations |
+| ConfigurationError | 500 | Configuration errors |
+| DependencyError | 503 | Dependency failures |
+| ResourceExhaustedError | 429 | Resource exhaustion |
+| CircuitBreakerError | 503 | Circuit breaker open |
+| SerializationError | 400 | Serialization failures |
+| MigrationError | 500 | Database migration errors |
+| UnsupportedOperationError | 501 | Unsupported operations |
+| PerformanceError | 503 | Performance degradation |
+| DataIntegrityError | 409 | Data integrity violations |
+| UnprocessableEntityError | 422 | Unprocessable entities |
+| PreconditionFailedError | 412 | Precondition failures |
+| ServiceUnavailableError | 503 | Service unavailable |
+| CacheError | 503 | Cache operation errors |
+
+## Common Patterns
+
+### 1. Error Creation
+```go
+// Basic error
+err := domainerrors.NewValidationError("INVALID_EMAIL", "Invalid email format", nil)
+
+// With context
+err.WithField("email", "must be a valid email address")
 ```
 
-## Conceitos Principais
-
-### 1. Tipos de Erro
-- **Validation**: Erros de validação de dados
-- **NotFound**: Recursos não encontrados
-- **Business**: Violações de regras de negócio
-- **Database**: Falhas de banco de dados
-- **ExternalService**: Falhas em APIs externas
-- **Infrastructure**: Problemas de infraestrutura
-
-### 2. Funcionalidades
-- **Stack Trace**: Captura automática de stack traces
-- **Contexto**: Enriquecimento com informações contextuais
-- **Metadados**: Dados adicionais para debugging
-- **Serialização**: Conversão para JSON
-- **HTTP Mapping**: Mapeamento para códigos HTTP
-
-### 3. Padrões
-- **Error Wrapping**: Encadeamento de erros
-- **Recovery**: Captura de panics
-- **Retry**: Tentativas com backoff
-- **Circuit Breaker**: Proteção contra falhas
-- **Middleware**: Interceptação centralizada
-
-## Casos de Uso
-
-### APIs REST
+### 2. Error Handling
 ```go
-func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
-    user, err := h.userService.Create(r.Context(), request)
-    if err != nil {
-        response := h.errorHandler.HandleError(err)
-        writeJSONResponse(w, response)
-        return
-    }
-    writeJSONResponse(w, user)
-}
-```
-
-### gRPC Services
-```go
-func (s *UserService) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.User, error) {
-    user, err := s.userRepo.Create(ctx, req)
-    if err != nil {
-        return nil, domainerrors.Wrap("Failed to create user", err)
-    }
-    return user, nil
-}
-```
-
-### Background Jobs
-```go
-func (w *Worker) ProcessMessage(ctx context.Context, msg *Message) error {
-    defer func() {
-        if r := recover(); r != nil {
-            if err := domainerrors.RecoverWithStackTrace(); err != nil {
-                w.errorHandler.HandleCriticalError(err)
-            }
+if err != nil {
+    if domainErr, ok := err.(*domainerrors.DomainError); ok {
+        // Handle based on error type
+        switch domainErr.Type {
+        case domainerrors.ErrorTypeValidation:
+            // Handle validation error
+        case domainerrors.ErrorTypeNotFound:
+            // Handle not found error
         }
-    }()
-    
-    return w.processor.Process(ctx, msg)
-}
-```
-
-## Integração com Frameworks
-
-### Gin
-```go
-func ErrorMiddleware() gin.HandlerFunc {
-    return func(c *gin.Context) {
-        defer func() {
-            if err := recover(); err != nil {
-                response := errorHandler.HandleError(err.(error))
-                c.JSON(response["http_status"].(int), response)
-            }
-        }()
-        c.Next()
     }
 }
 ```
 
-### Echo
+### 3. HTTP Response
 ```go
-func ErrorHandler(err error, c echo.Context) {
-    response := errorHandler.HandleError(err)
-    c.JSON(response["http_status"].(int), response)
+func handleError(w http.ResponseWriter, err error) {
+    if domainErr, ok := err.(*domainerrors.DomainError); ok {
+        statusCode := domainErr.HTTPStatus()
+        w.WriteHeader(statusCode)
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": domainErr.Code,
+            "message": domainErr.Message,
+        })
+    }
 }
 ```
 
-## Observabilidade
+## Integration Guidelines
 
-### Métricas
-```go
-// Prometheus
-errorCounter := prometheus.NewCounterVec(
-    prometheus.CounterOpts{
-        Name: "errors_total",
-        Help: "Total number of errors",
-    },
-    []string{"type", "service"},
-)
+### 1. Web Applications
+- Use HTTP integration example as base
+- Map errors to appropriate HTTP status codes
+- Return structured JSON error responses
+- Include request tracing information
 
-// Incrementar métrica
-errorCounter.WithLabelValues(errorType, serviceName).Inc()
-```
+### 2. Microservices
+- Use error recovery patterns
+- Implement circuit breakers
+- Use serialization for cross-service communication
+- Include correlation IDs for tracing
 
-### Tracing
-```go
-// OpenTelemetry
-span := trace.SpanFromContext(ctx)
-span.SetStatus(codes.Error, err.Error())
-span.RecordError(err)
-```
+### 3. Database Applications
+- Use specific database error types
+- Implement retry mechanisms
+- Handle connection failures gracefully
+- Use proper error context
 
-### Logging
-```go
-// Structured logging
-logger.Error("Operation failed",
-    zap.String("error_code", domainErr.Code),
-    zap.String("error_type", domainErr.ErrorType),
-    zap.Any("metadata", domainErr.Metadata()),
-)
-```
+### 4. API Clients
+- Use external service error types
+- Implement timeout handling
+- Use rate limiting error handling
+- Provide fallback mechanisms
 
-## Contribuindo
+## Testing
 
-Para adicionar novos exemplos:
-1. Crie pasta com nome descritivo
-2. Adicione `main.go` com exemplo
-3. Adicione `README.md` com documentação
-4. Atualize este README
-5. Adicione ao script `run_all_examples.sh`
+Each example includes test scenarios and validation:
+- Error creation and validation
+- HTTP response testing
+- Serialization round-trip testing
+- Error recovery validation
 
-## Recursos Adicionais
+## Performance Considerations
 
-- [Documentação do Módulo](../README.md)
-- [API Reference](../docs/api.md)
-- [Guia de Migração](../docs/migration.md)
-- [Melhores Práticas](../docs/best-practices.md)
+- **Error Creation**: Minimal overhead for error creation
+- **Serialization**: Efficient JSON/XML serialization
+- **HTTP Integration**: Fast error response generation
+- **Memory Usage**: Optimized error structures
+
+## Best Practices
+
+1. **Use Specific Error Types**: Choose the most appropriate error type
+2. **Include Context**: Add relevant context information
+3. **Consistent Codes**: Use consistent error codes across services
+4. **Proper HTTP Status**: Map to appropriate HTTP status codes
+5. **Structured Responses**: Use consistent error response format
+6. **Logging**: Log errors with appropriate detail level
+7. **Monitoring**: Track error rates and types
+8. **Testing**: Test error scenarios thoroughly
+
+## Contributing
+
+To add new examples:
+1. Create a new directory with descriptive name
+2. Include `main.go` with working code
+3. Add comprehensive `README.md`
+4. Update this main README
+5. Add to `run_all_examples.sh`
+
+## Dependencies
+
+All examples use:
+- Go 1.23+
+- Domain Errors library
+- Standard library packages
+- No external dependencies (except for specific examples)
+
+## License
+
+These examples are part of the nexs-lib project and follow the same license terms.

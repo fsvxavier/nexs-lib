@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 
@@ -8,134 +9,201 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Exemplo Básico do DomainErrors ===")
+	fmt.Println("=== Domain Errors - Basic Examples ===")
+	fmt.Println()
 
-	// Criar um erro básico
-	err := domainerrors.New("USER_001", "Erro básico de usuário")
-	fmt.Printf("Erro básico: %s\n", err.Error())
+	// Example 1: Basic error creation
+	basicErrorExample()
 
-	// Criar um erro com causa
-	baseErr := fmt.Errorf("conexão com banco de dados falhou")
-	dbErr := domainerrors.NewWithError("DB_001", "Erro de banco de dados", baseErr)
-	fmt.Printf("Erro com causa: %s\n", dbErr.Error())
+	// Example 2: Error with cause
+	errorWithCauseExample()
 
-	// Criar um erro com tipo específico
-	validationErr := domainerrors.NewWithType("VAL_001", "Dados inválidos", domainerrors.ErrorTypeValidation)
-	fmt.Printf("Erro de validação: %s\n", validationErr.Error())
-	fmt.Printf("Tipo: %s\n", validationErr.Type())
-	fmt.Printf("HTTP Status: %d\n", validationErr.HTTPStatus())
+	// Example 3: Error with metadata
+	errorWithMetadataExample()
 
-	// Adicionar metadados
-	err.WithMetadata("user_id", "12345")
-	err.WithMetadata("action", "create_user")
-	fmt.Printf("Metadados: %+v\n", err.Metadata())
+	// Example 4: Error chaining
+	errorChainingExample()
 
-	// Verificar tipo de erro
-	if domainerrors.IsType(validationErr, domainerrors.ErrorTypeValidation) {
-		fmt.Println("✓ Erro é do tipo validação")
-	}
+	// Example 5: HTTP status mapping
+	httpStatusMappingExample()
 
-	// Serializar para JSON
-	if jsonData, err := validationErr.JSON(); err == nil {
-		fmt.Printf("JSON: %s\n", string(jsonData))
-	}
+	// Example 6: Error type checking
+	demonstrateErrorChecking()
 
-	// Exemplo com diferentes tipos de erro
-	fmt.Println("\n=== Tipos de Erro Específicos ===")
+	// Example 7: Standard error interface
+	demonstrateStandardErrorInterface()
 
-	// Erro de validação
-	validationError := domainerrors.NewValidationError("Dados inválidos", nil)
-	validationError.WithField("email", "Email é obrigatório")
-	validationError.WithField("password", "Senha deve ter pelo menos 8 caracteres")
-	fmt.Printf("Erro de validação: %s\n", validationError.Error())
-	fmt.Printf("Campos: %+v\n", validationError.Fields)
-
-	// Erro de recurso não encontrado
-	notFoundError := domainerrors.NewNotFoundError("Usuário não encontrado")
-	notFoundError.WithResource("user", "12345")
-	fmt.Printf("Erro não encontrado: %s\n", notFoundError.Error())
-	fmt.Printf("Recurso: %s ID: %s\n", notFoundError.Resource, notFoundError.ResourceID)
-
-	// Erro de regra de negócio
-	businessError := domainerrors.NewBusinessError("INSUFFICIENT_FUNDS", "Saldo insuficiente")
-	businessError.WithRule("minimum_balance")
-	fmt.Printf("Erro de negócio: %s\n", businessError.Error())
-	fmt.Printf("Regra: %s\n", businessError.RuleName)
-
-	// Erro de banco de dados
-	databaseError := domainerrors.NewDatabaseError("Falha na consulta", baseErr)
-	databaseError.WithOperation("SELECT", "users")
-	databaseError.WithQuery("SELECT * FROM users WHERE id = ?")
-	fmt.Printf("Erro de banco: %s\n", databaseError.Error())
-	fmt.Printf("Operação: %s Tabela: %s\n", databaseError.Operation, databaseError.Table)
-
-	// Erro de serviço externo
-	externalError := domainerrors.NewExternalServiceError("payment-service", "Falha no pagamento", nil)
-	externalError.WithEndpoint("/api/v1/payments")
-	externalError.WithStatusCode(503)
-	externalError.WithResponse("Service temporarily unavailable")
-	fmt.Printf("Erro externo: %s\n", externalError.Error())
-	fmt.Printf("Serviço: %s Endpoint: %s Status: %d\n",
-		externalError.Service, externalError.Endpoint, externalError.HTTPStatusCode)
-
-	// Exemplo de empilhamento de erros
-	fmt.Println("\n=== Empilhamento de Erros ===")
-
-	rootErr := fmt.Errorf("network connection failed")
-	infraErr := domainerrors.NewInfrastructureError("network", "Falha de infraestrutura", rootErr)
-	serviceErr := domainerrors.Wrap("Falha no serviço", infraErr)
-
-	fmt.Printf("Erro final: %s\n", serviceErr.Error())
-	fmt.Printf("Cadeia de erros: %s\n", domainerrors.FormatErrorChain(serviceErr))
-	fmt.Printf("Causa raiz: %s\n", domainerrors.GetRootCause(serviceErr))
-
-	// Exemplo de grupo de erros
-	fmt.Println("\n=== Grupo de Erros ===")
-
-	errorGroup := domainerrors.NewErrorGroup()
-	errorGroup.Add(validationError)
-	errorGroup.Add(businessError)
-	errorGroup.Add(databaseError)
-
-	fmt.Printf("Grupo tem erros: %v\n", errorGroup.HasErrors())
-	fmt.Printf("Quantidade de erros: %d\n", errorGroup.Count())
-	fmt.Printf("Primeiro erro: %s\n", errorGroup.First().Error())
-	fmt.Printf("Último erro: %s\n", errorGroup.Last().Error())
-
-	// Filtrar erros por tipo
-	validationErrors := errorGroup.FilterByType(domainerrors.ErrorTypeValidation)
-	fmt.Printf("Erros de validação: %d\n", len(validationErrors))
-
-	// Utilitários
-	fmt.Println("\n=== Utilitários ===")
-
-	fmt.Printf("Severidade do erro de validação: %s\n", domainerrors.GetSeverity(validationError))
-	fmt.Printf("Severidade do erro de banco: %s\n", domainerrors.GetSeverity(databaseError))
-	fmt.Printf("Deve repetir erro de timeout: %v\n", domainerrors.ShouldRetry(databaseError))
-	fmt.Printf("É recuperável: %v\n", domainerrors.IsRecoverable(databaseError))
-
-	// Mapeamento HTTP
-	fmt.Println("\n=== Mapeamento HTTP ===")
-
-	errors := []error{validationError, notFoundError, businessError, databaseError, externalError}
-	for _, err := range errors {
-		status := domainerrors.GetHTTPStatus(err)
-		fmt.Printf("Erro: %s -> HTTP %d\n", domainerrors.GetTypeName(err), status)
-	}
-
-	fmt.Println("\n=== Exemplo concluído com sucesso! ===")
+	// Example 8: Specific error types
+	specificErrorTypesExample()
 }
 
-func demonstrateRecovery() {
-	defer func() {
-		if r := recover(); r != nil {
-			recoveredErr := domainerrors.RecoverWithStackTrace()
-			if recoveredErr != nil {
-				log.Printf("Erro recuperado: %s", recoveredErr.Error())
-			}
-		}
-	}()
+func basicErrorExample() {
+	fmt.Println("1. Basic Error Creation:")
 
-	// Código que pode causar panic
-	panic("exemplo de panic")
+	// Create a simple domain error
+	err := domainerrors.New("USR_001", "User validation failed")
+
+	fmt.Printf("   Error: %s\n", err.Error())
+	fmt.Printf("   Code: %s\n", err.Code)
+	fmt.Printf("   Type: %s\n", err.Type)
+	fmt.Printf("   HTTP Status: %d\n", err.HTTPStatus())
+	fmt.Println()
+}
+
+func errorWithCauseExample() {
+	fmt.Println("2. Error with Cause:")
+
+	// Create an error with an underlying cause
+	originalErr := errors.New("database connection timeout")
+	err := domainerrors.NewWithCause("DB_001", "Failed to save user", originalErr)
+
+	fmt.Printf("   Error: %s\n", err.Error())
+	fmt.Printf("   Root Cause: %v\n", err.Unwrap())
+	fmt.Println()
+}
+
+func errorWithMetadataExample() {
+	fmt.Println("3. Error with Metadata:")
+
+	// Create error with additional metadata
+	err := domainerrors.New("API_001", "Request processing failed")
+	err.WithMetadata("request_id", "req-12345")
+	err.WithMetadata("user_id", "user-789")
+	err.WithMetadata("timestamp", "2025-01-18T10:30:00Z")
+
+	fmt.Printf("   Error: %s\n", err.Error())
+	fmt.Printf("   Metadata: %+v\n", err.Metadata)
+	fmt.Println()
+}
+
+func errorChainingExample() {
+	fmt.Println("4. Error Chaining:")
+
+	// Create a chain of errors
+	dbErr := errors.New("connection refused")
+	infraErr := domainerrors.NewWithCause("INFRA_001", "Database unavailable", dbErr)
+
+	serviceErr := domainerrors.New("SVC_001", "User service failed")
+	serviceErr.Wrap("processing user request", infraErr)
+
+	fmt.Printf("   Error: %s\n", serviceErr.Error())
+	fmt.Printf("   Root Cause: %v\n", serviceErr.Unwrap())
+	fmt.Printf("   Stack Trace:\n%s\n", serviceErr.StackTrace())
+	fmt.Println()
+}
+
+func httpStatusMappingExample() {
+	fmt.Println("5. HTTP Status Mapping:")
+
+	// Different error types map to different HTTP status codes
+	errors := []struct {
+		name string
+		err  *domainerrors.DomainError
+	}{
+		{
+			name: "Validation Error",
+			err:  domainerrors.NewWithType("VAL_001", "Invalid input", domainerrors.ErrorTypeValidation),
+		},
+		{
+			name: "Not Found Error",
+			err:  domainerrors.NewWithType("NF_001", "Resource not found", domainerrors.ErrorTypeNotFound),
+		},
+		{
+			name: "Authentication Error",
+			err:  domainerrors.NewWithType("AUTH_001", "Invalid credentials", domainerrors.ErrorTypeAuthentication),
+		},
+		{
+			name: "Authorization Error",
+			err:  domainerrors.NewWithType("AUTHZ_001", "Insufficient permissions", domainerrors.ErrorTypeAuthorization),
+		},
+		{
+			name: "Rate Limit Error",
+			err:  domainerrors.NewWithType("RATE_001", "Too many requests", domainerrors.ErrorTypeRateLimit),
+		},
+		{
+			name: "Server Error",
+			err:  domainerrors.NewWithType("SRV_001", "Internal server error", domainerrors.ErrorTypeServer),
+		},
+	}
+
+	for _, errInfo := range errors {
+		fmt.Printf("   %s: %d\n", errInfo.name, errInfo.err.HTTPStatus())
+	}
+
+	fmt.Println()
+}
+
+// Helper function to demonstrate error checking
+func demonstrateErrorChecking() {
+	fmt.Println("6. Error Type Checking:")
+
+	validationErr := domainerrors.NewWithType("VAL_001", "Invalid data", domainerrors.ErrorTypeValidation)
+
+	// Check if error is of specific type
+	if domainerrors.IsType(validationErr, domainerrors.ErrorTypeValidation) {
+		fmt.Println("   ✓ Error is a validation error")
+	}
+
+	if !domainerrors.IsType(validationErr, domainerrors.ErrorTypeNotFound) {
+		fmt.Println("   ✓ Error is NOT a not found error")
+	}
+
+	// Map to HTTP status
+	status := domainerrors.MapHTTPStatus(validationErr)
+	fmt.Printf("   HTTP Status: %d\n", status)
+
+	fmt.Println()
+}
+
+// Example of using errors.Is and errors.As
+func demonstrateStandardErrorInterface() {
+	fmt.Println("7. Standard Error Interface Compatibility:")
+
+	originalErr := errors.New("original error")
+	wrappedErr := domainerrors.NewWithCause("WRAP_001", "Wrapped error", originalErr)
+
+	// Using errors.Is
+	if errors.Is(wrappedErr, originalErr) {
+		fmt.Println("   ✓ errors.Is works correctly")
+	}
+
+	// Using errors.As
+	var domainErr *domainerrors.DomainError
+	if errors.As(wrappedErr, &domainErr) {
+		fmt.Printf("   ✓ errors.As works correctly, code: %s\n", domainErr.Code)
+	}
+
+	fmt.Println()
+}
+
+// Example of specific error types with custom codes
+func specificErrorTypesExample() {
+	fmt.Println("8. Specific Error Types with Custom Codes:")
+
+	// Validation error with custom code
+	validationErr := domainerrors.NewValidationError("USER_EMAIL_INVALID", "Invalid email format", nil)
+	validationErr.WithField("email", "must be a valid email address")
+	fmt.Printf("   Validation Error: %s (Code: %s)\n", validationErr.Message, validationErr.Code)
+
+	// Business error with custom code
+	businessErr := domainerrors.NewBusinessError("INSUFFICIENT_BALANCE", "Account balance too low")
+	businessErr.WithRule("Minimum balance of $10 required")
+	fmt.Printf("   Business Error: %s (Code: %s)\n", businessErr.Message, businessErr.Code)
+
+	// Database error with custom code
+	dbErr := domainerrors.NewDatabaseError("DB_CONNECTION_FAILED", "Failed to connect to database", errors.New("connection timeout"))
+	dbErr.WithOperation("SELECT", "users")
+	fmt.Printf("   Database Error: %s (Code: %s)\n", dbErr.Message, dbErr.Code)
+
+	// External service error with custom code
+	extErr := domainerrors.NewExternalServiceError("PAYMENT_API_ERROR", "payment-service", "Payment processing failed", errors.New("timeout"))
+	extErr.WithEndpoint("/api/v1/payments")
+	extErr.WithResponse(503, "Service Unavailable")
+	fmt.Printf("   External Service Error: %s (Code: %s)\n", extErr.Message, extErr.Code)
+
+	fmt.Println()
+}
+
+func init() {
+	log.SetFlags(0) // Remove timestamp from logs for cleaner output
 }

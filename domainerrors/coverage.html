@@ -1,0 +1,1606 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>domainerrors: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/fsvxavier/nexs-lib/domainerrors/domainerrors.go (88.8%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">// Package domainerrors fornece uma estrutura robusta para tratamento de erros
+// em aplicações Go, seguindo os princípios de Domain-Driven Design (DDD).
+//
+// Este pacote oferece:
+// - Categorização de erros por tipos específicos
+// - Empilhamento de erros com informações contextuais
+// - Captura automática de stack trace
+// - Mapeamento para códigos HTTP
+// - Suporte para metadados e serialização JSON
+// - Utilitários para manipulação e análise de erros
+package domainerrors
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "net/http"
+        "reflect"
+        "runtime"
+        "strings"
+        "time"
+
+        "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+        "github.com/fsvxavier/nexs-lib/domainerrors/internal"
+)
+
+// Variáveis globais para configuração
+var (
+        // Configuração global para stack trace
+        GlobalStackTraceEnabled = true
+        GlobalMaxStackDepth     = 10
+        GlobalSkipFrames        = 2
+)
+
+// ErrorType define os tipos de erro disponíveis
+type ErrorType = interfaces.ErrorType
+
+// Constantes dos tipos de erro
+const (
+        ErrorTypeValidation         = interfaces.ErrorTypeValidation
+        ErrorTypeNotFound           = interfaces.ErrorTypeNotFound
+        ErrorTypeBusiness           = interfaces.ErrorTypeBusiness
+        ErrorTypeDatabase           = interfaces.ErrorTypeDatabase
+        ErrorTypeExternalService    = interfaces.ErrorTypeExternalService
+        ErrorTypeInfrastructure     = interfaces.ErrorTypeInfrastructure
+        ErrorTypeDependency         = interfaces.ErrorTypeDependency
+        ErrorTypeAuthentication     = interfaces.ErrorTypeAuthentication
+        ErrorTypeAuthorization      = interfaces.ErrorTypeAuthorization
+        ErrorTypeSecurity           = interfaces.ErrorTypeSecurity
+        ErrorTypeTimeout            = interfaces.ErrorTypeTimeout
+        ErrorTypeRateLimit          = interfaces.ErrorTypeRateLimit
+        ErrorTypeResourceExhausted  = interfaces.ErrorTypeResourceExhausted
+        ErrorTypeCircuitBreaker     = interfaces.ErrorTypeCircuitBreaker
+        ErrorTypeSerialization      = interfaces.ErrorTypeSerialization
+        ErrorTypeCache              = interfaces.ErrorTypeCache
+        ErrorTypeMigration          = interfaces.ErrorTypeMigration
+        ErrorTypeConfiguration      = interfaces.ErrorTypeConfiguration
+        ErrorTypeUnsupported        = interfaces.ErrorTypeUnsupported
+        ErrorTypeBadRequest         = interfaces.ErrorTypeBadRequest
+        ErrorTypeConflict           = interfaces.ErrorTypeConflict
+        ErrorTypeInvalidSchema      = interfaces.ErrorTypeInvalidSchema
+        ErrorTypeUnsupportedMedia   = interfaces.ErrorTypeUnsupportedMedia
+        ErrorTypeServer             = interfaces.ErrorTypeServer
+        ErrorTypeUnprocessable      = interfaces.ErrorTypeUnprocessable
+        ErrorTypeServiceUnavailable = interfaces.ErrorTypeServiceUnavailable
+        ErrorTypeWorkflow           = interfaces.ErrorTypeWorkflow
+)
+
+// DomainError representa um erro de domínio genérico
+type DomainError struct {
+        CodeField        string                 `json:"code,omitempty"`
+        Message          string                 `json:"message"`
+        ErrorType        ErrorType              `json:"error_type"`
+        Context          context.Context        `json:"-"`
+        Cause            error                  `json:"-"`
+        MetadataMap      map[string]interface{} `json:"metadata,omitempty"`
+        Timestamp        time.Time              `json:"timestamp"`
+        ID               string                 `json:"id"`
+        StackTraceString string                 `json:"stack_trace,omitempty"`
+} // New cria um novo erro de domínio
+func New(code, message string) *DomainError <span class="cov8" title="1">{
+        return &amp;DomainError{
+                CodeField:        code,
+                Message:          message,
+                ErrorType:        ErrorTypeBusiness,
+                MetadataMap:      make(map[string]interface{}),
+                Timestamp:        time.Now(),
+                ID:               generateErrorID(),
+                StackTraceString: captureStackTrace(),
+        }
+}</span>
+
+// NewWithError cria um novo erro de domínio encapsulando outro erro
+func NewWithError(code, message string, cause error) *DomainError <span class="cov8" title="1">{
+        return &amp;DomainError{
+                CodeField:        code,
+                Message:          message,
+                ErrorType:        ErrorTypeBusiness,
+                Cause:            cause,
+                MetadataMap:      make(map[string]interface{}),
+                Timestamp:        time.Now(),
+                ID:               generateErrorID(),
+                StackTraceString: captureStackTrace(),
+        }
+}</span>
+
+// NewWithType cria um novo erro de domínio com tipo específico
+func NewWithType(code, message string, errorType ErrorType) *DomainError <span class="cov8" title="1">{
+        return &amp;DomainError{
+                CodeField:        code,
+                Message:          message,
+                ErrorType:        errorType,
+                MetadataMap:      make(map[string]interface{}),
+                Timestamp:        time.Now(),
+                ID:               generateErrorID(),
+                StackTraceString: captureStackTrace(),
+        }
+}</span>
+
+// Error implementa a interface error
+func (e *DomainError) Error() string <span class="cov8" title="1">{
+        var b strings.Builder
+
+        if e.CodeField != "" </span><span class="cov8" title="1">{
+                b.WriteString(fmt.Sprintf("[%s] ", e.CodeField))
+        }</span>
+
+        <span class="cov8" title="1">b.WriteString(e.Message)
+
+        if e.Cause != nil </span><span class="cov8" title="1">{
+                b.WriteString(": ")
+                b.WriteString(e.Cause.Error())
+        }</span>
+
+        <span class="cov8" title="1">return b.String()</span>
+}
+
+// Unwrap implementa a interface errors.Wrapper
+func (e *DomainError) Unwrap() error <span class="cov8" title="1">{
+        return e.Cause
+}</span>
+
+// Type retorna o tipo do erro
+func (e *DomainError) Type() ErrorType <span class="cov8" title="1">{
+        return e.ErrorType
+}</span>
+
+// Code retorna o código do erro
+func (e *DomainError) Code() string <span class="cov8" title="1">{
+        return e.CodeField
+}</span>
+
+// Metadata retorna os metadados do erro
+func (e *DomainError) Metadata() map[string]interface{} <span class="cov8" title="1">{
+        if e.MetadataMap == nil </span><span class="cov8" title="1">{
+                e.MetadataMap = make(map[string]interface{})
+        }</span>
+        <span class="cov8" title="1">return e.MetadataMap</span>
+}
+
+// HTTPStatus retorna o código de status HTTP apropriado
+func (e *DomainError) HTTPStatus() int <span class="cov8" title="1">{
+        return mapErrorTypeToHTTPStatus(e.ErrorType)
+}</span>
+
+// StackTrace retorna o stack trace capturado
+func (e *DomainError) StackTrace() string <span class="cov0" title="0">{
+        return e.StackTraceString
+}</span>
+
+// WithContext adiciona contexto ao erro
+func (e *DomainError) WithContext(ctx context.Context) interfaces.DomainError <span class="cov8" title="1">{
+        e.Context = ctx
+        return e
+}</span>
+
+// Wrap encapsula outro erro com contexto opcional
+func (e *DomainError) Wrap(message string, err error) interfaces.DomainError <span class="cov8" title="1">{
+        wrapped := &amp;DomainError{
+                CodeField:        e.CodeField,
+                Message:          message,
+                ErrorType:        e.ErrorType,
+                Cause:            err,
+                MetadataMap:      make(map[string]interface{}),
+                Timestamp:        time.Now(),
+                ID:               generateErrorID(),
+                StackTraceString: captureStackTrace(),
+        }
+
+        // Copia metadados do erro original
+        for k, v := range e.MetadataMap </span><span class="cov0" title="0">{
+                wrapped.MetadataMap[k] = v
+        }</span>
+
+        <span class="cov8" title="1">return wrapped</span>
+}
+
+// JSON serializa o erro para JSON
+func (e *DomainError) JSON() ([]byte, error) <span class="cov8" title="1">{
+        return json.Marshal(e)
+}</span>
+
+// WithMetadata adiciona metadados ao erro
+func (e *DomainError) WithMetadata(key string, value interface{}) *DomainError <span class="cov8" title="1">{
+        if e.MetadataMap == nil </span><span class="cov0" title="0">{
+                e.MetadataMap = make(map[string]interface{})
+        }</span>
+        <span class="cov8" title="1">e.MetadataMap[key] = value
+        return e</span>
+}
+
+// WithMetadataMap adiciona múltiplos metadados ao erro
+func (e *DomainError) WithMetadataMap(metadata map[string]interface{}) *DomainError <span class="cov8" title="1">{
+        if e.MetadataMap == nil </span><span class="cov0" title="0">{
+                e.MetadataMap = make(map[string]interface{})
+        }</span>
+        <span class="cov8" title="1">for k, v := range metadata </span><span class="cov8" title="1">{
+                e.MetadataMap[k] = v
+        }</span>
+        <span class="cov8" title="1">return e</span>
+}
+
+// WithType define o tipo do erro
+func (e *DomainError) WithType(errorType ErrorType) *DomainError <span class="cov8" title="1">{
+        e.ErrorType = errorType
+        return e
+}</span>
+
+// WithCode define o código do erro
+func (e *DomainError) WithCode(code string) *DomainError <span class="cov0" title="0">{
+        e.CodeField = code
+        return e
+}</span>
+
+// WithStackTrace habilita/desabilita captura de stack trace
+func (e *DomainError) WithStackTrace(enabled bool) *DomainError <span class="cov0" title="0">{
+        if enabled &amp;&amp; e.StackTraceString == "" </span><span class="cov0" title="0">{
+                e.StackTraceString = captureStackTrace()
+        }</span> else<span class="cov0" title="0"> if !enabled </span><span class="cov0" title="0">{
+                e.StackTraceString = ""
+        }</span>
+        <span class="cov0" title="0">return e</span>
+}
+
+// Implementações de tipos específicos de erro
+
+// ValidationError representa um erro de validação
+type ValidationError struct {
+        *DomainError
+        Fields map[string][]string `json:"fields,omitempty"`
+}
+
+// NewValidationError cria um erro de validação
+func NewValidationError(message string, fields map[string][]string) *ValidationError <span class="cov8" title="1">{
+        return &amp;ValidationError{
+                DomainError: NewWithType("VALIDATION_ERROR", message, ErrorTypeValidation),
+                Fields:      fields,
+        }
+}</span>
+
+// WithField adiciona um campo de validação
+func (e *ValidationError) WithField(field, message string) *ValidationError <span class="cov8" title="1">{
+        if e.Fields == nil </span><span class="cov8" title="1">{
+                e.Fields = make(map[string][]string)
+        }</span>
+        <span class="cov8" title="1">e.Fields[field] = append(e.Fields[field], message)
+        return e</span>
+}
+
+// StatusCode implementa interfaces.HTTPStatusProvider
+func (e *ValidationError) StatusCode() int <span class="cov8" title="1">{
+        return http.StatusBadRequest
+}</span>
+
+// NotFoundError representa um erro de recurso não encontrado
+type NotFoundError struct {
+        *DomainError
+        Resource   string `json:"resource,omitempty"`
+        ResourceID string `json:"resource_id,omitempty"`
+}
+
+// NewNotFoundError cria um erro de recurso não encontrado
+func NewNotFoundError(message string) *NotFoundError <span class="cov8" title="1">{
+        return &amp;NotFoundError{
+                DomainError: NewWithType("NOT_FOUND", message, ErrorTypeNotFound),
+        }
+}</span>
+
+// WithResource adiciona informações do recurso
+func (e *NotFoundError) WithResource(resource, resourceID string) *NotFoundError <span class="cov8" title="1">{
+        e.Resource = resource
+        e.ResourceID = resourceID
+        return e
+}</span>
+
+// StatusCode implementa interfaces.HTTPStatusProvider
+func (e *NotFoundError) StatusCode() int <span class="cov8" title="1">{
+        return http.StatusNotFound
+}</span>
+
+// BusinessError representa um erro de regra de negócio
+type BusinessError struct {
+        *DomainError
+        BusinessCode string `json:"business_code,omitempty"`
+        RuleName     string `json:"rule_name,omitempty"`
+}
+
+// NewBusinessError cria um erro de regra de negócio
+func NewBusinessError(code, message string) *BusinessError <span class="cov8" title="1">{
+        return &amp;BusinessError{
+                DomainError:  NewWithType("BUSINESS_ERROR", message, ErrorTypeBusiness),
+                BusinessCode: code,
+        }
+}</span>
+
+// WithRule adiciona informações da regra violada
+func (e *BusinessError) WithRule(ruleName string) *BusinessError <span class="cov8" title="1">{
+        e.RuleName = ruleName
+        return e
+}</span>
+
+// StatusCode implementa interfaces.HTTPStatusProvider
+func (e *BusinessError) StatusCode() int <span class="cov8" title="1">{
+        return http.StatusUnprocessableEntity
+}</span>
+
+// Code implementa interfaces.HasCode
+func (e *BusinessError) Code() string <span class="cov8" title="1">{
+        return e.BusinessCode
+}</span>
+
+// DatabaseError representa um erro de banco de dados
+type DatabaseError struct {
+        *DomainError
+        Operation string `json:"operation,omitempty"`
+        Table     string `json:"table,omitempty"`
+        Query     string `json:"query,omitempty"`
+}
+
+// NewDatabaseError cria um erro de banco de dados
+func NewDatabaseError(message string, cause error) *DatabaseError <span class="cov8" title="1">{
+        return &amp;DatabaseError{
+                DomainError: NewWithError("DATABASE_ERROR", message, cause).WithType(ErrorTypeDatabase),
+        }
+}</span>
+
+// WithOperation adiciona informações da operação
+func (e *DatabaseError) WithOperation(operation, table string) *DatabaseError <span class="cov8" title="1">{
+        e.Operation = operation
+        e.Table = table
+        return e
+}</span>
+
+// WithQuery adiciona a query SQL
+func (e *DatabaseError) WithQuery(query string) *DatabaseError <span class="cov8" title="1">{
+        e.Query = query
+        return e
+}</span>
+
+// StatusCode implementa interfaces.HTTPStatusProvider
+func (e *DatabaseError) StatusCode() int <span class="cov8" title="1">{
+        return http.StatusInternalServerError
+}</span>
+
+// ExternalServiceError representa um erro de serviço externo
+type ExternalServiceError struct {
+        *DomainError
+        Service        string `json:"service,omitempty"`
+        Endpoint       string `json:"endpoint,omitempty"`
+        HTTPStatusCode int    `json:"http_status_code,omitempty"`
+        Response       string `json:"response,omitempty"`
+}
+
+// NewExternalServiceError cria um erro de serviço externo
+func NewExternalServiceError(service, message string, cause error) *ExternalServiceError <span class="cov8" title="1">{
+        return &amp;ExternalServiceError{
+                DomainError: NewWithError("EXTERNAL_SERVICE_ERROR", message, cause).WithType(ErrorTypeExternalService),
+                Service:     service,
+        }
+}</span>
+
+// WithEndpoint adiciona informações do endpoint
+func (e *ExternalServiceError) WithEndpoint(endpoint string) *ExternalServiceError <span class="cov8" title="1">{
+        e.Endpoint = endpoint
+        return e
+}</span>
+
+// WithStatusCode adiciona o código de status HTTP
+func (e *ExternalServiceError) WithStatusCode(statusCode int) *ExternalServiceError <span class="cov8" title="1">{
+        e.HTTPStatusCode = statusCode
+        return e
+}</span>
+
+// WithResponse adiciona a resposta do serviço
+func (e *ExternalServiceError) WithResponse(response string) *ExternalServiceError <span class="cov8" title="1">{
+        e.Response = response
+        return e
+}</span>
+
+// StatusCode implementa interfaces.HTTPStatusProvider
+func (e *ExternalServiceError) StatusCode() int <span class="cov8" title="1">{
+        if e.HTTPStatusCode &gt; 0 </span><span class="cov8" title="1">{
+                return e.HTTPStatusCode
+        }</span>
+        <span class="cov8" title="1">return http.StatusBadGateway</span>
+}
+
+// InfrastructureError representa um erro de infraestrutura
+type InfrastructureError struct {
+        *DomainError
+        Component string `json:"component,omitempty"`
+        Details   string `json:"details,omitempty"`
+}
+
+// NewInfrastructureError cria um erro de infraestrutura
+func NewInfrastructureError(component, message string, cause error) *InfrastructureError <span class="cov8" title="1">{
+        return &amp;InfrastructureError{
+                DomainError: NewWithError("INFRASTRUCTURE_ERROR", message, cause).WithType(ErrorTypeInfrastructure),
+                Component:   component,
+        }
+}</span>
+
+// WithDetails adiciona detalhes do erro
+func (e *InfrastructureError) WithDetails(details string) *InfrastructureError <span class="cov8" title="1">{
+        e.Details = details
+        return e
+}</span>
+
+// StatusCode implementa interfaces.HTTPStatusProvider
+func (e *InfrastructureError) StatusCode() int <span class="cov8" title="1">{
+        return http.StatusInternalServerError
+}</span>
+
+// AuthenticationError representa um erro de autenticação
+type AuthenticationError struct {
+        *DomainError
+        Reason string `json:"reason,omitempty"`
+}
+
+// NewAuthenticationError cria um erro de autenticação
+func NewAuthenticationError(message string) *AuthenticationError <span class="cov8" title="1">{
+        return &amp;AuthenticationError{
+                DomainError: NewWithType("AUTHENTICATION_ERROR", message, ErrorTypeAuthentication),
+        }
+}</span>
+
+// WithReason adiciona o motivo da falha
+func (e *AuthenticationError) WithReason(reason string) *AuthenticationError <span class="cov8" title="1">{
+        e.Reason = reason
+        return e
+}</span>
+
+// StatusCode implementa interfaces.HTTPStatusProvider
+func (e *AuthenticationError) StatusCode() int <span class="cov8" title="1">{
+        return http.StatusUnauthorized
+}</span>
+
+// AuthorizationError representa um erro de autorização
+type AuthorizationError struct {
+        *DomainError
+        Resource   string `json:"resource,omitempty"`
+        Action     string `json:"action,omitempty"`
+        Permission string `json:"permission,omitempty"`
+}
+
+// NewAuthorizationError cria um erro de autorização
+func NewAuthorizationError(message string) *AuthorizationError <span class="cov8" title="1">{
+        return &amp;AuthorizationError{
+                DomainError: NewWithType("AUTHORIZATION_ERROR", message, ErrorTypeAuthorization),
+        }
+}</span>
+
+// WithResource adiciona informações do recurso
+func (e *AuthorizationError) WithResource(resource, action string) *AuthorizationError <span class="cov8" title="1">{
+        e.Resource = resource
+        e.Action = action
+        return e
+}</span>
+
+// WithPermission adiciona a permissão necessária
+func (e *AuthorizationError) WithPermission(permission string) *AuthorizationError <span class="cov8" title="1">{
+        e.Permission = permission
+        return e
+}</span>
+
+// StatusCode implementa interfaces.HTTPStatusProvider
+func (e *AuthorizationError) StatusCode() int <span class="cov8" title="1">{
+        return http.StatusForbidden
+}</span>
+
+// TimeoutError representa um erro de timeout
+type TimeoutError struct {
+        *DomainError
+        Duration time.Duration `json:"duration,omitempty"`
+        Timeout  time.Duration `json:"timeout,omitempty"`
+}
+
+// NewTimeoutError cria um erro de timeout
+func NewTimeoutError(message string, duration, timeout time.Duration) *TimeoutError <span class="cov8" title="1">{
+        return &amp;TimeoutError{
+                DomainError: NewWithType("TIMEOUT_ERROR", message, ErrorTypeTimeout),
+                Duration:    duration,
+                Timeout:     timeout,
+        }
+}</span>
+
+// StatusCode implementa interfaces.HTTPStatusProvider
+func (e *TimeoutError) StatusCode() int <span class="cov8" title="1">{
+        return http.StatusRequestTimeout
+}</span>
+
+// ServerError representa um erro interno do servidor
+type ServerError struct {
+        *DomainError
+        RequestID     string `json:"request_id,omitempty"`
+        CorrelationID string `json:"correlation_id,omitempty"`
+        Component     string `json:"component,omitempty"`
+}
+
+// NewServerError cria um erro interno do servidor
+func NewServerError(message string, cause error) *ServerError <span class="cov8" title="1">{
+        return &amp;ServerError{
+                DomainError: NewWithError("SERVER_ERROR", message, cause).WithType(ErrorTypeServer),
+        }
+}</span>
+
+// WithRequestInfo adiciona informações da requisição
+func (e *ServerError) WithRequestInfo(requestID, correlationID string) *ServerError <span class="cov8" title="1">{
+        e.RequestID = requestID
+        e.CorrelationID = correlationID
+        return e
+}</span>
+
+// WithComponent adiciona informações do componente
+func (e *ServerError) WithComponent(component string) *ServerError <span class="cov8" title="1">{
+        e.Component = component
+        return e
+}</span>
+
+// StatusCode implementa interfaces.HTTPStatusProvider
+func (e *ServerError) StatusCode() int <span class="cov8" title="1">{
+        return http.StatusInternalServerError
+}</span>
+
+// UnprocessableEntityError representa um erro de entidade não processável
+type UnprocessableEntityError struct {
+        *DomainError
+        EntityType string              `json:"entity_type,omitempty"`
+        EntityID   string              `json:"entity_id,omitempty"`
+        Violations []string            `json:"violations,omitempty"`
+        Fields     map[string][]string `json:"fields,omitempty"`
+}
+
+// NewUnprocessableEntityError cria um erro de entidade não processável
+func NewUnprocessableEntityError(message string) *UnprocessableEntityError <span class="cov8" title="1">{
+        return &amp;UnprocessableEntityError{
+                DomainError: NewWithType("UNPROCESSABLE_ENTITY", message, ErrorTypeUnprocessable),
+                Fields:      make(map[string][]string),
+        }
+}</span>
+
+// WithEntity adiciona informações da entidade
+func (e *UnprocessableEntityError) WithEntity(entityType, entityID string) *UnprocessableEntityError <span class="cov8" title="1">{
+        e.EntityType = entityType
+        e.EntityID = entityID
+        return e
+}</span>
+
+// WithViolation adiciona uma violação
+func (e *UnprocessableEntityError) WithViolation(violation string) *UnprocessableEntityError <span class="cov8" title="1">{
+        e.Violations = append(e.Violations, violation)
+        return e
+}</span>
+
+// WithFieldError adiciona um erro de campo
+func (e *UnprocessableEntityError) WithFieldError(field, message string) *UnprocessableEntityError <span class="cov8" title="1">{
+        if e.Fields == nil </span><span class="cov0" title="0">{
+                e.Fields = make(map[string][]string)
+        }</span>
+        <span class="cov8" title="1">e.Fields[field] = append(e.Fields[field], message)
+        return e</span>
+}
+
+// StatusCode implementa interfaces.HTTPStatusProvider
+func (e *UnprocessableEntityError) StatusCode() int <span class="cov8" title="1">{
+        return http.StatusUnprocessableEntity
+}</span>
+
+// Funções utilitárias
+
+// IsType verifica se um erro é do tipo especificado
+func IsType(err error, errorType ErrorType) bool <span class="cov8" title="1">{
+        if err == nil </span><span class="cov8" title="1">{
+                return false
+        }</span>
+
+        <span class="cov8" title="1">if domainErr, ok := err.(*DomainError); ok </span><span class="cov8" title="1">{
+                return domainErr.ErrorType == errorType
+        }</span>
+
+        // Verifica tipos específicos
+        <span class="cov8" title="1">switch errorType </span>{
+        case ErrorTypeValidation:<span class="cov8" title="1">
+                _, ok := err.(*ValidationError)
+                return ok</span>
+        case ErrorTypeNotFound:<span class="cov8" title="1">
+                _, ok := err.(*NotFoundError)
+                return ok</span>
+        case ErrorTypeBusiness:<span class="cov8" title="1">
+                _, ok := err.(*BusinessError)
+                return ok</span>
+        case ErrorTypeDatabase:<span class="cov8" title="1">
+                _, ok := err.(*DatabaseError)
+                return ok</span>
+        case ErrorTypeExternalService:<span class="cov8" title="1">
+                _, ok := err.(*ExternalServiceError)
+                return ok</span>
+        case ErrorTypeInfrastructure:<span class="cov8" title="1">
+                _, ok := err.(*InfrastructureError)
+                return ok</span>
+        case ErrorTypeAuthentication:<span class="cov8" title="1">
+                _, ok := err.(*AuthenticationError)
+                return ok</span>
+        case ErrorTypeAuthorization:<span class="cov8" title="1">
+                _, ok := err.(*AuthorizationError)
+                return ok</span>
+        case ErrorTypeTimeout:<span class="cov8" title="1">
+                _, ok := err.(*TimeoutError)
+                return ok</span>
+        case ErrorTypeServer:<span class="cov8" title="1">
+                _, ok := err.(*ServerError)
+                return ok</span>
+        case ErrorTypeUnprocessable:<span class="cov0" title="0">
+                _, ok := err.(*UnprocessableEntityError)
+                return ok</span>
+        }
+
+        <span class="cov8" title="1">return false</span>
+}
+
+// MapHTTPStatus mapeia um tipo de erro para código HTTP
+func MapHTTPStatus(errorType ErrorType) int <span class="cov8" title="1">{
+        return mapErrorTypeToHTTPStatus(errorType)
+}</span>
+
+// GetHTTPStatus retorna o código HTTP de um erro
+func GetHTTPStatus(err error) int <span class="cov8" title="1">{
+        if err == nil </span><span class="cov8" title="1">{
+                return http.StatusOK
+        }</span>
+
+        <span class="cov8" title="1">if provider, ok := err.(interfaces.HTTPStatusProvider); ok </span><span class="cov8" title="1">{
+                return provider.StatusCode()
+        }</span>
+
+        <span class="cov8" title="1">if domainErr, ok := err.(*DomainError); ok </span><span class="cov8" title="1">{
+                return domainErr.HTTPStatus()
+        }</span>
+
+        <span class="cov8" title="1">return http.StatusInternalServerError</span>
+}
+
+// Wrap encapsula um erro existente
+func Wrap(message string, err error) *DomainError <span class="cov8" title="1">{
+        return NewWithError("WRAPPED_ERROR", message, err)
+}</span>
+
+// WrapWithType encapsula um erro com tipo específico
+func WrapWithType(message string, err error, errorType ErrorType) *DomainError <span class="cov8" title="1">{
+        return NewWithError("WRAPPED_ERROR", message, err).WithType(errorType)
+}</span>
+
+// WrapWithCode encapsula um erro com código específico
+func WrapWithCode(code, message string, err error) *DomainError <span class="cov8" title="1">{
+        return NewWithError(code, message, err)
+}</span>
+
+// WrapWithTypeAndCode encapsula um erro com tipo e código específicos
+func WrapWithTypeAndCode(code, message string, err error, errorType ErrorType) *DomainError <span class="cov8" title="1">{
+        return NewWithError(code, message, err).WithType(errorType)
+}</span>
+
+// WrapWithContext encapsula um erro com contexto adicional
+func WrapWithContext(ctx context.Context, message string, err error) *DomainError <span class="cov8" title="1">{
+        wrapped := NewWithError("WRAPPED_ERROR", message, err)
+        wrapped.WithContext(ctx)
+        return wrapped
+}</span>
+
+// WrapWithMetadata encapsula um erro com metadados adicionais
+func WrapWithMetadata(message string, err error, metadata map[string]interface{}) *DomainError <span class="cov8" title="1">{
+        wrapped := NewWithError("WRAPPED_ERROR", message, err)
+        wrapped.WithMetadataMap(metadata)
+        return wrapped
+}</span>
+
+// ErrorStack representa uma pilha de erros com funcionalidades avançadas
+type ErrorStack struct {
+        errors []error
+        root   error
+}
+
+// NewErrorStack cria uma nova pilha de erros
+func NewErrorStack(root error) *ErrorStack <span class="cov8" title="1">{
+        return &amp;ErrorStack{
+                errors: []error{root},
+                root:   root,
+        }
+}</span>
+
+// Push adiciona um erro ao topo da pilha
+func (es *ErrorStack) Push(err error) *ErrorStack <span class="cov8" title="1">{
+        es.errors = append(es.errors, err)
+        return es
+}</span>
+
+// Pop remove e retorna o erro do topo da pilha
+func (es *ErrorStack) Pop() error <span class="cov8" title="1">{
+        if len(es.errors) == 0 </span><span class="cov8" title="1">{
+                return nil
+        }</span>
+
+        <span class="cov8" title="1">top := es.errors[len(es.errors)-1]
+        es.errors = es.errors[:len(es.errors)-1]
+        return top</span>
+}
+
+// Peek retorna o erro do topo da pilha sem removê-lo
+func (es *ErrorStack) Peek() error <span class="cov8" title="1">{
+        if len(es.errors) == 0 </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov8" title="1">return es.errors[len(es.errors)-1]</span>
+}
+
+// Root retorna a causa raiz da pilha
+func (es *ErrorStack) Root() error <span class="cov8" title="1">{
+        return es.root
+}</span>
+
+// Size retorna o número de erros na pilha
+func (es *ErrorStack) Size() int <span class="cov8" title="1">{
+        return len(es.errors)
+}</span>
+
+// IsEmpty verifica se a pilha está vazia
+func (es *ErrorStack) IsEmpty() bool <span class="cov8" title="1">{
+        return len(es.errors) == 0
+}</span>
+
+// ToSlice retorna uma cópia dos erros como slice
+func (es *ErrorStack) ToSlice() []error <span class="cov0" title="0">{
+        result := make([]error, len(es.errors))
+        copy(result, es.errors)
+        return result
+}</span>
+
+// Error implementa a interface error
+func (es *ErrorStack) Error() string <span class="cov8" title="1">{
+        if len(es.errors) == 0 </span><span class="cov0" title="0">{
+                return ""
+        }</span>
+
+        <span class="cov8" title="1">if len(es.errors) == 1 </span><span class="cov0" title="0">{
+                return es.errors[0].Error()
+        }</span>
+
+        <span class="cov8" title="1">var b strings.Builder
+        b.WriteString(fmt.Sprintf("error stack (%d errors):", len(es.errors)))
+        for i, err := range es.errors </span><span class="cov8" title="1">{
+                b.WriteString(fmt.Sprintf("\n  %d. %s", i+1, err.Error()))
+        }</span>
+        <span class="cov8" title="1">return b.String()</span>
+}
+
+// Unwrap retorna o erro anterior na pilha
+func (es *ErrorStack) Unwrap() error <span class="cov0" title="0">{
+        if len(es.errors) &lt;= 1 </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov0" title="0">return es.errors[len(es.errors)-2]</span>
+}
+
+// ErrorWrapper é uma estrutura avançada para wrapping de erros
+type ErrorWrapper struct {
+        originalError error
+        wrappedError  error
+        chain         []error
+        metadata      map[string]interface{}
+        timestamp     time.Time
+}
+
+// NewErrorWrapper cria um novo wrapper de erro
+func NewErrorWrapper(err error) *ErrorWrapper <span class="cov8" title="1">{
+        return &amp;ErrorWrapper{
+                originalError: err,
+                wrappedError:  err,
+                chain:         []error{err},
+                metadata:      make(map[string]interface{}),
+                timestamp:     time.Now(),
+        }
+}</span>
+
+// Wrap adiciona uma camada de wrapping ao erro
+func (ew *ErrorWrapper) Wrap(message string) *ErrorWrapper <span class="cov8" title="1">{
+        wrapped := fmt.Errorf("%s: %w", message, ew.wrappedError)
+        ew.wrappedError = wrapped
+        ew.chain = append(ew.chain, wrapped)
+        return ew
+}</span>
+
+// WrapWithCode adiciona uma camada de wrapping com código
+func (ew *ErrorWrapper) WrapWithCode(code, message string) *ErrorWrapper <span class="cov8" title="1">{
+        wrapped := NewWithError(code, message, ew.wrappedError)
+        ew.wrappedError = wrapped
+        ew.chain = append(ew.chain, wrapped)
+        return ew
+}</span>
+
+// WrapWithType adiciona uma camada de wrapping com tipo
+func (ew *ErrorWrapper) WrapWithType(message string, errorType ErrorType) *ErrorWrapper <span class="cov8" title="1">{
+        wrapped := NewWithError("WRAPPED_ERROR", message, ew.wrappedError).WithType(errorType)
+        ew.wrappedError = wrapped
+        ew.chain = append(ew.chain, wrapped)
+        return ew
+}</span>
+
+// WithMetadata adiciona metadados ao wrapper
+func (ew *ErrorWrapper) WithMetadata(key string, value interface{}) *ErrorWrapper <span class="cov8" title="1">{
+        ew.metadata[key] = value
+        return ew
+}</span>
+
+// WithContext adiciona contexto ao wrapper
+func (ew *ErrorWrapper) WithContext(ctx context.Context) *ErrorWrapper <span class="cov0" title="0">{
+        ew.metadata["context"] = ctx
+        return ew
+}</span>
+
+// Root retorna o erro original (raiz)
+func (ew *ErrorWrapper) Root() error <span class="cov8" title="1">{
+        return ew.originalError
+}</span>
+
+// Current retorna o erro atual (wrapped)
+func (ew *ErrorWrapper) Current() error <span class="cov8" title="1">{
+        return ew.wrappedError
+}</span>
+
+// Chain retorna toda a cadeia de erros
+func (ew *ErrorWrapper) Chain() []error <span class="cov8" title="1">{
+        result := make([]error, len(ew.chain))
+        copy(result, ew.chain)
+        return result
+}</span>
+
+// Depth retorna a profundidade da cadeia de erros
+func (ew *ErrorWrapper) Depth() int <span class="cov8" title="1">{
+        return len(ew.chain)
+}</span>
+
+// Error implementa a interface error
+func (ew *ErrorWrapper) Error() string <span class="cov0" title="0">{
+        return ew.wrappedError.Error()
+}</span>
+
+// Unwrap implementa a interface errors.Wrapper
+func (ew *ErrorWrapper) Unwrap() error <span class="cov0" title="0">{
+        return ew.originalError
+}</span>
+
+// ErrorChainNavigator permite navegar na cadeia de erros
+type ErrorChainNavigator struct {
+        chain   []error
+        current int
+}
+
+// NewErrorChainNavigator cria um novo navegador de cadeia de erros
+func NewErrorChainNavigator(err error) *ErrorChainNavigator <span class="cov8" title="1">{
+        chain := GetErrorChain(err)
+        return &amp;ErrorChainNavigator{
+                chain:   chain,
+                current: 0,
+        }
+}</span>
+
+// Next move para o próximo erro na cadeia
+func (ecn *ErrorChainNavigator) Next() error <span class="cov8" title="1">{
+        if ecn.current &lt; len(ecn.chain)-1 </span><span class="cov8" title="1">{
+                ecn.current++
+                return ecn.chain[ecn.current]
+        }</span>
+        <span class="cov8" title="1">return nil</span>
+}
+
+// Previous move para o erro anterior na cadeia
+func (ecn *ErrorChainNavigator) Previous() error <span class="cov8" title="1">{
+        if ecn.current &gt; 0 </span><span class="cov8" title="1">{
+                ecn.current--
+                return ecn.chain[ecn.current]
+        }</span>
+        <span class="cov8" title="1">return nil</span>
+}
+
+// Current retorna o erro atual
+func (ecn *ErrorChainNavigator) Current() error <span class="cov8" title="1">{
+        if ecn.current &lt; len(ecn.chain) </span><span class="cov8" title="1">{
+                return ecn.chain[ecn.current]
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+// Root retorna a causa raiz
+func (ecn *ErrorChainNavigator) Root() error <span class="cov8" title="1">{
+        if len(ecn.chain) &gt; 0 </span><span class="cov8" title="1">{
+                return ecn.chain[len(ecn.chain)-1]
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+// Top retorna o erro do topo da cadeia
+func (ecn *ErrorChainNavigator) Top() error <span class="cov8" title="1">{
+        if len(ecn.chain) &gt; 0 </span><span class="cov8" title="1">{
+                return ecn.chain[0]
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+// HasNext verifica se há próximo erro
+func (ecn *ErrorChainNavigator) HasNext() bool <span class="cov8" title="1">{
+        return ecn.current &lt; len(ecn.chain)-1
+}</span>
+
+// HasPrevious verifica se há erro anterior
+func (ecn *ErrorChainNavigator) HasPrevious() bool <span class="cov8" title="1">{
+        return ecn.current &gt; 0
+}</span>
+
+// Position retorna a posição atual na cadeia
+func (ecn *ErrorChainNavigator) Position() int <span class="cov8" title="1">{
+        return ecn.current
+}</span>
+
+// Size retorna o tamanho da cadeia
+func (ecn *ErrorChainNavigator) Size() int <span class="cov8" title="1">{
+        return len(ecn.chain)
+}</span>
+
+// Reset volta para o início da cadeia
+func (ecn *ErrorChainNavigator) Reset() <span class="cov0" title="0">{
+        ecn.current = 0
+}</span>
+
+// GoToRoot vai para a causa raiz
+func (ecn *ErrorChainNavigator) GoToRoot() error <span class="cov8" title="1">{
+        if len(ecn.chain) &gt; 0 </span><span class="cov8" title="1">{
+                ecn.current = len(ecn.chain) - 1
+                return ecn.chain[ecn.current]
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+// GoToTop vai para o topo da cadeia
+func (ecn *ErrorChainNavigator) GoToTop() error <span class="cov8" title="1">{
+        if len(ecn.chain) &gt; 0 </span><span class="cov8" title="1">{
+                ecn.current = 0
+                return ecn.chain[ecn.current]
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+// GetAll retorna todos os erros da cadeia
+func (ecn *ErrorChainNavigator) GetAll() []error <span class="cov0" title="0">{
+        result := make([]error, len(ecn.chain))
+        copy(result, ecn.chain)
+        return result
+}</span>
+
+// FindByType encontra o primeiro erro do tipo especificado
+func (ecn *ErrorChainNavigator) FindByType(errorType ErrorType) error <span class="cov8" title="1">{
+        for _, err := range ecn.chain </span><span class="cov8" title="1">{
+                if IsType(err, errorType) </span><span class="cov8" title="1">{
+                        return err
+                }</span>
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+// FindByCode encontra o primeiro erro com o código especificado
+func (ecn *ErrorChainNavigator) FindByCode(code string) error <span class="cov8" title="1">{
+        for _, err := range ecn.chain </span><span class="cov8" title="1">{
+                if hasCode, ok := err.(interfaces.HasCode); ok &amp;&amp; hasCode.Code() == code </span><span class="cov8" title="1">{
+                        return err
+                }</span>
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+// FilterByType filtra erros por tipo
+func (ecn *ErrorChainNavigator) FilterByType(errorType ErrorType) []error <span class="cov8" title="1">{
+        var filtered []error
+        for _, err := range ecn.chain </span><span class="cov8" title="1">{
+                if IsType(err, errorType) </span><span class="cov8" title="1">{
+                        filtered = append(filtered, err)
+                }</span>
+        }
+        <span class="cov8" title="1">return filtered</span>
+}
+
+// Funções utilitárias avançadas para wrapping
+
+// Wrapf encapsula um erro com formatação
+func Wrapf(format string, err error, args ...interface{}) *DomainError <span class="cov8" title="1">{
+        message := fmt.Sprintf(format, args...)
+        return NewWithError("WRAPPED_ERROR", message, err)
+}</span>
+
+// WrapWithCodef encapsula um erro com código e formatação
+func WrapWithCodef(code, format string, err error, args ...interface{}) *DomainError <span class="cov8" title="1">{
+        message := fmt.Sprintf(format, args...)
+        return NewWithError(code, message, err)
+}</span>
+
+// WrapWithTypef encapsula um erro com tipo e formatação
+func WrapWithTypef(format string, err error, errorType ErrorType, args ...interface{}) *DomainError <span class="cov8" title="1">{
+        message := fmt.Sprintf(format, args...)
+        return NewWithError("WRAPPED_ERROR", message, err).WithType(errorType)
+}</span>
+
+// WrapMultiple encapsula múltiplos erros em uma cadeia
+func WrapMultiple(message string, errors ...error) *DomainError <span class="cov8" title="1">{
+        if len(errors) == 0 </span><span class="cov8" title="1">{
+                return nil
+        }</span>
+
+        <span class="cov8" title="1">if len(errors) == 1 </span><span class="cov8" title="1">{
+                return Wrap(message, errors[0])
+        }</span>
+
+        // Criar cadeia de erros
+        <span class="cov8" title="1">wrapped := Wrap(message, errors[0])
+        for i := 1; i &lt; len(errors); i++ </span><span class="cov8" title="1">{
+                wrapped = Wrap(fmt.Sprintf("%s (error %d)", message, i+1), errors[i])
+        }</span>
+
+        <span class="cov8" title="1">return wrapped</span>
+}
+
+// WrapWithCause encapsula um erro preservando a causa original
+func WrapWithCause(message string, err error, cause error) *DomainError <span class="cov0" title="0">{
+        wrapped := NewWithError("WRAPPED_ERROR", message, err)
+        wrapped.WithMetadata("original_cause", cause)
+        return wrapped
+}</span>
+
+// UnwrapAll desempacota todos os erros até a raiz
+func UnwrapAll(err error) error <span class="cov8" title="1">{
+        for </span><span class="cov8" title="1">{
+                unwrapped := unwrapError(err)
+                if unwrapped == nil </span><span class="cov8" title="1">{
+                        break</span>
+                }
+                <span class="cov8" title="1">err = unwrapped</span>
+        }
+        <span class="cov8" title="1">return err</span>
+}
+
+// UnwrapToType desempacota até encontrar um erro do tipo especificado
+func UnwrapToType(err error, errorType ErrorType) error <span class="cov8" title="1">{
+        for err != nil </span><span class="cov8" title="1">{
+                if IsType(err, errorType) </span><span class="cov8" title="1">{
+                        return err
+                }</span>
+                <span class="cov8" title="1">err = unwrapError(err)</span>
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+// UnwrapToCode desempacota até encontrar um erro com o código especificado
+func UnwrapToCode(err error, code string) error <span class="cov8" title="1">{
+        for err != nil </span><span class="cov8" title="1">{
+                if hasCode, ok := err.(interfaces.HasCode); ok &amp;&amp; hasCode.Code() == code </span><span class="cov8" title="1">{
+                        return err
+                }</span>
+                <span class="cov8" title="1">err = unwrapError(err)</span>
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+// GetErrorAtDepth retorna o erro em uma profundidade específica
+func GetErrorAtDepth(err error, depth int) error <span class="cov8" title="1">{
+        chain := GetErrorChain(err)
+        if depth &gt;= 0 &amp;&amp; depth &lt; len(chain) </span><span class="cov8" title="1">{
+                return chain[depth]
+        }</span>
+        <span class="cov8" title="1">return nil</span>
+}
+
+// GetErrorDepth retorna a profundidade de um erro específico na cadeia
+func GetErrorDepth(err error, target error) int <span class="cov8" title="1">{
+        chain := GetErrorChain(err)
+        for i, e := range chain </span><span class="cov8" title="1">{
+                if e == target </span><span class="cov8" title="1">{
+                        return i
+                }</span>
+        }
+        <span class="cov8" title="1">return -1</span>
+}
+
+// HasErrorInChain verifica se um erro específico está na cadeia
+func HasErrorInChain(err error, target error) bool <span class="cov8" title="1">{
+        return GetErrorDepth(err, target) != -1
+}</span>
+
+// HasErrorTypeInChain verifica se um tipo de erro está na cadeia
+func HasErrorTypeInChain(err error, errorType ErrorType) bool <span class="cov8" title="1">{
+        return UnwrapToType(err, errorType) != nil
+}</span>
+
+// HasErrorCodeInChain verifica se um código de erro está na cadeia
+func HasErrorCodeInChain(err error, code string) bool <span class="cov8" title="1">{
+        return UnwrapToCode(err, code) != nil
+}</span>
+
+// Funções internas
+
+// captureStackTrace captura o stack trace atual
+func captureStackTrace() string <span class="cov8" title="1">{
+        if !GlobalStackTraceEnabled </span><span class="cov8" title="1">{
+                return ""
+        }</span>
+
+        <span class="cov8" title="1">config := &amp;internal.StackTraceConfig{
+                Enabled:    true,
+                MaxDepth:   GlobalMaxStackDepth,
+                SkipFrames: GlobalSkipFrames + 1, // +1 para pular esta função
+        }
+
+        st := internal.NewStackTrace(config)
+        return st.String()</span>
+}
+
+// generateErrorID gera um ID único para o erro
+func generateErrorID() string <span class="cov8" title="1">{
+        return fmt.Sprintf("err_%d", time.Now().UnixNano())
+}</span>
+
+// mapErrorTypeToHTTPStatus mapeia tipos de erro para códigos HTTP
+func mapErrorTypeToHTTPStatus(errorType ErrorType) int <span class="cov8" title="1">{
+        switch errorType </span>{
+        case ErrorTypeValidation, ErrorTypeBadRequest, ErrorTypeInvalidSchema:<span class="cov8" title="1">
+                return http.StatusBadRequest</span>
+        case ErrorTypeAuthentication:<span class="cov8" title="1">
+                return http.StatusUnauthorized</span>
+        case ErrorTypeAuthorization, ErrorTypeSecurity:<span class="cov8" title="1">
+                return http.StatusForbidden</span>
+        case ErrorTypeNotFound:<span class="cov8" title="1">
+                return http.StatusNotFound</span>
+        case ErrorTypeConflict:<span class="cov8" title="1">
+                return http.StatusConflict</span>
+        case ErrorTypeTimeout:<span class="cov8" title="1">
+                return http.StatusRequestTimeout</span>
+        case ErrorTypeBusiness, ErrorTypeUnprocessable:<span class="cov8" title="1">
+                return http.StatusUnprocessableEntity</span>
+        case ErrorTypeRateLimit:<span class="cov8" title="1">
+                return http.StatusTooManyRequests</span>
+        case ErrorTypeServiceUnavailable, ErrorTypeCircuitBreaker:<span class="cov8" title="1">
+                return http.StatusServiceUnavailable</span>
+        case ErrorTypeUnsupported:<span class="cov8" title="1">
+                return http.StatusNotImplemented</span>
+        case ErrorTypeUnsupportedMedia:<span class="cov8" title="1">
+                return http.StatusUnsupportedMediaType</span>
+        case ErrorTypeExternalService:<span class="cov8" title="1">
+                return http.StatusBadGateway</span>
+        case ErrorTypeResourceExhausted:<span class="cov8" title="1">
+                return http.StatusInsufficientStorage</span>
+        case ErrorTypeDependency:<span class="cov8" title="1">
+                return http.StatusFailedDependency</span>
+        default:<span class="cov8" title="1">
+                return http.StatusInternalServerError</span>
+        }
+}
+
+// Configuração global
+
+// SetGlobalStackTraceEnabled habilita/desabilita stack trace globalmente
+func SetGlobalStackTraceEnabled(enabled bool) <span class="cov8" title="1">{
+        GlobalStackTraceEnabled = enabled
+        internal.SetGlobalStackTraceEnabled(enabled)
+}</span>
+
+// SetGlobalMaxStackDepth define a profundidade máxima do stack trace
+func SetGlobalMaxStackDepth(depth int) <span class="cov8" title="1">{
+        GlobalMaxStackDepth = depth
+}</span>
+
+// SetGlobalSkipFrames define quantos frames pular no stack trace
+func SetGlobalSkipFrames(skip int) <span class="cov8" title="1">{
+        GlobalSkipFrames = skip
+}</span>
+
+// GetRootCause retorna a causa raiz de um erro
+func GetRootCause(err error) error <span class="cov8" title="1">{
+        for err != nil </span><span class="cov8" title="1">{
+                if unwrapped := unwrapError(err); unwrapped != nil </span><span class="cov8" title="1">{
+                        err = unwrapped
+                }</span> else<span class="cov8" title="1"> {
+                        break</span>
+                }
+        }
+        <span class="cov8" title="1">return err</span>
+}
+
+// unwrapError tenta fazer unwrap de um erro
+func unwrapError(err error) error <span class="cov8" title="1">{
+        if unwrapper, ok := err.(interface{ Unwrap() error }); ok </span><span class="cov8" title="1">{
+                return unwrapper.Unwrap()
+        }</span>
+        <span class="cov8" title="1">return nil</span>
+}
+
+// GetErrorChain retorna toda a cadeia de erros
+func GetErrorChain(err error) []error <span class="cov8" title="1">{
+        var chain []error
+        for err != nil </span><span class="cov8" title="1">{
+                chain = append(chain, err)
+                if unwrapped := unwrapError(err); unwrapped != nil </span><span class="cov8" title="1">{
+                        err = unwrapped
+                }</span> else<span class="cov8" title="1"> {
+                        break</span>
+                }
+        }
+        <span class="cov8" title="1">return chain</span>
+}
+
+// FormatErrorChain formata a cadeia de erros
+func FormatErrorChain(err error) string <span class="cov8" title="1">{
+        chain := GetErrorChain(err)
+        if len(chain) == 0 </span><span class="cov0" title="0">{
+                return ""
+        }</span>
+
+        <span class="cov8" title="1">var b strings.Builder
+        for i, e := range chain </span><span class="cov8" title="1">{
+                if i &gt; 0 </span><span class="cov8" title="1">{
+                        b.WriteString(" -&gt; ")
+                }</span>
+                <span class="cov8" title="1">b.WriteString(e.Error())</span>
+        }
+        <span class="cov8" title="1">return b.String()</span>
+}
+
+// GetCallerInfo retorna informações sobre quem chamou a função
+func GetCallerInfo(skip int) (string, string, int) <span class="cov8" title="1">{
+        pc, file, line, ok := runtime.Caller(skip + 1)
+        if !ok </span><span class="cov0" title="0">{
+                return "", "", 0
+        }</span>
+
+        <span class="cov8" title="1">fn := runtime.FuncForPC(pc)
+        if fn == nil </span><span class="cov0" title="0">{
+                return "", file, line
+        }</span>
+
+        <span class="cov8" title="1">return fn.Name(), file, line</span>
+}
+
+// WithCallerInfo adiciona informações do caller aos metadados
+func WithCallerInfo(err *DomainError) *DomainError <span class="cov8" title="1">{
+        function, file, line := GetCallerInfo(1)
+        return err.WithMetadata("caller", map[string]interface{}{
+                "function": function,
+                "file":     file,
+                "line":     line,
+        })
+}</span>
+
+// ErrorGroup agrupa múltiplos erros
+type ErrorGroup struct {
+        Errors []error
+}
+
+// NewErrorGroup cria um novo grupo de erros
+func NewErrorGroup() *ErrorGroup <span class="cov8" title="1">{
+        return &amp;ErrorGroup{
+                Errors: make([]error, 0),
+        }
+}</span>
+
+// Add adiciona um erro ao grupo
+func (eg *ErrorGroup) Add(err error) <span class="cov8" title="1">{
+        if err != nil </span><span class="cov8" title="1">{
+                eg.Errors = append(eg.Errors, err)
+        }</span>
+}
+
+// HasErrors retorna se há erros no grupo
+func (eg *ErrorGroup) HasErrors() bool <span class="cov8" title="1">{
+        return len(eg.Errors) &gt; 0
+}</span>
+
+// Error implementa a interface error
+func (eg *ErrorGroup) Error() string <span class="cov8" title="1">{
+        if len(eg.Errors) == 0 </span><span class="cov8" title="1">{
+                return ""
+        }</span>
+
+        <span class="cov8" title="1">if len(eg.Errors) == 1 </span><span class="cov8" title="1">{
+                return eg.Errors[0].Error()
+        }</span>
+
+        <span class="cov8" title="1">var b strings.Builder
+        b.WriteString(fmt.Sprintf("multiple errors (%d):", len(eg.Errors)))
+        for i, err := range eg.Errors </span><span class="cov8" title="1">{
+                b.WriteString(fmt.Sprintf("\n  %d. %s", i+1, err.Error()))
+        }</span>
+        <span class="cov8" title="1">return b.String()</span>
+}
+
+// First retorna o primeiro erro
+func (eg *ErrorGroup) First() error <span class="cov8" title="1">{
+        if len(eg.Errors) == 0 </span><span class="cov8" title="1">{
+                return nil
+        }</span>
+        <span class="cov8" title="1">return eg.Errors[0]</span>
+}
+
+// Last retorna o último erro
+func (eg *ErrorGroup) Last() error <span class="cov8" title="1">{
+        if len(eg.Errors) == 0 </span><span class="cov8" title="1">{
+                return nil
+        }</span>
+        <span class="cov8" title="1">return eg.Errors[len(eg.Errors)-1]</span>
+}
+
+// Count retorna o número de erros
+func (eg *ErrorGroup) Count() int <span class="cov8" title="1">{
+        return len(eg.Errors)
+}</span>
+
+// Clear limpa todos os erros
+func (eg *ErrorGroup) Clear() <span class="cov8" title="1">{
+        eg.Errors = eg.Errors[:0]
+}</span>
+
+// ToSlice retorna uma cópia dos erros como slice
+func (eg *ErrorGroup) ToSlice() []error <span class="cov8" title="1">{
+        result := make([]error, len(eg.Errors))
+        copy(result, eg.Errors)
+        return result
+}</span>
+
+// FilterByType filtra erros por tipo
+func (eg *ErrorGroup) FilterByType(errorType ErrorType) []error <span class="cov8" title="1">{
+        var filtered []error
+        for _, err := range eg.Errors </span><span class="cov8" title="1">{
+                if IsType(err, errorType) </span><span class="cov8" title="1">{
+                        filtered = append(filtered, err)
+                }</span>
+        }
+        <span class="cov8" title="1">return filtered</span>
+}
+
+// GetTypeName retorna o nome do tipo do erro
+func GetTypeName(err error) string <span class="cov8" title="1">{
+        if err == nil </span><span class="cov8" title="1">{
+                return ""
+        }</span>
+        <span class="cov8" title="1">return reflect.TypeOf(err).String()</span>
+}
+
+// IsRecoverable verifica se um erro é recuperável
+func IsRecoverable(err error) bool <span class="cov8" title="1">{
+        if err == nil </span><span class="cov8" title="1">{
+                return false
+        }</span>
+
+        // Erros não recuperáveis
+        <span class="cov8" title="1">nonRecoverableTypes := []ErrorType{
+                ErrorTypeAuthentication,
+                ErrorTypeAuthorization,
+                ErrorTypeNotFound,
+                ErrorTypeValidation,
+                ErrorTypeBusiness,
+                ErrorTypeConfiguration,
+        }
+
+        for _, errorType := range nonRecoverableTypes </span><span class="cov8" title="1">{
+                if IsType(err, errorType) </span><span class="cov8" title="1">{
+                        return false
+                }</span>
+        }
+
+        <span class="cov8" title="1">return true</span>
+}
+
+// ShouldRetry verifica se uma operação deve ser repetida
+func ShouldRetry(err error) bool <span class="cov8" title="1">{
+        if err == nil </span><span class="cov8" title="1">{
+                return false
+        }</span>
+
+        // Tipos que podem ser repetidos
+        <span class="cov8" title="1">retryableTypes := []ErrorType{
+                ErrorTypeTimeout,
+                ErrorTypeExternalService,
+                ErrorTypeInfrastructure,
+                ErrorTypeDatabase,
+                ErrorTypeCircuitBreaker,
+                ErrorTypeResourceExhausted,
+                ErrorTypeServiceUnavailable,
+                ErrorTypeDependency,
+        }
+
+        for _, errorType := range retryableTypes </span><span class="cov8" title="1">{
+                if IsType(err, errorType) </span><span class="cov8" title="1">{
+                        return true
+                }</span>
+        }
+
+        <span class="cov8" title="1">return false</span>
+}
+
+// GetSeverity retorna a severidade do erro
+func GetSeverity(err error) string <span class="cov8" title="1">{
+        if err == nil </span><span class="cov8" title="1">{
+                return "none"
+        }</span>
+
+        <span class="cov8" title="1">highSeverityTypes := []ErrorType{
+                ErrorTypeSecurity,
+                ErrorTypeAuthentication,
+                ErrorTypeAuthorization,
+                ErrorTypeDatabase,
+                ErrorTypeServer,
+        }
+
+        mediumSeverityTypes := []ErrorType{
+                ErrorTypeExternalService,
+                ErrorTypeInfrastructure,
+                ErrorTypeTimeout,
+                ErrorTypeCircuitBreaker,
+                ErrorTypeResourceExhausted,
+        }
+
+        for _, errorType := range highSeverityTypes </span><span class="cov8" title="1">{
+                if IsType(err, errorType) </span><span class="cov8" title="1">{
+                        return "high"
+                }</span>
+        }
+
+        <span class="cov8" title="1">for _, errorType := range mediumSeverityTypes </span><span class="cov8" title="1">{
+                if IsType(err, errorType) </span><span class="cov8" title="1">{
+                        return "medium"
+                }</span>
+        }
+
+        <span class="cov8" title="1">return "low"</span>
+}
+
+// Must converte um erro em panic se não for nil
+func Must(err error) <span class="cov8" title="1">{
+        if err != nil </span><span class="cov8" title="1">{
+                panic(err)</span>
+        }
+}
+
+// MustReturn retorna um valor ou causa panic se houver erro
+func MustReturn[T any](value T, err error) T <span class="cov8" title="1">{
+        if err != nil </span><span class="cov8" title="1">{
+                panic(err)</span>
+        }
+        <span class="cov8" title="1">return value</span>
+}
+
+// Recover recupera de um panic e retorna como erro
+func Recover() error <span class="cov8" title="1">{
+        if r := recover(); r != nil </span><span class="cov0" title="0">{
+                if err, ok := r.(error); ok </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov0" title="0">return fmt.Errorf("panic: %v", r)</span>
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+// RecoverWithStackTrace recupera de um panic com stack trace
+func RecoverWithStackTrace() error <span class="cov8" title="1">{
+        if r := recover(); r != nil </span><span class="cov0" title="0">{
+                stackTrace := internal.CaptureStackTrace()
+                if err, ok := r.(error); ok </span><span class="cov0" title="0">{
+                        return NewWithError("PANIC_RECOVERED", "panic recovered", err).
+                                WithStackTrace(true).
+                                WithMetadata("panic_value", r).
+                                WithMetadata("stack_trace", stackTrace)
+                }</span>
+                <span class="cov0" title="0">return NewWithType("PANIC_RECOVERED", fmt.Sprintf("panic recovered: %v", r), ErrorTypeServer).
+                        WithStackTrace(true).
+                        WithMetadata("panic_value", r).
+                        WithMetadata("stack_trace", stackTrace)</span>
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

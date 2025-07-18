@@ -98,44 +98,10 @@ services:
       retries: 5
       start_period: 120s
 
-  # Redis for caching and session management
-  redis:
-    image: redis:7-alpine
-    container_name: nexs-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - nexs-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # PgAdmin for database management
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: nexs-pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@nexs.com
-      PGADMIN_DEFAULT_PASSWORD: admin123
-    ports:
-      - "8080:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      - postgres-primary
-    networks:
-      - nexs-network
-
 volumes:
   postgres_primary_data:
   postgres_replica1_data:
   postgres_replica2_data:
-  redis_data:
-  pgadmin_data:
 
 networks:
   nexs-network:

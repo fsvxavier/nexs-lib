@@ -50,6 +50,126 @@ infrastructure/
 └── database/                         # Scripts de banco de dados
     └── init/                         # Scripts de inicialização
         ├── 01_init_replication.sql   # Configuração de replicação
+        ├── 02_schema.sql             # Schema principal
+        ├── 03_sample_data.sql        # Dados de exemplo
+        └── 04_examples_setup.sql     # Setup específico para exemplos
+```
+
+## 🎯 Banco de Dados - Estrutura para Exemplos
+
+O banco de dados foi estruturado especificamente para suportar todos os exemplos da biblioteca NEXS-LIB:
+
+### 📊 Tabelas Principais
+
+#### **Operações Básicas e Batch**
+- `products` - Produtos para exemplos de batch, transações e operações básicas
+- `accounts` - Contas para exemplos de transação e transferências
+
+#### **Operações COPY**
+- `copy_test` - Tabela otimizada para operações de COPY FROM/TO
+- Inclui diversos tipos de dados (texto, numérico, data, boolean)
+
+#### **Multi-Tenancy**
+- `tenants` - Gerenciamento de inquilinos/tenants
+- `shared_users` - Usuários compartilhados para row-level security
+- Schemas separados: `tenant_empresa_a`, `tenant_empresa_b`, `tenant_empresa_c`
+
+#### **LISTEN/NOTIFY**
+- `chat_messages` - Sistema de chat em tempo real
+- `monitored_table` - Tabela monitorada para notificações de mudanças
+
+#### **Réplicas e Performance**
+- `replica_test` - Testes de replicação
+- `performance_test` - Dados para testes de performance
+- `audit_log` - Log de auditoria para hooks
+
+### 🔧 Funcionalidades Especiais
+
+#### **Funções Utilitárias**
+```sql
+-- Gerar dados de teste para operações batch
+SELECT generate_batch_test_data(1000);
+
+-- Gerar dados para operações COPY
+SELECT generate_copy_test_data(5000);
+
+-- Simular transações entre contas
+SELECT simulate_account_transactions(100);
+
+-- Popular canais de chat
+SELECT populate_chat_channels();
+
+-- Configurar dados de teste para tenants
+SELECT setup_tenant_test_data();
+
+-- Resetar todos os dados de exemplo
+SELECT reset_example_data();
+
+-- Obter estatísticas das tabelas
+SELECT * FROM get_example_table_stats();
+```
+
+#### **Views para Análise**
+```sql
+-- Resumo de operações batch
+SELECT * FROM batch_operation_summary;
+
+-- Resumo de multi-tenancy
+SELECT * FROM multi_tenant_summary;
+
+-- Métricas de performance
+SELECT * FROM performance_metrics;
+
+-- Estatísticas de produtos
+SELECT * FROM product_stats;
+
+-- Resumo de contas
+SELECT * FROM account_summary;
+
+-- Estatísticas de tenants
+SELECT * FROM tenant_stats;
+```
+
+#### **Triggers e Automação**
+- **Audit Triggers**: Registro automático de mudanças
+- **LISTEN/NOTIFY**: Notificações em tempo real
+- **Updated_at**: Atualização automática de timestamps
+- **Row Level Security**: Isolamento por tenant
+
+### 📋 Dados de Exemplo
+
+#### **Produtos (20 registros)**
+```sql
+-- Exemplos: Laptop Gaming, Mouse Wireless, Keyboard Mechanical, etc.
+-- Categorias: Electronics, Office, Furniture
+-- Preços: Variados de $9.99 a $1299.99
+```
+
+#### **Contas (10 registros)**
+```sql
+-- Exemplos: Alice Johnson ($1000), Bob Smith ($500), etc.
+-- Balances variados para testes de transação
+```
+
+#### **Dados COPY (15 registros base)**
+```sql
+-- Funcionários com departamentos, salários, datas de contratação
+-- Departamentos: Engineering, Marketing, Sales, HR, Finance
+```
+
+#### **Multi-Tenancy (5 tenants)**
+```sql
+-- Empresa A, B, C + Test Company + Demo Corp
+-- Usuários em schemas separados e tabela compartilhada
+```
+
+#### **Chat (10+ mensagens)**
+```sql
+-- Canais: general, tech, support, random, notifications
+-- Usuários: admin, user1, developer1, support1, etc.
+```
+    └── init/                         # Scripts de inicialização
+        ├── 01_init_replication.sql   # Configuração de replicação
         ├── 02_schema.sql             # Esquema do banco
         └── 03_sample_data.sql        # Dados de exemplo
 ```

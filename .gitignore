@@ -25,6 +25,7 @@ tests/
 testes/
 old/
 prompts/
+.prompt
 
 
 # Go workspace file

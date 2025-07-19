@@ -2,6 +2,7 @@ package zap
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"time"
@@ -10,13 +11,104 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/fsvxavier/nexs-lib/observability/logger"
+	"github.com/fsvxavier/nexs-lib/observability/logger/interfaces"
 )
+
+// bufferWriter implementa io.Writer para integrar com o buffer
+type bufferWriter struct {
+	provider *Provider
+}
+
+// Write implementa io.Writer escrevendo através do buffer
+func (bw *bufferWriter) Write(p []byte) (n int, err error) {
+	if bw.provider.buffer == nil {
+		return bw.provider.writer.Write(p)
+	}
+
+	// Tenta fazer parse da entrada de log do Zap
+	var zapEntry map[string]interface{}
+	if err := json.Unmarshal(p, &zapEntry); err != nil {
+		// Se não conseguir fazer parse, escreve diretamente
+		return bw.provider.writer.Write(p)
+	}
+
+	// Converte para LogEntry
+	entry := bw.zapEntryToLogEntry(zapEntry)
+
+	// Escreve no buffer
+	if err := bw.provider.buffer.Write(entry); err != nil {
+		// Se falhar no buffer, escreve diretamente
+		return bw.provider.writer.Write(p)
+	}
+
+	return len(p), nil
+}
+
+// zapEntryToLogEntry converte uma entrada do Zap para LogEntry
+func (bw *bufferWriter) zapEntryToLogEntry(zapEntry map[string]interface{}) *interfaces.LogEntry {
+	entry := &interfaces.LogEntry{
+		Timestamp: time.Now(),
+		Level:     interfaces.InfoLevel,
+		Message:   "",
+		Fields:    make(map[string]any),
+	}
+
+	// Extrai campos conhecidos
+	if ts, ok := zapEntry["timestamp"].(string); ok {
+		if parsed, err := time.Parse(time.RFC3339, ts); err == nil {
+			entry.Timestamp = parsed
+		}
+	}
+
+	if level, ok := zapEntry["level"].(string); ok {
+		entry.Level = bw.stringToLevel(level)
+	}
+
+	if msg, ok := zapEntry["message"].(string); ok {
+		entry.Message = msg
+	}
+
+	if code, ok := zapEntry["code"].(string); ok {
+		entry.Code = code
+	}
+
+	// Copia outros campos
+	for key, value := range zapEntry {
+		if key != "timestamp" && key != "level" && key != "message" && key != "code" {
+			entry.Fields[key] = value
+		}
+	}
+
+	return entry
+}
+
+// stringToLevel converte string de nível para Level
+func (bw *bufferWriter) stringToLevel(level string) interfaces.Level {
+	switch level {
+	case "debug", "DEBUG":
+		return interfaces.DebugLevel
+	case "info", "INFO":
+		return interfaces.InfoLevel
+	case "warn", "WARN", "warning", "WARNING":
+		return interfaces.WarnLevel
+	case "error", "ERROR":
+		return interfaces.ErrorLevel
+	case "fatal", "FATAL":
+		return interfaces.FatalLevel
+	case "panic", "PANIC":
+		return interfaces.PanicLevel
+	default:
+		return interfaces.InfoLevel
+	}
+}
 
 // Provider implementa o provider de logging usando Zap
 type Provider struct {
 	config *logger.Config
 	logger *zap.Logger
 	sugar  *zap.SugaredLogger
+	writer io.Writer
+	buffer *logger.CircularBuffer
 }
 
 // NewProvider cria uma nova instância do provider Zap
@@ -48,15 +140,19 @@ func (p *Provider) Configure(config *logger.Config) error {
 	}
 
 	// Configura o writer
-	var writer io.Writer
 	if config.Output != nil {
 		if w, ok := config.Output.(io.Writer); ok {
-			writer = w
+			p.writer = w
 		} else {
-			writer = os.Stdout
+			p.writer = os.Stdout
 		}
 	} else {
-		writer = os.Stdout
+		p.writer = os.Stdout
+	}
+
+	// Configura o buffer se habilitado
+	if config.BufferConfig != nil && config.BufferConfig.Enabled {
+		p.buffer = logger.NewCircularBuffer(config.BufferConfig, p.writer)
 	}
 
 	// Configura o encoder
@@ -86,10 +182,19 @@ func (p *Provider) Configure(config *logger.Config) error {
 		encoder = zapcore.NewJSONEncoder(encoderConfig)
 	}
 
+	// Escolhe o writer final (buffer ou direto)
+	var finalWriter io.Writer
+	if p.buffer != nil {
+		// Usa um writer customizado que escreve através do buffer
+		finalWriter = &bufferWriter{provider: p}
+	} else {
+		finalWriter = p.writer
+	}
+
 	// Configura o core
 	core := zapcore.NewCore(
 		encoder,
-		zapcore.AddSync(writer),
+		zapcore.AddSync(finalWriter),
 		level,
 	)
 
@@ -373,6 +478,8 @@ func (p *Provider) WithFields(fields ...logger.Field) logger.Logger {
 		config: p.config,
 		logger: newLogger,
 		sugar:  newLogger.Sugar(),
+		writer: p.writer,
+		buffer: p.buffer,
 	}
 }
 
@@ -388,6 +495,8 @@ func (p *Provider) WithContext(ctx context.Context) logger.Logger {
 		config: p.config,
 		logger: newLogger,
 		sugar:  newLogger.Sugar(),
+		writer: p.writer,
+		buffer: p.buffer,
 	}
 }
 
@@ -419,12 +528,56 @@ func (p *Provider) Clone() logger.Logger {
 		config: p.config,
 		logger: p.logger,
 		sugar:  p.sugar,
+		writer: p.writer,
+		buffer: p.buffer,
 	}
 }
 
 // Close implementa Logger
 func (p *Provider) Close() error {
+	if p.buffer != nil {
+		if err := p.buffer.Close(); err != nil {
+			return err
+		}
+	}
 	return p.logger.Sync()
+}
+
+// GetBuffer retorna o buffer atual
+func (p *Provider) GetBuffer() interfaces.Buffer {
+	return p.buffer
+}
+
+// SetBuffer define um novo buffer
+func (p *Provider) SetBuffer(buffer interfaces.Buffer) error {
+	// Flush do buffer anterior se existir
+	if p.buffer != nil {
+		if err := p.buffer.Flush(); err != nil {
+			return err
+		}
+		if err := p.buffer.Close(); err != nil {
+			return err
+		}
+	}
+
+	p.buffer = buffer.(*logger.CircularBuffer)
+	return nil
+}
+
+// FlushBuffer força o flush do buffer
+func (p *Provider) FlushBuffer() error {
+	if p.buffer != nil {
+		return p.buffer.Flush()
+	}
+	return nil
+}
+
+// GetBufferStats retorna estatísticas do buffer
+func (p *Provider) GetBufferStats() interfaces.BufferStats {
+	if p.buffer != nil {
+		return p.buffer.Stats()
+	}
+	return interfaces.BufferStats{}
 }
 
 // Certifica que Provider implementa as interfaces

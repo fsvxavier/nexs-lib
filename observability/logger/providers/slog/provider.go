@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fsvxavier/nexs-lib/observability/logger"
+	"github.com/fsvxavier/nexs-lib/observability/logger/interfaces"
 )
 
 // Provider implementa o provider de logging usando slog
@@ -16,11 +17,134 @@ type Provider struct {
 	config *logger.Config
 	logger *slog.Logger
 	level  slog.Level
+	writer io.Writer
+	buffer *logger.CircularBuffer
 }
 
 // NewProvider cria uma nova instância do provider slog
 func NewProvider() *Provider {
 	return &Provider{}
+}
+
+// bufferedHandler implementa slog.Handler com suporte a buffer
+type bufferedHandler struct {
+	handler slog.Handler
+	buffer  *logger.CircularBuffer
+	config  *logger.Config
+}
+
+// Enabled implementa slog.Handler
+func (bh *bufferedHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return bh.handler.Enabled(ctx, level)
+}
+
+// Handle implementa slog.Handler
+func (bh *bufferedHandler) Handle(ctx context.Context, record slog.Record) error {
+	if bh.buffer == nil {
+		return bh.handler.Handle(ctx, record)
+	}
+
+	// Converte slog.Record para LogEntry
+	entry := bh.slogRecordToLogEntry(ctx, record)
+
+	// Escreve no buffer
+	if err := bh.buffer.Write(entry); err != nil {
+		// Se falhar no buffer, usa handler original
+		return bh.handler.Handle(ctx, record)
+	}
+
+	return nil
+}
+
+// WithAttrs implementa slog.Handler
+func (bh *bufferedHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &bufferedHandler{
+		handler: bh.handler.WithAttrs(attrs),
+		buffer:  bh.buffer,
+		config:  bh.config,
+	}
+}
+
+// WithGroup implementa slog.Handler
+func (bh *bufferedHandler) WithGroup(name string) slog.Handler {
+	return &bufferedHandler{
+		handler: bh.handler.WithGroup(name),
+		buffer:  bh.buffer,
+		config:  bh.config,
+	}
+}
+
+// slogRecordToLogEntry converte slog.Record para LogEntry
+func (bh *bufferedHandler) slogRecordToLogEntry(ctx context.Context, record slog.Record) *interfaces.LogEntry {
+	entry := &interfaces.LogEntry{
+		Timestamp: record.Time,
+		Level:     bh.slogLevelToLevel(record.Level),
+		Message:   record.Message,
+		Fields:    make(map[string]any),
+		Context:   ctx,
+	}
+
+	// Adiciona campos do record
+	record.Attrs(func(a slog.Attr) bool {
+		entry.Fields[a.Key] = a.Value.Any()
+		return true
+	})
+
+	// Adiciona campos de contexto
+	bh.addContextFields(ctx, entry)
+
+	// Adiciona campos de serviço
+	if bh.config != nil {
+		if bh.config.ServiceName != "" {
+			entry.Fields["service"] = bh.config.ServiceName
+		}
+		if bh.config.ServiceVersion != "" {
+			entry.Fields["version"] = bh.config.ServiceVersion
+		}
+		if bh.config.Environment != "" {
+			entry.Fields["environment"] = bh.config.Environment
+		}
+	}
+
+	return entry
+}
+
+// slogLevelToLevel converte slog.Level para Level
+func (bh *bufferedHandler) slogLevelToLevel(level slog.Level) interfaces.Level {
+	switch {
+	case level <= slog.LevelDebug:
+		return interfaces.DebugLevel
+	case level <= slog.LevelInfo:
+		return interfaces.InfoLevel
+	case level <= slog.LevelWarn:
+		return interfaces.WarnLevel
+	case level <= slog.LevelError:
+		return interfaces.ErrorLevel
+	case level <= slog.LevelError+4:
+		return interfaces.FatalLevel
+	default:
+		return interfaces.PanicLevel
+	}
+}
+
+// addContextFields adiciona campos do contexto à entrada
+func (bh *bufferedHandler) addContextFields(ctx context.Context, entry *interfaces.LogEntry) {
+	if ctx == nil {
+		return
+	}
+
+	if traceID := ctx.Value(interfaces.TraceIDKey); traceID != nil {
+		entry.Fields["trace_id"] = traceID
+	}
+	if spanID := ctx.Value(interfaces.SpanIDKey); spanID != nil {
+		entry.Fields["span_id"] = spanID
+	}
+	if userID := ctx.Value(interfaces.UserIDKey); userID != nil {
+		entry.Fields["user_id"] = userID
+	}
+	if requestID := ctx.Value(interfaces.RequestIDKey); requestID != nil {
+		entry.Fields["request_id"] = requestID
+	}
 }
 
 // Configure configura o provider com as opções fornecidas
@@ -45,18 +169,20 @@ func (p *Provider) Configure(config *logger.Config) error {
 		p.level = slog.LevelInfo
 	}
 
-	// Configura o handler
-	var handler slog.Handler
-	var writer io.Writer
-
+	// Configura o writer
 	if config.Output != nil {
 		if w, ok := config.Output.(io.Writer); ok {
-			writer = w
+			p.writer = w
 		} else {
-			writer = os.Stdout
+			p.writer = os.Stdout
 		}
 	} else {
-		writer = os.Stdout
+		p.writer = os.Stdout
+	}
+
+	// Configura o buffer se habilitado
+	if config.BufferConfig != nil && config.BufferConfig.Enabled {
+		p.buffer = logger.NewCircularBuffer(config.BufferConfig, p.writer)
 	}
 
 	opts := &slog.HandlerOptions{
@@ -75,13 +201,27 @@ func (p *Provider) Configure(config *logger.Config) error {
 		}
 	}
 
+	// Configura o handler base
+	var baseHandler slog.Handler
 	switch config.Format {
 	case logger.JSONFormat:
-		handler = slog.NewJSONHandler(writer, opts)
+		baseHandler = slog.NewJSONHandler(p.writer, opts)
 	case logger.ConsoleFormat, logger.TextFormat:
-		handler = slog.NewTextHandler(writer, opts)
+		baseHandler = slog.NewTextHandler(p.writer, opts)
 	default:
-		handler = slog.NewJSONHandler(writer, opts)
+		baseHandler = slog.NewJSONHandler(p.writer, opts)
+	}
+
+	// Envolve com bufferedHandler se buffer estiver habilitado
+	var handler slog.Handler
+	if p.buffer != nil {
+		handler = &bufferedHandler{
+			handler: baseHandler,
+			buffer:  p.buffer,
+			config:  config,
+		}
+	} else {
+		handler = baseHandler
 	}
 
 	// Cria o logger base
@@ -353,6 +493,8 @@ func (p *Provider) WithFields(fields ...logger.Field) logger.Logger {
 		config: p.config,
 		logger: newLogger,
 		level:  p.level,
+		writer: p.writer,
+		buffer: p.buffer,
 	}
 }
 
@@ -373,6 +515,8 @@ func (p *Provider) WithContext(ctx context.Context) logger.Logger {
 		config: p.config,
 		logger: newLogger,
 		level:  p.level,
+		writer: p.writer,
+		buffer: p.buffer,
 	}
 }
 
@@ -418,12 +562,54 @@ func (p *Provider) Clone() logger.Logger {
 		config: p.config,
 		logger: p.logger,
 		level:  p.level,
+		writer: p.writer,
+		buffer: p.buffer,
 	}
 }
 
 // Close implementa Logger
 func (p *Provider) Close() error {
+	if p.buffer != nil {
+		return p.buffer.Close()
+	}
 	return nil
+}
+
+// GetBuffer retorna o buffer atual
+func (p *Provider) GetBuffer() interfaces.Buffer {
+	return p.buffer
+}
+
+// SetBuffer define um novo buffer
+func (p *Provider) SetBuffer(buffer interfaces.Buffer) error {
+	// Flush do buffer anterior se existir
+	if p.buffer != nil {
+		if err := p.buffer.Flush(); err != nil {
+			return err
+		}
+		if err := p.buffer.Close(); err != nil {
+			return err
+		}
+	}
+
+	p.buffer = buffer.(*logger.CircularBuffer)
+	return nil
+}
+
+// FlushBuffer força o flush do buffer
+func (p *Provider) FlushBuffer() error {
+	if p.buffer != nil {
+		return p.buffer.Flush()
+	}
+	return nil
+}
+
+// GetBufferStats retorna estatísticas do buffer
+func (p *Provider) GetBufferStats() interfaces.BufferStats {
+	if p.buffer != nil {
+		return p.buffer.Stats()
+	}
+	return interfaces.BufferStats{}
 }
 
 // Certifica que Provider implementa as interfaces

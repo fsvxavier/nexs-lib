@@ -189,3 +189,115 @@ const (
 	UserIDKey    ContextKey = "user_id"
 	RequestIDKey ContextKey = "request_id"
 )
+
+// Metrics interface para métricas de logging
+type Metrics interface {
+	// Contadores por nível
+	GetLogCount(level Level) int64
+	GetTotalLogCount() int64
+
+	// Tempo de processamento
+	GetAverageProcessingTime() time.Duration
+	GetProcessingTimeByLevel(level Level) time.Duration
+
+	// Taxa de erro
+	GetErrorRate() float64
+	GetSamplingRate() float64
+
+	// Estatísticas de provider
+	GetProviderStats(provider string) *ProviderStats
+
+	// Reset metrics
+	Reset()
+
+	// Export metrics para sistemas externos
+	Export() map[string]interface{}
+}
+
+// ProviderStats estatísticas específicas de um provider
+type ProviderStats struct {
+	ProviderName      string          `json:"provider_name"`
+	LogCount          map[Level]int64 `json:"log_count"`
+	TotalLogs         int64           `json:"total_logs"`
+	ErrorCount        int64           `json:"error_count"`
+	AverageLatency    time.Duration   `json:"average_latency"`
+	LastLogTime       time.Time       `json:"last_log_time"`
+	ConfigurationTime time.Time       `json:"configuration_time"`
+	BufferStats       *BufferStats    `json:"buffer_stats,omitempty"`
+}
+
+// Hook interface para hooks customizados
+type Hook interface {
+	// Execute é chamado antes ou depois do processamento do log
+	Execute(ctx context.Context, entry *LogEntry) error
+
+	// GetName retorna o nome do hook
+	GetName() string
+
+	// IsEnabled verifica se o hook está habilitado
+	IsEnabled() bool
+
+	// SetEnabled habilita/desabilita o hook
+	SetEnabled(enabled bool)
+}
+
+// HookType define os tipos de hooks
+type HookType string
+
+const (
+	BeforeHook HookType = "before" // Executado antes do log
+	AfterHook  HookType = "after"  // Executado depois do log
+)
+
+// HookManager interface para gerenciamento de hooks
+type HookManager interface {
+	// Registro de hooks
+	RegisterHook(hookType HookType, hook Hook) error
+	UnregisterHook(hookType HookType, name string) error
+
+	// Execução de hooks
+	ExecuteBeforeHooks(ctx context.Context, entry *LogEntry) error
+	ExecuteAfterHooks(ctx context.Context, entry *LogEntry) error
+
+	// Listagem e gerenciamento
+	ListHooks(hookType HookType) []Hook
+	GetHook(hookType HookType, name string) Hook
+	ClearHooks(hookType HookType)
+
+	// Estado dos hooks
+	EnableAllHooks()
+	DisableAllHooks()
+	GetHookCount(hookType HookType) int
+}
+
+// MetricsCollector interface para coleta de métricas
+type MetricsCollector interface {
+	// Coleta de métricas básicas
+	RecordLog(level Level, duration time.Duration)
+	RecordError(err error)
+	RecordSample(sampled bool)
+
+	// Coleta de métricas de provider
+	RecordProviderOperation(provider string, operation string, duration time.Duration)
+	RecordProviderError(provider string, err error)
+
+	// Coleta de métricas de buffer
+	RecordBufferOperation(operation string, size int, duration time.Duration)
+
+	// Getter para métricas
+	GetMetrics() Metrics
+}
+
+// ObservableLogger interface que combina logging com observabilidade
+type ObservableLogger interface {
+	Logger
+
+	// Métricas
+	GetMetrics() Metrics
+	GetMetricsCollector() MetricsCollector
+
+	// Hooks
+	GetHookManager() HookManager
+	RegisterHook(hookType HookType, hook Hook) error
+	UnregisterHook(hookType HookType, name string) error
+}

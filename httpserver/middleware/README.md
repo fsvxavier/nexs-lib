@@ -65,7 +65,9 @@ type MiddlewareChain interface {
 
 ## Middlewares Disponíveis
 
-### 1. Health Checks (Priority: N/A - HTTP Handlers)
+### Middlewares Existentes
+
+#### 1. Health Checks (Priority: N/A - HTTP Handlers)
 
 Sistema avançado de health checks com suporte a:
 - **Liveness Probes**: Verifica se a aplicação está viva
@@ -90,7 +92,7 @@ http.Handle("/health/ready", handler.ReadinessHandler())
 http.Handle("/health", handler.HealthHandler())
 ```
 
-### 2. Rate Limiting (Priority: 200)
+#### 2. Rate Limiting (Priority: 200)
 
 Rate limiting com múltiplos algoritmos:
 - **Token Bucket**: Permite rajadas controladas
@@ -110,7 +112,7 @@ config := ratelimit.Config{
 rateLimitMiddleware := ratelimit.NewMiddleware(config)
 ```
 
-### 3. CORS (Priority: 100)
+#### 3. CORS (Priority: 100)
 
 CORS completo com suporte a:
 - Origens múltiplas e wildcards
@@ -128,7 +130,7 @@ config.AllowCredentials = true
 corsMiddleware := cors.NewMiddleware(config)
 ```
 
-### 4. Request/Response Logging (Priority: 50)
+#### 4. Request/Response Logging (Priority: 50)
 
 Logging estruturado com:
 - Correlation IDs automáticos
@@ -153,7 +155,7 @@ config.Logger = func(entry logging.LogEntry) {
 loggingMiddleware := logging.NewMiddleware(config)
 ```
 
-### 5. Compression (Priority: 800)
+#### 5. Compression (Priority: 800)
 
 Compressão automática de resposta:
 - Gzip e Deflate
@@ -170,7 +172,7 @@ config.MinSize = 2048  // 2KB minimum
 compressionMiddleware := compression.NewMiddleware(config)
 ```
 
-### 6. Timeout Management (Priority: 150)
+#### 6. Timeout Management (Priority: 150)
 
 Timeout configurável por requisição:
 - Context-based timeouts
@@ -187,7 +189,7 @@ config.Message = "Request took too long"
 timeoutMiddleware := timeout.NewMiddleware(config)
 ```
 
-### 7. Bulkhead Pattern (Priority: 300)
+#### 7. Bulkhead Pattern (Priority: 300)
 
 Isolamento de recursos:
 - Limitação de concorrência por recurso
@@ -207,7 +209,7 @@ config.ResourceKey = func(r *http.Request) string {
 bulkheadMiddleware := bulkhead.NewMiddleware(config)
 ```
 
-### 8. Retry Policies (Priority: 400)
+#### 8. Retry Policies (Priority: 400)
 
 Retry automático para falhas transitórias:
 - Exponential backoff
@@ -225,6 +227,135 @@ config.BackoffMultiplier = 2.0
 retryMiddleware := retry.NewMiddleware(config)
 ```
 
+### Novos Middlewares
+
+#### 9. Body Validator (Priority: 200)
+
+Valida o corpo das requisições HTTP, incluindo validação de JSON e verificação de Content-Type.
+
+**Características:**
+- Validação de JSON obrigatória para métodos POST, PUT, PATCH
+- Verificação de Content-Type
+- Limite de tamanho do corpo da requisição
+- Suporte a skip de métodos e caminhos específicos
+
+```go
+import "github.com/fsvxavier/nexs-lib/httpserver/middleware/bodyvalidator"
+
+config := bodyvalidator.DefaultConfig()
+config.MaxBodySize = 2 * 1024 * 1024 // 2MB
+config.SkipPaths = []string{"/health"}
+
+middleware := bodyvalidator.NewMiddleware(config)
+```
+
+#### 10. Trace ID (Priority: 50)
+
+Gera ou extrai IDs de rastreamento para requisições HTTP, permitindo rastreamento distribuído.
+
+**Características:**
+- Geração automática de IDs únicos (ULID-like)
+- Extração de IDs existentes de headers
+- Múltiplos headers alternativos suportados
+- Adição ao contexto da requisição
+
+```go
+import "github.com/fsvxavier/nexs-lib/httpserver/middleware/traceid"
+
+config := traceid.DefaultConfig()
+config.HeaderName = "X-Request-ID"
+config.ContextKey = "request_id"
+
+middleware := traceid.NewMiddleware(config)
+
+// Extrair trace ID do contexto
+traceID := traceid.GetTraceIDFromContext(ctx, "trace_id")
+```
+
+#### 11. Tenant ID (Priority: 100)
+
+Extrai e gerencia IDs de tenant para aplicações multi-tenant.
+
+**Características:**
+- Extração de headers, query parameters
+- Múltiplos headers alternativos
+- Tenant padrão configurável
+- Validação obrigatória opcional
+- Normalização case-insensitive
+
+```go
+import "github.com/fsvxavier/nexs-lib/httpserver/middleware/tenantid"
+
+config := tenantid.DefaultConfig()
+config.Required = true
+config.DefaultTenant = "default"
+config.CaseSensitive = false
+
+middleware := tenantid.NewMiddleware(config)
+
+// Extrair tenant ID do contexto
+tenantID := tenantid.GetTenantIDFromContext(ctx, "tenant_id")
+```
+
+#### 12. Content Type (Priority: 150)
+
+Valida o Content-Type das requisições HTTP para métodos específicos.
+
+**Características:**
+- Validação por método HTTP
+- Lista de Content-Types permitidos
+- Matching exato ou parcial
+- Case-sensitive ou insensitive
+- Funções de conveniência para JSON e XML
+
+```go
+import "github.com/fsvxavier/nexs-lib/httpserver/middleware/contenttype"
+
+// Configuração padrão
+middleware := contenttype.NewMiddleware(contenttype.DefaultConfig())
+
+// Apenas JSON para POST e PUT
+jsonMiddleware := contenttype.CreateJSONOnly("POST", "PUT")
+
+// Apenas XML para métodos específicos
+xmlMiddleware := contenttype.CreateXMLOnly("POST")
+```
+
+#### 13. Error Handler (Priority: 1000)
+
+Captura e trata erros e panics de forma padronizada.
+
+**Características:**
+- Recuperação de panics automática
+- Logging estruturado de erros
+- Resposta JSON padronizada
+- Stack traces opcionais
+- Formatação customizável de erros
+- Handler customizado de panics
+
+```go
+import "github.com/fsvxavier/nexs-lib/httpserver/middleware/errorhandler"
+
+config := errorhandler.DefaultConfig()
+config.IncludeStackTrace = true
+config.CustomErrorFormatter = func(err error, statusCode int, traceID string) interface{} {
+    return map[string]interface{}{
+        "error": err.Error(),
+        "status": statusCode,
+        "trace_id": traceID,
+        "timestamp": time.Now(),
+    }
+}
+
+middleware := errorhandler.NewMiddleware(config)
+
+// Com logger customizado
+middleware := errorhandler.CreateWithLogger(customLogger)
+
+// Com stack traces
+middleware := errorhandler.CreateWithStackTrace()
+```
+
 ## Uso Básico
 
 ### Exemplo Simples
@@ -240,6 +371,8 @@ import (
     "github.com/fsvxavier/nexs-lib/httpserver/middleware/cors"
     "github.com/fsvxavier/nexs-lib/httpserver/middleware/logging"
     "github.com/fsvxavier/nexs-lib/httpserver/middleware/ratelimit"
+    "github.com/fsvxavier/nexs-lib/httpserver/middleware/traceid"
+    "github.com/fsvxavier/nexs-lib/httpserver/middleware/errorhandler"
 )
 
 func main() {
@@ -247,6 +380,8 @@ func main() {
     chain := middleware.NewChain()
     
     // Adicionar middlewares (ordem automática por prioridade)
+    chain.Add(errorhandler.NewMiddleware(errorhandler.DefaultConfig()))
+    chain.Add(traceid.NewMiddleware(traceid.DefaultConfig()))
     chain.Add(cors.NewMiddleware(cors.DefaultConfig()))
     chain.Add(logging.NewMiddleware(logging.DefaultConfig()))
     
@@ -320,13 +455,38 @@ func main() {
 func setupProductionMiddleware() http.Handler {
     chain := middleware.NewChain()
     
-    // 1. CORS restritivo
+    // 1. Error Handler - Deve estar no topo para capturar todos os erros
+    errorConfig := errorhandler.DefaultConfig()
+    errorConfig.IncludeStackTrace = false // Não expor stack traces em produção
+    chain.Add(errorhandler.NewMiddleware(errorConfig))
+    
+    // 2. Trace ID - Para rastreamento distribuído
+    traceConfig := traceid.DefaultConfig()
+    traceConfig.HeaderName = "X-Trace-ID"
+    chain.Add(traceid.NewMiddleware(traceConfig))
+    
+    // 3. CORS restritivo
     corsConfig := cors.DefaultConfig()
     corsConfig.AllowedOrigins = []string{"https://yourdomain.com"}
     corsConfig.AllowCredentials = true
     chain.Add(cors.NewMiddleware(corsConfig))
     
-    // 2. Rate limiting agressivo
+    // 4. Tenant ID para aplicações multi-tenant
+    tenantConfig := tenantid.DefaultConfig()
+    tenantConfig.Required = true
+    tenantConfig.DefaultTenant = "main"
+    chain.Add(tenantid.NewMiddleware(tenantConfig))
+    
+    // 5. Content Type validation para APIs JSON
+    chain.Add(contenttype.CreateJSONOnly("POST", "PUT", "PATCH"))
+    
+    // 6. Body Validator
+    bodyConfig := bodyvalidator.DefaultConfig()
+    bodyConfig.MaxBodySize = 1024 * 1024 // 1MB
+    bodyConfig.SkipPaths = []string{"/health", "/metrics"}
+    chain.Add(bodyvalidator.NewMiddleware(bodyConfig))
+    
+    // 7. Rate limiting agressivo
     rateLimitConfig := ratelimit.Config{
         Config: middleware.Config{Enabled: true},
         Limit: 1000,
@@ -335,28 +495,28 @@ func setupProductionMiddleware() http.Handler {
     }
     chain.Add(ratelimit.NewMiddleware(rateLimitConfig))
     
-    // 3. Logging detalhado
+    // 8. Logging detalhado
     loggingConfig := logging.DefaultConfig()
     loggingConfig.Logger = prodLogger
     chain.Add(logging.NewMiddleware(loggingConfig))
     
-    // 4. Timeout conservador
+    // 9. Timeout conservador
     timeoutConfig := timeout.DefaultConfig()
     timeoutConfig.Timeout = 30 * time.Second
     chain.Add(timeout.NewMiddleware(timeoutConfig))
     
-    // 5. Bulkhead por serviço
+    // 10. Bulkhead por serviço
     bulkheadConfig := bulkhead.DefaultConfig()
     bulkheadConfig.MaxConcurrent = 100
     bulkheadConfig.ResourceKey = serviceTypeExtractor
     chain.Add(bulkhead.NewMiddleware(bulkheadConfig))
     
-    // 6. Retry para resiliência
+    // 11. Retry para resiliência
     retryConfig := retry.DefaultConfig()
     retryConfig.MaxRetries = 3
     chain.Add(retry.NewMiddleware(retryConfig))
     
-    // 7. Compressão para eficiência
+    // 12. Compressão para eficiência
     compressionConfig := compression.DefaultConfig()
     chain.Add(compression.NewMiddleware(compressionConfig))
     
@@ -373,7 +533,26 @@ const (
     CorrelationIDKey    = "correlation_id"
     RequestStartTimeKey = "request_start_time" 
     BulkheadResourceKey = "bulkhead_resource"
+    TraceIDKey          = "trace_id"         // Para Trace ID
+    TenantIDKey         = "tenant_id"        // Para Tenant ID
 )
+```
+
+### Context Helper Functions
+
+Os novos middlewares fornecem funções auxiliares para extrair dados do contexto:
+
+```go
+import (
+    "github.com/fsvxavier/nexs-lib/httpserver/middleware/traceid"
+    "github.com/fsvxavier/nexs-lib/httpserver/middleware/tenantid"
+)
+
+// Extrair trace ID
+traceID := traceid.GetTraceIDFromContext(ctx, "trace_id")
+
+// Extrair tenant ID
+tenantID := tenantid.GetTenantIDFromContext(ctx, "tenant_id")
 ```
 
 ## Métricas e Monitoramento
@@ -388,13 +567,18 @@ Cada middleware fornece métricas através de:
 
 Os middlewares são executados em ordem de prioridade (menor número = executa primeiro):
 
-1. **CORS** (100) - Headers CORS devem ser definidos primeiro
-2. **Timeout** (150) - Timeout deve envolver toda a cadeia
-3. **Rate Limiting** (200) - Bloquear requests não autorizados cedo
-4. **Bulkhead** (300) - Controle de recursos
-5. **Retry** (400) - Tentativas de retry
-6. **Logging** (50) - Logging deve capturar tudo
-7. **Compression** (800) - Compressão deve ser a última transformação
+1. **Trace ID** (50) - Deve ser gerado/extraído no início para rastreamento completo
+2. **Logging** (50) - Logging deve capturar tudo
+3. **CORS** (100) - Headers CORS devem ser definidos primeiro
+4. **Tenant ID** (100) - Identificação de tenant no início da cadeia
+5. **Content Type** (150) - Validação de Content-Type cedo na cadeia
+6. **Timeout** (150) - Timeout deve envolver toda a cadeia
+7. **Body Validator** (200) - Validação do corpo da requisição
+8. **Rate Limiting** (200) - Bloquear requests não autorizados cedo
+9. **Bulkhead** (300) - Controle de recursos
+10. **Retry** (400) - Tentativas de retry
+11. **Compression** (800) - Compressão deve ser a última transformação
+12. **Error Handler** (1000) - Deve capturar todos os erros e panics
 
 ## Extensibilidade
 

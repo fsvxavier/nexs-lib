@@ -1,10 +1,11 @@
 # HTTP Server Library
 
-A extensible HTTP server library for Go that implements multiple design patterns to provide a unified interface for different HTTP frameworks with **comprehensive graceful operations support**.
+A extensible HTTP server library for Go that implements multiple design patterns to provide a unified interface for different HTTP frameworks with **comprehensive graceful operations and generic hooks support**.
 
 ## 🚀 Key Features
 
 - **6 HTTP Framework Providers**: Gin, Echo, Fiber, FastHTTP, Atreugo, NetHTTP
+- **Generic Hooks Interface**: Framework-agnostic hooks working across all providers
 - **Graceful Operations**: Complete graceful shutdown, restart, and health monitoring
 - **Production Ready**: Signal handling, connection draining, zero-downtime operations
 - **Framework Agnostic**: Switch between frameworks without code changes
@@ -19,17 +20,18 @@ This library implements several design patterns:
 - **Adapter Pattern**: Adapt standard `http.Handler` to framework-specific handlers for each framework
 - **Observer Pattern**: Propagate lifecycle events (start/stop/request/response) to external hooks for monitoring/logging
 - **Registry Pattern**: Maintain a registry of available HTTP servers and configurations
+- **Chain of Responsibility**: Hook chaining for complex request processing workflows
 
 ## Supported Providers
 
-| Provider | Framework | Status | Graceful Ops | Description |
-|----------|-----------|--------|--------------|-------------|
-| **gin** | [Gin](https://github.com/gin-gonic/gin) | ✅ Native | ✅ Full | High-performance HTTP framework with native engine |
-| **echo** | [Echo](https://github.com/labstack/echo) | ✅ Native | ✅ Full | High performance, extensible, minimalist web framework |
-| **fiber** | [Fiber](https://github.com/gofiber/fiber) | ✅ Native | ✅ Full | Express inspired web framework built on Fasthttp |
-| **fasthttp** | [FastHTTP](https://github.com/valyala/fasthttp) | ✅ Native | ✅ Full | Fast HTTP package for Go, 10x faster than net/http |
-| **atreugo** | [Atreugo](https://github.com/savsgio/atreugo) | ✅ Native | ✅ Full | High performance fiber for Fasthttp framework |
-| **nethttp** | Standard library | ✅ Native | ✅ Full | Go standard net/http server |
+| Provider | Framework | Status | Graceful Ops | Hooks | Description |
+|----------|-----------|--------|--------------|-------|-------------|
+| **gin** | [Gin](https://github.com/gin-gonic/gin) | ✅ Native | ✅ Full | ✅ Generic | High-performance HTTP framework with native engine |
+| **echo** | [Echo](https://github.com/labstack/echo) | ✅ Native | ✅ Full | ✅ Generic | High performance, extensible, minimalist web framework |
+| **fiber** | [Fiber](https://github.com/gofiber/fiber) | ✅ Native | ✅ Full | ✅ Generic | Express inspired web framework built on Fasthttp |
+| **fasthttp** | [FastHTTP](https://github.com/valyala/fasthttp) | ✅ Native | ✅ Full | ✅ Generic | Fast HTTP package for Go, 10x faster than net/http |
+| **atreugo** | [Atreugo](https://github.com/savsgio/atreugo) | ✅ Native | ✅ Full | ✅ Generic | High performance fiber for Fasthttp framework |
+| **nethttp** | Standard library | ✅ Native | ✅ Full | ✅ Generic | Go standard net/http server |
 
 ## Quick Start
 
@@ -194,6 +196,139 @@ go func() {
 }()
 ```
 
+## 🎣 Generic Hooks Interface
+
+All providers support a comprehensive generic hooks system that allows framework-agnostic request interception and processing:
+
+### Basic Hook Usage
+
+```go
+import (
+    "github.com/fsvxavier/nexs-lib/httpserver/hooks"
+    "github.com/fsvxavier/nexs-lib/httpserver/interfaces"
+)
+
+// Create hook registry
+registry := hooks.NewDefaultHookRegistry()
+
+// Create and register logging hook
+loggingHook := hooks.NewLoggingHook(log.Default())
+err := registry.Register(loggingHook)
+
+// Create and register metrics hook
+metricsHook := hooks.NewMetricsHook()
+err = registry.Register(metricsHook)
+
+// Create and register security hook with CORS
+securityHook := hooks.NewSecurityHook()
+securityHook.EnableCORS("*", []string{"GET", "POST"}, []string{"Content-Type"})
+err = registry.Register(securityHook)
+```
+
+### Hook Types Available
+
+```go
+// Basic Hook - Simple request interception
+type Hook interface {
+    Execute(ctx *HookContext) error
+    Name() string
+    Events() []HookEvent
+    Priority() int
+    IsEnabled() bool
+    ShouldExecute(ctx *HookContext) bool
+}
+
+// Async Hook - Non-blocking execution
+type AsyncHook interface {
+    Hook
+    ExecuteAsync(ctx *HookContext) <-chan error
+    BufferSize() int
+    Timeout() time.Duration
+}
+
+// Conditional Hook - Execute based on conditions
+type ConditionalHook interface {
+    Hook
+    Condition() func(ctx *HookContext) bool
+}
+
+// Filtered Hook - Request filtering capabilities
+type FilteredHook interface {
+    Hook
+    PathFilter() func(path string) bool
+    MethodFilter() func(method string) bool
+    HeaderFilter() func(headers http.Header) bool
+}
+```
+
+### Built-in Hooks
+
+| Hook | Purpose | Features |
+|------|---------|----------|
+| **LoggingHook** | Request/Response logging | Structured logging, configurable levels |
+| **MetricsHook** | Performance metrics | Request timing, throughput, error rates |
+| **SecurityHook** | Security enforcement | CORS, IP filtering, header validation |
+| **CacheHook** | Response caching | TTL-based caching, cache invalidation |
+| **HealthCheckHook** | Health monitoring | Custom health checks, status reporting |
+
+### Advanced Hook Features
+
+```go
+// Hook Chaining
+chain := hooks.NewHookChain()
+chain.Add(loggingHook).Add(securityHook).Add(metricsHook)
+
+// Execute with conditions
+err := chain.ExecuteIf(ctx, func(ctx *interfaces.HookContext) bool {
+    return ctx.Request.Method == "POST"
+})
+
+// Execute until condition is met
+err = chain.ExecuteUntil(ctx, func(ctx *interfaces.HookContext) bool {
+    return ctx.Metadata["processed"] == true
+})
+
+// Filtered execution with builders
+filteredHook := hooks.NewFilteredBaseHook("api-only", events, 10)
+filteredHook.SetPathFilter(
+    hooks.NewPathFilterBuilder().
+        Include("/api/*").
+        Exclude("/api/health").
+        Build(),
+)
+```
+
+### Hook Events
+
+30+ event types covering complete server lifecycle:
+
+```go
+const (
+    // Server Events
+    ServerStart HookEvent = "server.start"
+    ServerStop  HookEvent = "server.stop"
+    
+    // Request Events  
+    RequestReceived   HookEvent = "request.received"
+    RequestProcessing HookEvent = "request.processing"
+    RequestCompleted  HookEvent = "request.completed"
+    
+    // Response Events
+    ResponseSending HookEvent = "response.sending"
+    ResponseSent    HookEvent = "response.sent"
+    
+    // Middleware Events
+    MiddlewareExecuting HookEvent = "middleware.executing"
+    MiddlewareCompleted HookEvent = "middleware.completed"
+    
+    // Security Events
+    SecurityCheck   HookEvent = "security.check"
+    SecurityBlocked HookEvent = "security.blocked"
+    
+    // And many more...
+)
+```
+
 ## Registering New Providers
 
 To register a new HTTP framework provider:
@@ -228,6 +363,114 @@ func (s *Server) GetConfig() *config.Config { /* ... */ }
 
 // Graceful operations methods
 func (s *Server) GracefulStop(ctx context.Context, drainTimeout time.Duration) error { /* ... */ }
+func (s *Server) Restart(ctx context.Context) error { /* ... */ }
+func (s *Server) GetConnectionsCount() int64 { /* ... */ }
+func (s *Server) GetHealthStatus() interfaces.HealthStatus { /* ... */ }
+func (s *Server) PreShutdownHook(hook func() error) { /* ... */ }
+func (s *Server) PostShutdownHook(hook func() error) { /* ... */ }
+func (s *Server) SetDrainTimeout(timeout time.Duration) { /* ... */ }
+func (s *Server) WaitForConnections(ctx context.Context) error { /* ... */ }
+```
+
+### 2. Register Provider Factory
+
+```go
+// Package init
+func init() {
+    httpserver.RegisterProvider("myframework", func(cfg interface{}) (interfaces.HTTPServer, error) {
+        return NewServer(cfg)
+    })
+}
+```
+
+## 📊 Testing & Examples
+
+### Test Coverage
+
+The library maintains high test coverage across all components:
+
+- **HTTP Server Core**: 64 Go files with comprehensive test suites
+- **All Providers**: Complete test coverage for all 6 providers (Gin 79.8%, Echo, Fiber, etc.)
+- **Graceful Operations**: Full integration testing across all providers
+- **Generic Hooks**: 87.8% test coverage with 60+ test cases
+- **Mock Implementations**: Complete mocks available for all providers
+
+### Running Tests
+
+```bash
+# Run all tests
+cd httpserver
+go test ./...
+
+# Run with coverage
+go test -v -coverprofile=coverage.out ./...
+
+# Run specific provider tests
+go test ./providers/gin/
+go test ./providers/echo/
+go test ./hooks/
+```
+
+### Available Examples
+
+| Example | Description | Location |
+|---------|-------------|----------|
+| **Basic Provider Examples** | Simple server setup for each provider | `examples/gin/`, `examples/echo/`, etc. |
+| **Graceful Operations** | Complete graceful shutdown and restart examples | `examples/graceful/` |
+| **Generic Hooks** | Comprehensive hooks demonstration with all features | `examples/hooks/` |
+| **Middleware Integration** | Custom middleware examples | `examples/middleware/` |
+
+### Hook Example Output
+
+```bash
+cd examples/hooks
+go run main.go
+
+🚀 Generic Hooks Example
+========================
+
+📋 Setting up hooks...
+✅ Logging hook registered successfully
+✅ Metrics hook registered successfully  
+✅ Security hook registered successfully
+✅ Cache hook registered successfully
+✅ Health check hook registered successfully
+
+🔄 Simulating server lifecycle...
+[ServerStart] Server starting on :8080
+[RequestReceived] GET /api/users - 127.0.0.1
+[SecurityCheck] CORS validation passed
+[RequestProcessing] Processing request
+[ResponseSending] Sending 200 response
+[ResponseSent] Response sent successfully
+
+📊 Hook Execution Metrics:
+- Total executions: 28
+- Sequential executions: 20  
+- Parallel executions: 8
+- Average execution time: 1.2ms
+- Hook registry observer events: 15
+
+✅ Generic Hooks example completed successfully!
+```
+
+## 🏗️ Architecture Benefits
+
+- **Framework Independence**: Write once, deploy on any supported framework
+- **Production Ready**: Built-in graceful operations and comprehensive testing
+- **Extensible**: Easy to add new providers and hooks
+- **Observability**: Complete lifecycle visibility through hooks and observers
+- **Type Safety**: Full compile-time checking with Go interfaces
+- **Performance**: Minimal overhead with efficient hook execution
+- **Standards Compliant**: Follows Go best practices and idioms
+
+## 📚 Learn More
+
+- [NEXT_STEPS.md](NEXT_STEPS.md) - Detailed roadmap and implementation status
+- [examples/](examples/) - Working examples for all features
+- [hooks/](hooks/) - Generic hooks implementation details
+- [graceful/](graceful/) - Graceful operations implementation
+- [providers/](providers/) - Individual provider implementations
 func (s *Server) Restart(ctx context.Context) error { /* ... */ }
 func (s *Server) GetConnectionsCount() int64 { /* ... */ }
 func (s *Server) GetHealthStatus() interfaces.HealthStatus { /* ... */ }

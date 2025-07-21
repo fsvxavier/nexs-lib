@@ -13,15 +13,11 @@ import (
 	"github.com/fsvxavier/nexs-lib/httpserver"
 	"github.com/fsvxavier/nexs-lib/httpserver/config"
 	"github.com/fsvxavier/nexs-lib/httpserver/hooks"
-	"github.com/fsvxavier/nexs-lib/httpserver/providers/nethttp"
 )
 
 func main() {
-	// Register the net/http provider
-	err := httpserver.Register("nethttp", nethttp.Factory)
-	if err != nil {
-		log.Fatalf("Failed to register nethttp provider: %v", err)
-	}
+	// Check if running in test mode
+	testMode := len(os.Args) > 1 && os.Args[1] == "test"
 
 	// Create logging observer
 	loggingObserver := hooks.NewLoggingObserver(log.Default())
@@ -31,10 +27,18 @@ func main() {
 	metricsObserver := hooks.NewMetricsObserver()
 	httpserver.AttachObserver(metricsObserver)
 
+	// Use a different port if specified, otherwise default to 8080
+	port := 8080
+	if len(os.Args) > 2 {
+		if p, err := fmt.Sscanf(os.Args[2], "%d", &port); err != nil || p != 1 {
+			port = 8080
+		}
+	}
+
 	// Create configuration
 	cfg := config.DefaultConfig().
 		WithHost("localhost").
-		WithPort(8080).
+		WithPort(port).
 		WithReadTimeout(30 * time.Second).
 		WithWriteTimeout(30 * time.Second)
 
@@ -92,9 +96,20 @@ func main() {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 
-	// Wait for interrupt signal to gracefully shutdown
+	// Create channel for shutdown signals
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	// If in test mode, set a timer to automatically shutdown after 3 seconds
+	if testMode {
+		go func() {
+			time.Sleep(3 * time.Second)
+			log.Println("Test mode: Auto-shutting down after 3 seconds")
+			quit <- syscall.SIGTERM
+		}()
+	}
+
+	// Wait for interrupt signal to gracefully shutdown
 	<-quit
 
 	log.Println("Shutting down server...")

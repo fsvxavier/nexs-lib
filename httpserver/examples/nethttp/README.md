@@ -12,6 +12,7 @@ This example demonstrates how to use the nexs-lib httpserver with the net/http p
 ## Running the Example
 
 ```bash
+lsof -ti:8080 | xargs kill -9 2>/dev/null || echo "Port 8080 is free"
 cd examples/nethttp
 go run main.go
 ```

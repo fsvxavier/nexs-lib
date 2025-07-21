@@ -18,6 +18,9 @@ import (
 func main() {
 	// Providers are auto-registered via init() - no manual registration needed!
 
+	// Check if running in test mode
+	testMode := len(os.Args) > 1 && os.Args[1] == "test"
+
 	// Create logging observer
 	loggingObserver := hooks.NewLoggingObserver(log.Default())
 	httpserver.AttachObserver(loggingObserver)
@@ -26,10 +29,18 @@ func main() {
 	metricsObserver := hooks.NewMetricsObserver()
 	httpserver.AttachObserver(metricsObserver)
 
+	// Use a different port if specified, otherwise default to 8080
+	port := 8080
+	if len(os.Args) > 2 {
+		if p, err := fmt.Sscanf(os.Args[2], "%d", &port); err != nil || p != 1 {
+			port = 8080
+		}
+	}
+
 	// Create configuration
 	cfg := config.DefaultConfig().
 		WithHost("localhost").
-		WithPort(8080).
+		WithPort(port).
 		WithReadTimeout(30 * time.Second).
 		WithWriteTimeout(30 * time.Second)
 
@@ -76,9 +87,20 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// Create channel for shutdown signals
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	// If in test mode, set a timer to automatically shutdown after 3 seconds
+	if testMode {
+		go func() {
+			time.Sleep(3 * time.Second)
+			log.Println("Test mode: Auto-shutting down after 3 seconds")
+			quit <- syscall.SIGTERM
+		}()
+	}
+
+	// Wait for interrupt signal to gracefully shutdown the server
 	<-quit
 
 	fmt.Println("Shutting down server...")

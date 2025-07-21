@@ -17,6 +17,9 @@ import (
 )
 
 func main() {
+	// Check if running in test mode
+	testMode := len(os.Args) > 1 && os.Args[1] == "test"
+
 	log.Println("🚀 Complete Integration Example: Custom Hooks + Middleware")
 	log.Println("=========================================================")
 
@@ -29,6 +32,15 @@ func main() {
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// If in test mode, set a timer to automatically shutdown after 3 seconds
+	if testMode {
+		go func() {
+			time.Sleep(3 * time.Second)
+			log.Println("Test mode: Auto-shutting down after 3 seconds")
+			sigChan <- syscall.SIGTERM
+		}()
+	}
 
 	log.Println("🌐 Server running on http://localhost:8080")
 	log.Println("📋 Available endpoints:")

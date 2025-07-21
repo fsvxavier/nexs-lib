@@ -342,3 +342,77 @@ type HookMetrics struct {
 	ErrorsByHook         map[string]int64         `json:"errors_by_hook"`
 	LatencyByHook        map[string]time.Duration `json:"latency_by_hook"`
 }
+
+// CustomHookBuilder defines the interface for building custom hooks.
+type CustomHookBuilder interface {
+	// WithName sets the name of the custom hook.
+	WithName(name string) CustomHookBuilder
+	// WithEvents sets the events this hook should handle.
+	WithEvents(events ...HookEvent) CustomHookBuilder
+	// WithPriority sets the priority of the hook.
+	WithPriority(priority int) CustomHookBuilder
+	// WithCondition sets a condition function for conditional execution.
+	WithCondition(condition func(ctx *HookContext) bool) CustomHookBuilder
+	// WithPathFilter sets a path filter for the hook.
+	WithPathFilter(filter func(path string) bool) CustomHookBuilder
+	// WithMethodFilter sets a method filter for the hook.
+	WithMethodFilter(filter func(method string) bool) CustomHookBuilder
+	// WithHeaderFilter sets a header filter for the hook.
+	WithHeaderFilter(filter func(headers http.Header) bool) CustomHookBuilder
+	// WithAsyncExecution enables asynchronous execution.
+	WithAsyncExecution(bufferSize int, timeout time.Duration) CustomHookBuilder
+	// WithExecuteFunc sets the main execution function.
+	WithExecuteFunc(fn func(ctx *HookContext) error) CustomHookBuilder
+	// Build creates the custom hook.
+	Build() (Hook, error)
+}
+
+// CustomMiddlewareBuilder defines the interface for building custom middleware.
+type CustomMiddlewareBuilder interface {
+	// WithName sets the name of the custom middleware.
+	WithName(name string) CustomMiddlewareBuilder
+	// WithPriority sets the priority of the middleware.
+	WithPriority(priority int) CustomMiddlewareBuilder
+	// WithSkipPaths sets paths to skip for this middleware.
+	WithSkipPaths(paths ...string) CustomMiddlewareBuilder
+	// WithSkipFunc sets a custom skip function.
+	WithSkipFunc(fn func(path string) bool) CustomMiddlewareBuilder
+	// WithConfig sets configuration for the middleware.
+	WithConfig(config interface{}) CustomMiddlewareBuilder
+	// WithWrapFunc sets the main wrapper function.
+	WithWrapFunc(fn func(http.Handler) http.Handler) CustomMiddlewareBuilder
+	// WithBeforeFunc sets a function to execute before the request.
+	WithBeforeFunc(fn func(w http.ResponseWriter, r *http.Request)) CustomMiddlewareBuilder
+	// WithAfterFunc sets a function to execute after the request.
+	WithAfterFunc(fn func(w http.ResponseWriter, r *http.Request, statusCode int, duration time.Duration)) CustomMiddlewareBuilder
+	// Build creates the custom middleware.
+	Build() (Middleware, error)
+}
+
+// CustomHookFactory defines the interface for creating custom hooks.
+type CustomHookFactory interface {
+	// NewBuilder creates a new custom hook builder.
+	NewBuilder() CustomHookBuilder
+	// NewSimpleHook creates a simple custom hook with basic configuration.
+	NewSimpleHook(name string, events []HookEvent, priority int, fn func(ctx *HookContext) error) Hook
+	// NewConditionalHook creates a conditional custom hook.
+	NewConditionalHook(name string, events []HookEvent, priority int, condition func(ctx *HookContext) bool, fn func(ctx *HookContext) error) ConditionalHook
+	// NewAsyncHook creates an asynchronous custom hook.
+	NewAsyncHook(name string, events []HookEvent, priority int, bufferSize int, timeout time.Duration, fn func(ctx *HookContext) error) AsyncHook
+	// NewFilteredHook creates a filtered custom hook.
+	NewFilteredHook(name string, events []HookEvent, priority int, pathFilter func(string) bool, methodFilter func(string) bool, fn func(ctx *HookContext) error) FilteredHook
+}
+
+// CustomMiddlewareFactory defines the interface for creating custom middleware.
+type CustomMiddlewareFactory interface {
+	// NewBuilder creates a new custom middleware builder.
+	NewBuilder() CustomMiddlewareBuilder
+	// NewSimpleMiddleware creates a simple custom middleware.
+	NewSimpleMiddleware(name string, priority int, wrapFunc func(http.Handler) http.Handler) Middleware
+	// NewConditionalMiddleware creates a conditional custom middleware.
+	NewConditionalMiddleware(name string, priority int, skipFunc func(string) bool, wrapFunc func(http.Handler) http.Handler) Middleware
+	// NewTimingMiddleware creates a timing middleware with custom handler.
+	NewTimingMiddleware(name string, priority int, handler func(duration time.Duration, path string)) Middleware
+	// NewLoggingMiddleware creates a logging middleware with custom logger.
+	NewLoggingMiddleware(name string, priority int, logger func(method, path string, statusCode int, duration time.Duration)) Middleware
+}

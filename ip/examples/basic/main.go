@@ -1,9 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"net/http"
+	"time"
 
 	"github.com/fsvxavier/nexs-lib/ip"
 )
@@ -154,7 +155,16 @@ Supported Frameworks: %v
 	fmt.Println("  curl -H 'X-Real-IP: 198.51.100.42' http://localhost:8080")
 	fmt.Println("\nThis example demonstrates the new multi-framework IP library!")
 	fmt.Println("The same code works with net/http, Fiber, Gin, Echo, FastHTTP, and Atreugo!")
-	fmt.Println("Press Ctrl+C to stop the server")
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	// Auto-stop server after 3 seconds for demonstration
+	fmt.Println("🚀 Server will stop automatically in 3 seconds for demonstration...")
+
+	server := &http.Server{Addr: ":8080"}
+	go func() {
+		time.Sleep(3 * time.Second)
+		fmt.Println("✅ Example completed successfully - Server stopped automatically")
+		server.Shutdown(context.Background())
+	}()
+
+	server.ListenAndServe()
 }

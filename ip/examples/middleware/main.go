@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -310,7 +311,16 @@ func main() {
 	fmt.Println("\nTest with different headers:")
 	fmt.Println("  curl -H 'X-Forwarded-For: 8.8.8.8' http://localhost:8080")
 	fmt.Println("  curl -H 'CF-Connecting-IP: 1.1.1.1' http://localhost:8080/api/info")
-	fmt.Println("\nPress Ctrl+C to stop the server")
 
-	log.Fatal(http.ListenAndServe(":8080", handler))
+	// Auto-stop server after 3 seconds for demonstration
+	fmt.Println("\n🚀 Server will stop automatically in 3 seconds for demonstration...")
+
+	server := &http.Server{Addr: ":8080", Handler: handler}
+	go func() {
+		time.Sleep(3 * time.Second)
+		fmt.Println("✅ Middleware example completed successfully - Server stopped automatically")
+		server.Shutdown(context.Background())
+	}()
+
+	server.ListenAndServe()
 }

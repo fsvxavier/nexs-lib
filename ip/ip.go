@@ -80,11 +80,12 @@ var (
 	}
 )
 
-// Default extractor instance
-var defaultExtractor = NewExtractor()
+// Default optimized extractor instance (uses zero-allocation optimizations by default)
+var defaultOptimizedExtractor = NewOptimizedExtractor()
 
 // GetRealIP extracts the real client IP from any supported HTTP framework request.
 // It automatically detects the framework and uses the appropriate adapter.
+// This function uses zero-allocation optimizations with caching and buffer pooling.
 // For net/http compatibility, it also accepts *http.Request directly.
 func GetRealIP(request interface{}) string {
 	// Handle net/http.Request directly for backward compatibility
@@ -93,7 +94,7 @@ func GetRealIP(request interface{}) string {
 		if err != nil {
 			return ""
 		}
-		return defaultExtractor.GetRealIP(adapter)
+		return defaultOptimizedExtractor.GetRealIPOptimized(adapter)
 	}
 
 	// Handle other frameworks through adapter
@@ -101,11 +102,12 @@ func GetRealIP(request interface{}) string {
 	if err != nil {
 		return ""
 	}
-	return defaultExtractor.GetRealIP(adapter)
+	return defaultOptimizedExtractor.GetRealIPOptimized(adapter)
 }
 
 // GetRealIPInfo extracts detailed IP information from any supported HTTP framework request.
 // It automatically detects the framework and uses the appropriate adapter.
+// This function uses zero-allocation optimizations with caching and buffer pooling.
 func GetRealIPInfo(request interface{}) *IPInfo {
 	// Handle net/http.Request directly for backward compatibility
 	if httpReq, ok := request.(*http.Request); ok {
@@ -113,7 +115,7 @@ func GetRealIPInfo(request interface{}) *IPInfo {
 		if err != nil {
 			return nil
 		}
-		return defaultExtractor.GetRealIPInfo(adapter)
+		return defaultOptimizedExtractor.GetRealIPInfoOptimized(adapter)
 	}
 
 	// Handle other frameworks through adapter
@@ -121,10 +123,11 @@ func GetRealIPInfo(request interface{}) *IPInfo {
 	if err != nil {
 		return nil
 	}
-	return defaultExtractor.GetRealIPInfo(adapter)
+	return defaultOptimizedExtractor.GetRealIPInfoOptimized(adapter)
 }
 
 // GetIPChain extracts the complete chain of IPs from any supported HTTP framework request.
+// This function uses zero-allocation optimizations with caching and buffer pooling.
 func GetIPChain(request interface{}) []string {
 	// Handle net/http.Request directly for backward compatibility
 	if httpReq, ok := request.(*http.Request); ok {
@@ -132,7 +135,7 @@ func GetIPChain(request interface{}) []string {
 		if err != nil {
 			return nil
 		}
-		return defaultExtractor.GetIPChain(adapter)
+		return defaultOptimizedExtractor.GetIPChainOptimized(adapter)
 	}
 
 	// Handle other frameworks through adapter
@@ -140,142 +143,31 @@ func GetIPChain(request interface{}) []string {
 	if err != nil {
 		return nil
 	}
-	return defaultExtractor.GetIPChain(adapter)
+	return defaultOptimizedExtractor.GetIPChainOptimized(adapter)
 }
 
 // GetRealIP extracts the real client IP from a request adapter
+// This method now uses optimized implementations internally for better performance
 func (e *Extractor) GetRealIP(adapter interfaces.RequestAdapter) string {
-	ipInfo := e.GetRealIPInfo(adapter)
-	if ipInfo != nil && ipInfo.IP != nil {
-		return ipInfo.IP.String()
-	}
-	return ""
+	return defaultOptimizedExtractor.GetRealIPOptimized(adapter)
 }
 
 // GetRealIPInfo extracts detailed IP information from a request adapter
+// This method now uses optimized implementations internally for better performance
 func (e *Extractor) GetRealIPInfo(adapter interfaces.RequestAdapter) *IPInfo {
-	if adapter == nil {
-		return nil
-	}
-
-	// Try each header in order of preference
-	for _, header := range realIPHeaders {
-		headerValue := adapter.GetHeader(header)
-		if headerValue == "" {
-			continue
-		}
-
-		ips := getIPsFromHeader(header, headerValue)
-		for _, ipStr := range ips {
-			if ipInfo := ParseIP(ipStr); ipInfo != nil && ipInfo.IP != nil {
-				// Prefer public IPs
-				if IsPublicIP(ipInfo.IP) {
-					ipInfo.Source = header
-					return ipInfo
-				}
-			}
-		}
-	}
-
-	// If no public IP found in headers, try to find any valid IP in headers
-	for _, header := range realIPHeaders {
-		headerValue := adapter.GetHeader(header)
-		if headerValue == "" {
-			continue
-		}
-
-		ips := getIPsFromHeader(header, headerValue)
-		for _, ipStr := range ips {
-			if ipInfo := ParseIP(ipStr); ipInfo != nil && ipInfo.IP != nil {
-				ipInfo.Source = header
-				return ipInfo
-			}
-		}
-	}
-
-	// Fallback to remote address
-	if remoteAddr := adapter.GetRemoteAddr(); remoteAddr != "" {
-		if ip := getIPFromRemoteAddr(remoteAddr); ip != "" {
-			if ipInfo := ParseIP(ip); ipInfo != nil {
-				ipInfo.Source = "RemoteAddr"
-				return ipInfo
-			}
-		}
-	}
-
-	return nil
+	return defaultOptimizedExtractor.GetRealIPInfoOptimized(adapter)
 }
 
 // GetIPChain extracts the complete chain of IPs from a request adapter
+// This method now uses optimized implementations internally for better performance
 func (e *Extractor) GetIPChain(adapter interfaces.RequestAdapter) []string {
-	if adapter == nil {
-		return nil
-	}
-
-	var chain []string
-	seen := make(map[string]bool)
-
-	// Collect IPs from all headers
-	for _, header := range realIPHeaders {
-		headerValue := adapter.GetHeader(header)
-		if headerValue == "" {
-			continue
-		}
-
-		ips := getIPsFromHeader(header, headerValue)
-		for _, ipStr := range ips {
-			if ipInfo := ParseIP(ipStr); ipInfo != nil && ipInfo.IP != nil {
-				ipString := ipInfo.IP.String()
-				if !seen[ipString] {
-					chain = append(chain, ipString)
-					seen[ipString] = true
-				}
-			}
-		}
-	}
-
-	// Add remote address if not already present
-	if remoteAddr := adapter.GetRemoteAddr(); remoteAddr != "" {
-		if ip := getIPFromRemoteAddr(remoteAddr); ip != "" {
-			if ipInfo := ParseIP(ip); ipInfo != nil && ipInfo.IP != nil {
-				ipString := ipInfo.IP.String()
-				if !seen[ipString] {
-					chain = append(chain, ipString)
-				}
-			}
-		}
-	}
-
-	return chain
+	return defaultOptimizedExtractor.GetIPChainOptimized(adapter)
 }
 
 // ParseIP parses an IP string and returns detailed information about it
+// This function now uses optimized parsing with caching for better performance
 func ParseIP(ipStr string) *IPInfo {
-	ipStr = strings.TrimSpace(ipStr)
-	if ipStr == "" {
-		return nil
-	}
-
-	ip := net.ParseIP(ipStr)
-	if ip == nil {
-		return &IPInfo{
-			Original: ipStr,
-		}
-	}
-
-	ipInfo := &IPInfo{
-		IP:       ip,
-		Original: ipStr,
-		IsIPv4:   ip.To4() != nil,
-		IsIPv6:   ip.To4() == nil,
-		Type:     classifyIP(ip),
-	}
-
-	// Set convenience flags
-	ipInfo.IsPublic = ipInfo.Type == IPTypePublic
-	ipInfo.IsPrivate = ipInfo.Type == IPTypePrivate
-
-	return ipInfo
+	return parseIPOptimized(ipStr)
 }
 
 // IsValidIP checks if a string represents a valid IP address
@@ -333,122 +225,6 @@ func ConvertIPv4ToIPv6(ip net.IP) net.IP {
 
 	// Convert IPv4 to IPv6
 	return ip.To16()
-}
-
-// Helper functions
-
-// getIPsFromHeader extracts IPs from a header value
-func getIPsFromHeader(headerName, headerValue string) []string {
-	if headerValue == "" {
-		return nil
-	}
-
-	// Handle RFC 7239 Forwarded header specially
-	if strings.ToLower(headerName) == "forwarded" {
-		return parseForwardedHeader(headerValue)
-	}
-
-	// Handle comma-separated IP lists
-	return parseCommaSeparatedIPs(headerValue)
-}
-
-// parseCommaSeparatedIPs parses comma-separated IP addresses
-func parseCommaSeparatedIPs(value string) []string {
-	if value == "" {
-		return nil
-	}
-
-	parts := strings.Split(value, ",")
-	var ips []string
-
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-
-		// Remove port if present
-		if ip := getIPFromRemoteAddr(part); ip != "" {
-			ips = append(ips, ip)
-		}
-	}
-
-	return ips
-}
-
-// parseForwardedHeader parses RFC 7239 Forwarded header
-func parseForwardedHeader(value string) []string {
-	if value == "" {
-		return nil
-	}
-
-	var ips []string
-
-	// Split by comma to handle multiple forwarded entries
-	entries := strings.Split(value, ",")
-
-	for _, entry := range entries {
-		entry = strings.TrimSpace(entry)
-		if entry == "" {
-			continue
-		}
-
-		// Parse each parameter in the entry
-		params := strings.Split(entry, ";")
-		for _, param := range params {
-			param = strings.TrimSpace(param)
-
-			// Look for for= parameter
-			if strings.HasPrefix(strings.ToLower(param), "for=") {
-				forValue := param[4:] // Remove "for="
-				forValue = strings.TrimSpace(forValue)
-
-				// Remove quotes if present
-				if strings.HasPrefix(forValue, "\"") && strings.HasSuffix(forValue, "\"") {
-					forValue = forValue[1 : len(forValue)-1]
-				}
-
-				// Remove brackets for IPv6
-				forValue = strings.Trim(forValue, "[]")
-
-				// Remove port if present
-				if ip := getIPFromRemoteAddr(forValue); ip != "" {
-					ips = append(ips, ip)
-				}
-			}
-		}
-	}
-
-	return ips
-}
-
-// getIPFromRemoteAddr extracts IP from remote address (removes port)
-func getIPFromRemoteAddr(remoteAddr string) string {
-	if remoteAddr == "" {
-		return ""
-	}
-
-	// Handle IPv6 with brackets and port: [::1]:8080
-	if strings.HasPrefix(remoteAddr, "[") {
-		if idx := strings.Index(remoteAddr, "]:"); idx != -1 {
-			return remoteAddr[1:idx]
-		}
-		// Just brackets without port: [::1]
-		if strings.HasSuffix(remoteAddr, "]") {
-			return remoteAddr[1 : len(remoteAddr)-1]
-		}
-	}
-
-	// Handle IPv4 with port: 192.168.1.1:8080
-	if idx := strings.LastIndex(remoteAddr, ":"); idx != -1 {
-		// Make sure it's not IPv6 without brackets
-		if strings.Count(remoteAddr, ":") == 1 {
-			return remoteAddr[:idx]
-		}
-	}
-
-	// Return as-is if no port found
-	return remoteAddr
 }
 
 // classifyIP classifies an IP address by type

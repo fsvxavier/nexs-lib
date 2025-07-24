@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Primary (Master)
+  postgres-primary:
+    image: postgres:15
+    container_name: nexs-postgres-primary
+    environment:
+      POSTGRES_DB: nexs_testdb
+      POSTGRES_USER: nexs_user
+      POSTGRES_PASSWORD: nexs_password
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_primary_data:/var/lib/postgresql/data
+      - ../database/init:/docker-entrypoint-initdb.d
+      - ./postgres/primary/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./postgres/primary/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    command: >
+      postgres
+      -c config_file=/etc/postgresql/postgresql.conf
+      -c hba_file=/etc/postgresql/pg_hba.conf
+    networks:
+      - nexs-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexs_user -d nexs_testdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Replica 1
+  postgres-replica1:
+    image: postgres:15
+    container_name: nexs-postgres-replica1
+    user: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nexs_testdb
+      POSTGRES_USER: nexs_user
+      POSTGRES_PASSWORD: nexs_password
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_password
+      PRIMARY_HOST: postgres-primary
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator_password
+      REPLICA_NAME: replica1
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_replica1_data:/var/lib/postgresql/data
+      - ./postgres/scripts/super-simple-replica.sh:/usr/local/bin/super-simple-replica.sh
+    entrypoint: ["/usr/local/bin/super-simple-replica.sh"]
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    networks:
+      - nexs-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexs_user -d nexs_testdb"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # PostgreSQL Replica 2
+  postgres-replica2:
+    image: postgres:15
+    container_name: nexs-postgres-replica2
+    user: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nexs_testdb
+      POSTGRES_USER: nexs_user
+      POSTGRES_PASSWORD: nexs_password
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_password
+      PRIMARY_HOST: postgres-primary
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator_password
+      REPLICA_NAME: replica2
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_replica2_data:/var/lib/postgresql/data
+      - ./postgres/scripts/super-simple-replica.sh:/usr/local/bin/super-simple-replica.sh
+    entrypoint: ["/usr/local/bin/super-simple-replica.sh"]
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    networks:
+      - nexs-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexs_user -d nexs_testdb"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+volumes:
+  postgres_primary_data:
+  postgres_replica1_data:
+  postgres_replica2_data:
+
+networks:
+  nexs-network:
+    driver: bridge

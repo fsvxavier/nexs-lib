@@ -2,159 +2,276 @@ package zap
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
+	"io"
 	"os"
-	"runtime"
-	"strings"
-	"sync"
+	"time"
 
-	"github.com/fsvxavier/nexs-lib/observability/logger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/fsvxavier/nexs-lib/observability/logger"
+	"github.com/fsvxavier/nexs-lib/observability/logger/interfaces"
 )
 
-const ProviderName = "zap"
+// bufferWriter implementa io.Writer para integrar com o buffer
+type bufferWriter struct {
+	provider *Provider
+}
 
-// Provider implementação do Zap para o sistema de logging
+// Write implementa io.Writer escrevendo através do buffer
+func (bw *bufferWriter) Write(p []byte) (n int, err error) {
+	if bw.provider.buffer == nil {
+		return bw.provider.writer.Write(p)
+	}
+
+	// Tenta fazer parse da entrada de log do Zap
+	var zapEntry map[string]interface{}
+	if err := json.Unmarshal(p, &zapEntry); err != nil {
+		// Se não conseguir fazer parse, escreve diretamente
+		return bw.provider.writer.Write(p)
+	}
+
+	// Converte para LogEntry
+	entry := bw.zapEntryToLogEntry(zapEntry)
+
+	// Escreve no buffer
+	if err := bw.provider.buffer.Write(entry); err != nil {
+		// Se falhar no buffer, escreve diretamente
+		return bw.provider.writer.Write(p)
+	}
+
+	return len(p), nil
+}
+
+// zapEntryToLogEntry converte uma entrada do Zap para LogEntry
+func (bw *bufferWriter) zapEntryToLogEntry(zapEntry map[string]interface{}) *interfaces.LogEntry {
+	entry := &interfaces.LogEntry{
+		Timestamp: time.Now(),
+		Level:     interfaces.InfoLevel,
+		Message:   "",
+		Fields:    make(map[string]any),
+	}
+
+	// Extrai campos conhecidos
+	if ts, ok := zapEntry["timestamp"].(string); ok {
+		if parsed, err := time.Parse(time.RFC3339, ts); err == nil {
+			entry.Timestamp = parsed
+		}
+	}
+
+	if level, ok := zapEntry["level"].(string); ok {
+		entry.Level = bw.stringToLevel(level)
+	}
+
+	if msg, ok := zapEntry["message"].(string); ok {
+		entry.Message = msg
+	}
+
+	if code, ok := zapEntry["code"].(string); ok {
+		entry.Code = code
+	}
+
+	// Copia outros campos
+	for key, value := range zapEntry {
+		if key != "timestamp" && key != "level" && key != "message" && key != "code" {
+			entry.Fields[key] = value
+		}
+	}
+
+	return entry
+}
+
+// stringToLevel converte string de nível para Level
+func (bw *bufferWriter) stringToLevel(level string) interfaces.Level {
+	switch level {
+	case "debug", "DEBUG":
+		return interfaces.DebugLevel
+	case "info", "INFO":
+		return interfaces.InfoLevel
+	case "warn", "WARN", "warning", "WARNING":
+		return interfaces.WarnLevel
+	case "error", "ERROR":
+		return interfaces.ErrorLevel
+	case "fatal", "FATAL":
+		return interfaces.FatalLevel
+	case "panic", "PANIC":
+		return interfaces.PanicLevel
+	default:
+		return interfaces.InfoLevel
+	}
+}
+
+// Provider implementa o provider de logging usando Zap
 type Provider struct {
-	logger        *zap.Logger
-	sugar         *zap.SugaredLogger
-	config        *logger.Config
-	level         zap.AtomicLevel
-	mu            sync.RWMutex
-	fields        []zap.Field
-	contextFields map[string]any
+	config *logger.Config
+	logger *zap.Logger
+	sugar  *zap.SugaredLogger
+	writer io.Writer
+	buffer *logger.CircularBuffer
 }
 
 // NewProvider cria uma nova instância do provider Zap
 func NewProvider() *Provider {
-	return &Provider{
-		level:         zap.NewAtomicLevel(),
-		contextFields: make(map[string]any),
-	}
+	return &Provider{}
 }
 
 // Configure configura o provider com as opções fornecidas
 func (p *Provider) Configure(config *logger.Config) error {
 	p.config = config
 
-	// Configura o nível
-	zapLevel := p.convertLevel(config.Level)
-	p.level.SetLevel(zapLevel)
+	// Mapeia os níveis
+	var level zapcore.Level
+	switch config.Level {
+	case logger.DebugLevel:
+		level = zapcore.DebugLevel
+	case logger.InfoLevel:
+		level = zapcore.InfoLevel
+	case logger.WarnLevel:
+		level = zapcore.WarnLevel
+	case logger.ErrorLevel:
+		level = zapcore.ErrorLevel
+	case logger.FatalLevel:
+		level = zapcore.FatalLevel
+	case logger.PanicLevel:
+		level = zapcore.PanicLevel
+	default:
+		level = zapcore.InfoLevel
+	}
+
+	// Configura o writer
+	if config.Output != nil {
+		if w, ok := config.Output.(io.Writer); ok {
+			p.writer = w
+		} else {
+			p.writer = os.Stdout
+		}
+	} else {
+		p.writer = os.Stdout
+	}
+
+	// Configura o buffer se habilitado
+	if config.BufferConfig != nil && config.BufferConfig.Enabled {
+		p.buffer = logger.NewCircularBuffer(config.BufferConfig, p.writer)
+	}
 
 	// Configura o encoder
-	encoderConfig := p.buildEncoderConfig()
 	var encoder zapcore.Encoder
+	encoderConfig := zap.NewProductionEncoderConfig()
 
+	// Configura o formato de timestamp
+	if config.TimeFormat != "" {
+		encoderConfig.TimeKey = "timestamp"
+		encoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(config.TimeFormat)
+	} else {
+		encoderConfig.TimeKey = "timestamp"
+		encoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
+	}
+
+	// Configura o formato de saída
 	switch config.Format {
 	case logger.JSONFormat:
 		encoder = zapcore.NewJSONEncoder(encoderConfig)
-	case logger.ConsoleFormat, logger.TextFormat:
+	case logger.ConsoleFormat:
+		encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		encoder = zapcore.NewConsoleEncoder(encoderConfig)
+	case logger.TextFormat:
+		encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 		encoder = zapcore.NewConsoleEncoder(encoderConfig)
 	default:
 		encoder = zapcore.NewJSONEncoder(encoderConfig)
 	}
 
-	// Configura o writer
-	writer := zapcore.AddSync(config.Output)
-	if writer == nil {
-		writer = zapcore.AddSync(os.Stdout)
+	// Escolhe o writer final (buffer ou direto)
+	var finalWriter io.Writer
+	if p.buffer != nil {
+		// Usa um writer customizado que escreve através do buffer
+		finalWriter = &bufferWriter{provider: p}
+	} else {
+		finalWriter = p.writer
 	}
 
-	// Cria o core
-	core := zapcore.NewCore(encoder, writer, p.level)
+	// Configura o core
+	core := zapcore.NewCore(
+		encoder,
+		zapcore.AddSync(finalWriter),
+		level,
+	)
 
 	// Configura sampling se especificado
 	if config.SamplingConfig != nil {
 		samplingConfig := &zap.SamplingConfig{
 			Initial:    config.SamplingConfig.Initial,
 			Thereafter: config.SamplingConfig.Thereafter,
-			Hook:       nil,
 		}
-		core = zapcore.NewSamplerWithOptions(core, config.SamplingConfig.Tick, samplingConfig.Initial, samplingConfig.Thereafter)
+		core = zapcore.NewSamplerWithOptions(core, time.Second, samplingConfig.Initial, samplingConfig.Thereafter)
 	}
 
-	// Opções adicionais
-	opts := []zap.Option{}
+	// Cria o logger
+	var opts []zap.Option
 
+	// Adiciona caller se necessário
 	if config.AddSource {
-		opts = append(opts, zap.AddCaller(), zap.AddCallerSkip(1))
+		opts = append(opts, zap.AddCaller())
 	}
 
+	// Adiciona stacktrace se necessário
 	if config.AddStacktrace {
 		opts = append(opts, zap.AddStacktrace(zapcore.ErrorLevel))
 	}
 
+	p.logger = zap.New(core, opts...)
+
 	// Adiciona campos globais
-	var globalFields []zap.Field
+	fields := make([]zap.Field, 0)
 	if config.ServiceName != "" {
-		globalFields = append(globalFields, zap.String("service", config.ServiceName))
+		fields = append(fields, zap.String("service", config.ServiceName))
 	}
 	if config.ServiceVersion != "" {
-		globalFields = append(globalFields, zap.String("version", config.ServiceVersion))
+		fields = append(fields, zap.String("version", config.ServiceVersion))
 	}
 	if config.Environment != "" {
-		globalFields = append(globalFields, zap.String("environment", config.Environment))
+		fields = append(fields, zap.String("environment", config.Environment))
 	}
 
 	// Adiciona campos customizados
 	for k, v := range config.Fields {
-		globalFields = append(globalFields, zap.Any(k, v))
+		fields = append(fields, zap.Any(k, v))
 	}
 
-	// Cria o logger
-	p.logger = zap.New(core, opts...).With(globalFields...)
-	p.sugar = p.logger.Sugar()
-	p.fields = globalFields
+	if len(fields) > 0 {
+		p.logger = p.logger.With(fields...)
+	}
 
+	p.sugar = p.logger.Sugar()
 	return nil
 }
 
-// buildEncoderConfig constrói a configuração do encoder
-func (p *Provider) buildEncoderConfig() zapcore.EncoderConfig {
-	config := zap.NewProductionEncoderConfig()
+// extractContextFields extrai campos relevantes do contexto
+func (p *Provider) extractContextFields(ctx context.Context) []zap.Field {
+	fields := make([]zap.Field, 0)
 
-	if p.config.TimeFormat != "" {
-		config.TimeKey = "timestamp"
-		config.EncodeTime = zapcore.TimeEncoderOfLayout(p.config.TimeFormat)
+	if traceID := ctx.Value(logger.TraceIDKey); traceID != nil {
+		fields = append(fields, zap.Any(string(logger.TraceIDKey), traceID))
 	}
 
-	config.LevelKey = "level"
-	config.MessageKey = "message"
-	config.CallerKey = "caller"
-	config.StacktraceKey = "stacktrace"
-	config.EncodeLevel = zapcore.LowercaseLevelEncoder
-
-	if p.config.Format == logger.ConsoleFormat {
-		config.EncodeLevel = zapcore.CapitalColorLevelEncoder
-		config.EncodeTime = zapcore.ISO8601TimeEncoder
+	if spanID := ctx.Value(logger.SpanIDKey); spanID != nil {
+		fields = append(fields, zap.Any(string(logger.SpanIDKey), spanID))
 	}
 
-	return config
+	if userID := ctx.Value(logger.UserIDKey); userID != nil {
+		fields = append(fields, zap.Any(string(logger.UserIDKey), userID))
+	}
+
+	if requestID := ctx.Value(logger.RequestIDKey); requestID != nil {
+		fields = append(fields, zap.Any(string(logger.RequestIDKey), requestID))
+	}
+
+	return fields
 }
 
-// convertLevel converte o nível interno para o nível do Zap
-func (p *Provider) convertLevel(level logger.Level) zapcore.Level {
-	switch level {
-	case logger.DebugLevel:
-		return zapcore.DebugLevel
-	case logger.InfoLevel:
-		return zapcore.InfoLevel
-	case logger.WarnLevel:
-		return zapcore.WarnLevel
-	case logger.ErrorLevel:
-		return zapcore.ErrorLevel
-	case logger.FatalLevel:
-		return zapcore.FatalLevel
-	case logger.PanicLevel:
-		return zapcore.PanicLevel
-	default:
-		return zapcore.InfoLevel
-	}
-}
-
-// convertFields converte os campos internos para campos do Zap
-func (p *Provider) convertFields(fields []logger.Field) []zap.Field {
+// fieldsToZapFields converte logger.Field para zap.Field
+func (p *Provider) fieldsToZapFields(fields []logger.Field) []zap.Field {
 	zapFields := make([]zap.Field, len(fields))
 	for i, field := range fields {
 		zapFields[i] = zap.Any(field.Key, field.Value)
@@ -162,116 +279,82 @@ func (p *Provider) convertFields(fields []logger.Field) []zap.Field {
 	return zapFields
 }
 
-// extractContext extrai informações relevantes do contexto
-func (p *Provider) extractContext(ctx context.Context) []zap.Field {
-	var fields []zap.Field
-
-	// Adiciona trace ID se disponível
-	if traceID := ctx.Value("trace_id"); traceID != nil {
-		if id, ok := traceID.(string); ok && id != "" {
-			fields = append(fields, zap.String("trace_id", id))
-		}
-	}
-
-	// Adiciona span ID se disponível
-	if spanID := ctx.Value("span_id"); spanID != nil {
-		if id, ok := spanID.(string); ok && id != "" {
-			fields = append(fields, zap.String("span_id", id))
-		}
-	}
-
-	// Adiciona user ID se disponível
-	if userID := ctx.Value("user_id"); userID != nil {
-		if id, ok := userID.(string); ok && id != "" {
-			fields = append(fields, zap.String("user_id", id))
-		}
-	}
-
-	// Adiciona request ID se disponível
-	if requestID := ctx.Value("request_id"); requestID != nil {
-		if id, ok := requestID.(string); ok && id != "" {
-			fields = append(fields, zap.String("request_id", id))
-		}
-	}
-
-	return fields
-}
-
-// Implementação da interface Logger
+// Debug implementa Logger
 func (p *Provider) Debug(ctx context.Context, msg string, fields ...logger.Field) {
-	contextFields := p.extractContext(ctx)
-	convertedFields := p.convertFields(fields)
+	contextFields := p.extractContextFields(ctx)
+	zapFields := p.fieldsToZapFields(fields)
 
-	p.mu.RLock()
-	allFields := append(contextFields, convertedFields...)
-	allFields = append(allFields, p.fields...)
-	p.mu.RUnlock()
+	allFields := make([]zap.Field, 0, len(contextFields)+len(zapFields))
+	allFields = append(allFields, contextFields...)
+	allFields = append(allFields, zapFields...)
 
 	p.logger.Debug(msg, allFields...)
 }
 
+// Info implementa Logger
 func (p *Provider) Info(ctx context.Context, msg string, fields ...logger.Field) {
-	contextFields := p.extractContext(ctx)
-	convertedFields := p.convertFields(fields)
+	contextFields := p.extractContextFields(ctx)
+	zapFields := p.fieldsToZapFields(fields)
 
-	p.mu.RLock()
-	allFields := append(contextFields, convertedFields...)
-	allFields = append(allFields, p.fields...)
-	p.mu.RUnlock()
+	allFields := make([]zap.Field, 0, len(contextFields)+len(zapFields))
+	allFields = append(allFields, contextFields...)
+	allFields = append(allFields, zapFields...)
 
 	p.logger.Info(msg, allFields...)
 }
 
+// Warn implementa Logger
 func (p *Provider) Warn(ctx context.Context, msg string, fields ...logger.Field) {
-	contextFields := p.extractContext(ctx)
-	convertedFields := p.convertFields(fields)
+	contextFields := p.extractContextFields(ctx)
+	zapFields := p.fieldsToZapFields(fields)
 
-	p.mu.RLock()
-	allFields := append(contextFields, convertedFields...)
-	allFields = append(allFields, p.fields...)
-	p.mu.RUnlock()
+	allFields := make([]zap.Field, 0, len(contextFields)+len(zapFields))
+	allFields = append(allFields, contextFields...)
+	allFields = append(allFields, zapFields...)
 
 	p.logger.Warn(msg, allFields...)
 }
 
+// Error implementa Logger
 func (p *Provider) Error(ctx context.Context, msg string, fields ...logger.Field) {
-	contextFields := p.extractContext(ctx)
-	convertedFields := p.convertFields(fields)
+	contextFields := p.extractContextFields(ctx)
+	zapFields := p.fieldsToZapFields(fields)
 
-	p.mu.RLock()
-	allFields := append(contextFields, convertedFields...)
-	allFields = append(allFields, p.fields...)
-	p.mu.RUnlock()
+	allFields := make([]zap.Field, 0, len(contextFields)+len(zapFields))
+	allFields = append(allFields, contextFields...)
+	allFields = append(allFields, zapFields...)
 
 	p.logger.Error(msg, allFields...)
 }
 
+// Fatal implementa Logger
 func (p *Provider) Fatal(ctx context.Context, msg string, fields ...logger.Field) {
-	contextFields := p.extractContext(ctx)
-	convertedFields := p.convertFields(fields)
+	contextFields := p.extractContextFields(ctx)
+	zapFields := p.fieldsToZapFields(fields)
 
-	p.mu.RLock()
-	allFields := append(contextFields, convertedFields...)
-	allFields = append(allFields, p.fields...)
-	p.mu.RUnlock()
+	allFields := make([]zap.Field, 0, len(contextFields)+len(zapFields))
+	allFields = append(allFields, contextFields...)
+	allFields = append(allFields, zapFields...)
 
 	p.logger.Fatal(msg, allFields...)
 }
 
+// Panic implementa Logger
 func (p *Provider) Panic(ctx context.Context, msg string, fields ...logger.Field) {
-	contextFields := p.extractContext(ctx)
-	convertedFields := p.convertFields(fields)
+	contextFields := p.extractContextFields(ctx)
+	zapFields := p.fieldsToZapFields(fields)
 
-	p.mu.RLock()
-	allFields := append(contextFields, convertedFields...)
-	allFields = append(allFields, p.fields...)
-	p.mu.RUnlock()
+	allFields := make([]zap.Field, 0, len(contextFields)+len(zapFields))
+	allFields = append(allFields, contextFields...)
+	allFields = append(allFields, zapFields...)
 
 	p.logger.Panic(msg, allFields...)
 }
 
+// Debugf implementa Logger
 func (p *Provider) Debugf(ctx context.Context, format string, args ...any) {
-	contextFields := p.extractContext(ctx)
+	contextFields := p.extractContextFields(ctx)
+
 	if len(contextFields) > 0 {
 		p.logger.With(contextFields...).Sugar().Debugf(format, args...)
 	} else {
@@ -279,8 +362,10 @@ func (p *Provider) Debugf(ctx context.Context, format string, args ...any) {
 	}
 }
 
+// Infof implementa Logger
 func (p *Provider) Infof(ctx context.Context, format string, args ...any) {
-	contextFields := p.extractContext(ctx)
+	contextFields := p.extractContextFields(ctx)
+
 	if len(contextFields) > 0 {
 		p.logger.With(contextFields...).Sugar().Infof(format, args...)
 	} else {
@@ -288,8 +373,10 @@ func (p *Provider) Infof(ctx context.Context, format string, args ...any) {
 	}
 }
 
+// Warnf implementa Logger
 func (p *Provider) Warnf(ctx context.Context, format string, args ...any) {
-	contextFields := p.extractContext(ctx)
+	contextFields := p.extractContextFields(ctx)
+
 	if len(contextFields) > 0 {
 		p.logger.With(contextFields...).Sugar().Warnf(format, args...)
 	} else {
@@ -297,8 +384,10 @@ func (p *Provider) Warnf(ctx context.Context, format string, args ...any) {
 	}
 }
 
+// Errorf implementa Logger
 func (p *Provider) Errorf(ctx context.Context, format string, args ...any) {
-	contextFields := p.extractContext(ctx)
+	contextFields := p.extractContextFields(ctx)
+
 	if len(contextFields) > 0 {
 		p.logger.With(contextFields...).Sugar().Errorf(format, args...)
 	} else {
@@ -306,8 +395,10 @@ func (p *Provider) Errorf(ctx context.Context, format string, args ...any) {
 	}
 }
 
+// Fatalf implementa Logger
 func (p *Provider) Fatalf(ctx context.Context, format string, args ...any) {
-	contextFields := p.extractContext(ctx)
+	contextFields := p.extractContextFields(ctx)
+
 	if len(contextFields) > 0 {
 		p.logger.With(contextFields...).Sugar().Fatalf(format, args...)
 	} else {
@@ -315,8 +406,10 @@ func (p *Provider) Fatalf(ctx context.Context, format string, args ...any) {
 	}
 }
 
+// Panicf implementa Logger
 func (p *Provider) Panicf(ctx context.Context, format string, args ...any) {
-	contextFields := p.extractContext(ctx)
+	contextFields := p.extractContextFields(ctx)
+
 	if len(contextFields) > 0 {
 		p.logger.With(contextFields...).Sugar().Panicf(format, args...)
 	} else {
@@ -324,166 +417,171 @@ func (p *Provider) Panicf(ctx context.Context, format string, args ...any) {
 	}
 }
 
+// DebugWithCode implementa Logger
 func (p *Provider) DebugWithCode(ctx context.Context, code, msg string, fields ...logger.Field) {
-	allFields := append(fields, logger.String("code", code))
-	p.Debug(ctx, msg, allFields...)
+	contextFields := p.extractContextFields(ctx)
+	zapFields := p.fieldsToZapFields(fields)
+
+	allFields := make([]zap.Field, 0, len(contextFields)+len(zapFields)+1)
+	allFields = append(allFields, contextFields...)
+	allFields = append(allFields, zap.String("code", code))
+	allFields = append(allFields, zapFields...)
+
+	p.logger.Debug(msg, allFields...)
 }
 
+// InfoWithCode implementa Logger
 func (p *Provider) InfoWithCode(ctx context.Context, code, msg string, fields ...logger.Field) {
-	allFields := append(fields, logger.String("code", code))
-	p.Info(ctx, msg, allFields...)
+	contextFields := p.extractContextFields(ctx)
+	zapFields := p.fieldsToZapFields(fields)
+
+	allFields := make([]zap.Field, 0, len(contextFields)+len(zapFields)+1)
+	allFields = append(allFields, contextFields...)
+	allFields = append(allFields, zap.String("code", code))
+	allFields = append(allFields, zapFields...)
+
+	p.logger.Info(msg, allFields...)
 }
 
+// WarnWithCode implementa Logger
 func (p *Provider) WarnWithCode(ctx context.Context, code, msg string, fields ...logger.Field) {
-	allFields := append(fields, logger.String("code", code))
-	p.Warn(ctx, msg, allFields...)
+	contextFields := p.extractContextFields(ctx)
+	zapFields := p.fieldsToZapFields(fields)
+
+	allFields := make([]zap.Field, 0, len(contextFields)+len(zapFields)+1)
+	allFields = append(allFields, contextFields...)
+	allFields = append(allFields, zap.String("code", code))
+	allFields = append(allFields, zapFields...)
+
+	p.logger.Warn(msg, allFields...)
 }
 
+// ErrorWithCode implementa Logger
 func (p *Provider) ErrorWithCode(ctx context.Context, code, msg string, fields ...logger.Field) {
-	allFields := append(fields, logger.String("code", code))
-	p.Error(ctx, msg, allFields...)
+	contextFields := p.extractContextFields(ctx)
+	zapFields := p.fieldsToZapFields(fields)
+
+	allFields := make([]zap.Field, 0, len(contextFields)+len(zapFields)+1)
+	allFields = append(allFields, contextFields...)
+	allFields = append(allFields, zap.String("code", code))
+	allFields = append(allFields, zapFields...)
+
+	p.logger.Error(msg, allFields...)
 }
 
+// WithFields implementa Logger
 func (p *Provider) WithFields(fields ...logger.Field) logger.Logger {
-	newProvider := &Provider{
-		logger:        p.logger,
-		sugar:         p.sugar,
-		config:        p.config,
-		level:         p.level,
-		contextFields: make(map[string]any),
+	zapFields := p.fieldsToZapFields(fields)
+	newLogger := p.logger.With(zapFields...)
+
+	return &Provider{
+		config: p.config,
+		logger: newLogger,
+		sugar:  newLogger.Sugar(),
+		writer: p.writer,
+		buffer: p.buffer,
 	}
-
-	p.mu.RLock()
-	// Copia campos existentes de forma thread-safe
-	for k, v := range p.contextFields {
-		newProvider.contextFields[k] = v
-	}
-
-	// Copia fields existentes
-	existingFields := make([]zap.Field, len(p.fields))
-	copy(existingFields, p.fields)
-	p.mu.RUnlock()
-
-	// Adiciona novos campos
-	newFields := make([]zap.Field, len(fields))
-	for i, field := range fields {
-		newFields[i] = zap.Any(field.Key, field.Value)
-		newProvider.contextFields[field.Key] = field.Value
-	}
-
-	newProvider.fields = append(existingFields, newFields...)
-	newProvider.logger = p.logger.With(newFields...)
-	newProvider.sugar = newProvider.logger.Sugar()
-
-	return newProvider
 }
 
+// WithContext implementa Logger
 func (p *Provider) WithContext(ctx context.Context) logger.Logger {
-	contextFields := p.extractContext(ctx)
+	contextFields := p.extractContextFields(ctx)
 	if len(contextFields) == 0 {
 		return p
 	}
 
-	newProvider := &Provider{
-		logger:        p.logger.With(contextFields...),
-		config:        p.config,
-		level:         p.level,
-		fields:        append(p.fields, contextFields...),
-		contextFields: make(map[string]any),
+	newLogger := p.logger.With(contextFields...)
+	return &Provider{
+		config: p.config,
+		logger: newLogger,
+		sugar:  newLogger.Sugar(),
+		writer: p.writer,
+		buffer: p.buffer,
 	}
-
-	// Copia campos existentes
-	for k, v := range p.contextFields {
-		newProvider.contextFields[k] = v
-	}
-
-	newProvider.sugar = newProvider.logger.Sugar()
-	return newProvider
 }
 
+// SetLevel implementa Logger
 func (p *Provider) SetLevel(level logger.Level) {
-	zapLevel := p.convertLevel(level)
-	p.level.SetLevel(zapLevel)
+	// Zap não suporta mudança de nível durante runtime
 }
 
+// GetLevel implementa Logger
 func (p *Provider) GetLevel() logger.Level {
-	switch p.level.Level() {
-	case zapcore.DebugLevel:
+	if p.logger.Core().Enabled(zapcore.DebugLevel) {
 		return logger.DebugLevel
-	case zapcore.InfoLevel:
+	}
+	if p.logger.Core().Enabled(zapcore.InfoLevel) {
 		return logger.InfoLevel
-	case zapcore.WarnLevel:
+	}
+	if p.logger.Core().Enabled(zapcore.WarnLevel) {
 		return logger.WarnLevel
-	case zapcore.ErrorLevel:
+	}
+	if p.logger.Core().Enabled(zapcore.ErrorLevel) {
 		return logger.ErrorLevel
-	case zapcore.FatalLevel:
-		return logger.FatalLevel
-	case zapcore.PanicLevel:
-		return logger.PanicLevel
-	default:
-		return logger.InfoLevel
 	}
+	return logger.InfoLevel
 }
 
+// Clone implementa Logger
 func (p *Provider) Clone() logger.Logger {
-	newProvider := &Provider{
-		logger:        p.logger,
-		sugar:         p.sugar,
-		config:        p.config,
-		level:         p.level,
-		contextFields: make(map[string]any),
+	return &Provider{
+		config: p.config,
+		logger: p.logger,
+		sugar:  p.sugar,
+		writer: p.writer,
+		buffer: p.buffer,
 	}
-
-	p.mu.RLock()
-	// Copia campos de forma thread-safe
-	newProvider.fields = make([]zap.Field, len(p.fields))
-	copy(newProvider.fields, p.fields)
-
-	for k, v := range p.contextFields {
-		newProvider.contextFields[k] = v
-	}
-	p.mu.RUnlock()
-
-	return newProvider
 }
 
+// Close implementa Logger
 func (p *Provider) Close() error {
-	if p.logger != nil {
-		return p.logger.Sync()
+	if p.buffer != nil {
+		if err := p.buffer.Close(); err != nil {
+			return err
+		}
+	}
+	return p.logger.Sync()
+}
+
+// GetBuffer retorna o buffer atual
+func (p *Provider) GetBuffer() interfaces.Buffer {
+	return p.buffer
+}
+
+// SetBuffer define um novo buffer
+func (p *Provider) SetBuffer(buffer interfaces.Buffer) error {
+	// Flush do buffer anterior se existir
+	if p.buffer != nil {
+		if err := p.buffer.Flush(); err != nil {
+			return err
+		}
+		if err := p.buffer.Close(); err != nil {
+			return err
+		}
+	}
+
+	p.buffer = buffer.(*logger.CircularBuffer)
+	return nil
+}
+
+// FlushBuffer força o flush do buffer
+func (p *Provider) FlushBuffer() error {
+	if p.buffer != nil {
+		return p.buffer.Flush()
 	}
 	return nil
 }
 
-// GetZapLogger retorna o logger Zap subjacente para uso avançado
-func (p *Provider) GetZapLogger() *zap.Logger {
-	return p.logger
-}
-
-// GetSugaredLogger retorna o logger Zap sugared para uso avançado
-func (p *Provider) GetSugaredLogger() *zap.SugaredLogger {
-	return p.sugar
-}
-
-// StackTrace captura e retorna o stack trace atual
-func StackTrace(skip int) logger.Field {
-	const depth = 32
-	var pcs [depth]uintptr
-	n := runtime.Callers(skip+2, pcs[:])
-	frames := runtime.CallersFrames(pcs[:n])
-
-	var stack []string
-	for {
-		frame, more := frames.Next()
-		stack = append(stack, fmt.Sprintf("%s:%d %s", frame.File, frame.Line, frame.Function))
-		if !more {
-			break
-		}
+// GetBufferStats retorna estatísticas do buffer
+func (p *Provider) GetBufferStats() interfaces.BufferStats {
+	if p.buffer != nil {
+		return p.buffer.Stats()
 	}
-
-	return logger.String("stack_trace", strings.Join(stack, "\n"))
+	return interfaces.BufferStats{}
 }
 
-// init registra automaticamente o provider
-func init() {
-	logger.RegisterProvider(ProviderName, NewProvider())
-}
+// Certifica que Provider implementa as interfaces
+var (
+	_ logger.Logger   = (*Provider)(nil)
+	_ logger.Provider = (*Provider)(nil)
+)

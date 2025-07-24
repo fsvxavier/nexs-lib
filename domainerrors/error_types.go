@@ -1,454 +1,457 @@
 package domainerrors
 
 import (
-	"errors"
-	"net/http"
+	"context"
+	"fmt"
+	"strings"
+	"time"
 )
 
-// ValidationError é um tipo específico para erros de validação
+// ValidationError representa erros de validação
 type ValidationError struct {
 	*DomainError
-	ValidatedFields map[string][]string `json:"validated_fields,omitempty"`
+	Fields map[string][]string `json:"fields,omitempty"`
 }
 
 // NewValidationError cria um erro de validação
-func NewValidationError(message string, fields map[string][]string) *ValidationError {
-	err := &ValidationError{
-		DomainError:     New("VALIDATION_ERROR", message).WithType(ErrorTypeValidation),
-		ValidatedFields: fields,
+func NewValidationError(code, message string, cause error) *ValidationError {
+	return &ValidationError{
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeValidation,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
+		Fields: make(map[string][]string),
 	}
-
-	if err.ValidatedFields == nil {
-		err.ValidatedFields = make(map[string][]string)
-	}
-
-	return err
 }
 
-// WithField adiciona um erro para um campo específico
+// WithField adiciona um campo com erro de validação
 func (e *ValidationError) WithField(field, message string) *ValidationError {
-	if e.ValidatedFields == nil {
-		e.ValidatedFields = make(map[string][]string)
+	if e.Fields == nil {
+		e.Fields = make(map[string][]string)
 	}
-
-	e.ValidatedFields[field] = append(e.ValidatedFields[field], message)
+	e.Fields[field] = append(e.Fields[field], message)
 	return e
 }
 
-// WithFields adiciona vários erros de campo de uma vez
-func (e *ValidationError) WithFields(fields map[string][]string) *ValidationError {
-	if e.ValidatedFields == nil {
-		e.ValidatedFields = make(map[string][]string)
-	}
-
-	for field, messages := range fields {
-		e.ValidatedFields[field] = append(e.ValidatedFields[field], messages...)
-	}
-
-	return e
-}
-
-// NotFoundError é usado quando um recurso não é encontrado
+// NotFoundError representa erros de recurso não encontrado
 type NotFoundError struct {
 	*DomainError
-	ResourceID   string `json:"resource_id,omitempty"`
 	ResourceType string `json:"resource_type,omitempty"`
+	ResourceID   string `json:"resource_id,omitempty"`
 }
 
 // NewNotFoundError cria um erro de recurso não encontrado
-func NewNotFoundError(message string) *NotFoundError {
+func NewNotFoundError(code, message string, cause error) *NotFoundError {
 	return &NotFoundError{
-		DomainError: New("NOT_FOUND", message).WithType(ErrorTypeNotFound),
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeNotFound,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
 	}
 }
 
-// WithResource adiciona informações sobre o recurso não encontrado
+// WithResource adiciona informações do recurso não encontrado
 func (e *NotFoundError) WithResource(resourceType, resourceID string) *NotFoundError {
 	e.ResourceType = resourceType
 	e.ResourceID = resourceID
 	return e
 }
 
-// BusinessError representa um erro de regra de negócio
+// BusinessError representa erros de regra de negócio
 type BusinessError struct {
 	*DomainError
-	BusinessCode string `json:"business_code,omitempty"`
+	BusinessCode string   `json:"business_code,omitempty"`
+	Rules        []string `json:"rules,omitempty"`
 }
 
 // NewBusinessError cria um erro de regra de negócio
 func NewBusinessError(code, message string) *BusinessError {
 	return &BusinessError{
-		DomainError:  New(code, message).WithType(ErrorTypeBusinessRule),
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeBusinessRule,
+			Timestamp: time.Now(),
+		},
 		BusinessCode: code,
+		Rules:        make([]string, 0),
 	}
 }
 
-// InfrastructureError representa um erro de infraestrutura (banco de dados, rede, etc)
-type InfrastructureError struct {
-	*DomainError
-	Component string `json:"component,omitempty"`
+// WithRule adiciona uma regra de negócio violada
+func (e *BusinessError) WithRule(rule string) *BusinessError {
+	e.Rules = append(e.Rules, rule)
+	return e
 }
 
-// NewInfrastructureError cria um erro de infraestrutura
-func NewInfrastructureError(component, message string, err error) *InfrastructureError {
-	return &InfrastructureError{
-		DomainError: NewWithError("INFRA_ERROR", message, err).WithType(ErrorTypeInfrastructure),
-		Component:   component,
-	}
-}
-
-// DatabaseError é um tipo específico de erro de infraestrutura para problemas de banco de dados
+// DatabaseError representa erros de banco de dados
 type DatabaseError struct {
-	*InfrastructureError
+	*DomainError
 	Operation string `json:"operation,omitempty"`
 	Table     string `json:"table,omitempty"`
-	SQLState  string `json:"sqlstate,omitempty"`
+	Query     string `json:"query,omitempty"`
 }
 
-// NewDatabaseError cria um erro específico de banco de dados
-func NewDatabaseError(message string, err error) *DatabaseError {
+// NewDatabaseError cria um erro de banco de dados
+func NewDatabaseError(code, message string, cause error) *DatabaseError {
 	return &DatabaseError{
-		InfrastructureError: NewInfrastructureError("database", message, err),
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeDatabase,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
 	}
 }
 
-// WithOperation adiciona informações sobre a operação que falhou
+// WithOperation adiciona informações da operação
 func (e *DatabaseError) WithOperation(operation, table string) *DatabaseError {
 	e.Operation = operation
 	e.Table = table
 	return e
 }
 
-// WithSQLState adiciona informações sobre o código de erro SQL
-func (e *DatabaseError) WithSQLState(sqlstate string) *DatabaseError {
-	e.SQLState = sqlstate
+// WithQuery adiciona a query que falhou
+func (e *DatabaseError) WithQuery(query string) *DatabaseError {
+	e.Query = query
 	return e
 }
 
-// ExternalServiceError representa erros de integração com serviços externos
+// ExternalServiceError representa erros de serviços externos
 type ExternalServiceError struct {
 	*DomainError
-	ServiceName string      `json:"service_name,omitempty"`
-	HTTPStatus  int         `json:"http_status,omitempty"`
-	Response    interface{} `json:"response,omitempty"`
+	Service    string `json:"service,omitempty"`
+	Endpoint   string `json:"endpoint,omitempty"`
+	StatusCode int    `json:"status_code,omitempty"`
+	Response   string `json:"response,omitempty"`
 }
 
 // NewExternalServiceError cria um erro de serviço externo
-func NewExternalServiceError(serviceName, message string, err error) *ExternalServiceError {
+func NewExternalServiceError(code, service, message string, cause error) *ExternalServiceError {
 	return &ExternalServiceError{
-		DomainError: NewWithError("EXTERNAL_ERROR", message, err).WithType(ErrorTypeExternalService),
-		ServiceName: serviceName,
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeExternalService,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
+		Service: service,
 	}
 }
 
-// WithStatusCode adiciona o código de status HTTP ao erro
-func (e *ExternalServiceError) WithStatusCode(statusCode int) *ExternalServiceError {
-	e.HTTPStatus = statusCode
+// WithEndpoint adiciona informações do endpoint
+func (e *ExternalServiceError) WithEndpoint(endpoint string) *ExternalServiceError {
+	e.Endpoint = endpoint
 	return e
 }
 
-// WithResponse adiciona detalhes da resposta ao erro
-func (e *ExternalServiceError) WithResponse(response interface{}) *ExternalServiceError {
+// WithResponse adiciona informações da resposta
+func (e *ExternalServiceError) WithResponse(statusCode int, response string) *ExternalServiceError {
+	e.StatusCode = statusCode
 	e.Response = response
+	return e
+}
+
+// InfrastructureError representa erros de infraestrutura
+type InfrastructureError struct {
+	*DomainError
+	Component string `json:"component,omitempty"`
+	Action    string `json:"action,omitempty"`
+}
+
+// NewInfrastructureError cria um erro de infraestrutura
+func NewInfrastructureError(code, component, message string, cause error) *InfrastructureError {
+	return &InfrastructureError{
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeInfrastructure,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
+		Component: component,
+	}
+}
+
+// WithAction adiciona informações da ação que falhou
+func (e *InfrastructureError) WithAction(action string) *InfrastructureError {
+	e.Action = action
+	return e
+}
+
+// DependencyError representa erros de dependência
+type DependencyError struct {
+	*DomainError
+	Dependency string `json:"dependency,omitempty"`
+	Version    string `json:"version,omitempty"`
+	Status     string `json:"status,omitempty"`
+}
+
+// NewDependencyError cria um erro de dependência
+func NewDependencyError(code, dependency, message string, cause error) *DependencyError {
+	return &DependencyError{
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeDependency,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
+		Dependency: dependency,
+	}
+}
+
+// WithDependencyInfo adiciona informações da dependência
+func (e *DependencyError) WithDependencyInfo(version, status string) *DependencyError {
+	e.Version = version
+	e.Status = status
 	return e
 }
 
 // AuthenticationError representa erros de autenticação
 type AuthenticationError struct {
 	*DomainError
-	Reason string `json:"reason,omitempty"`
+	Scheme string `json:"scheme,omitempty"`
+	Token  string `json:"token,omitempty"`
 }
 
 // NewAuthenticationError cria um erro de autenticação
-func NewAuthenticationError(message string) *AuthenticationError {
+func NewAuthenticationError(code, message string, cause error) *AuthenticationError {
 	return &AuthenticationError{
-		DomainError: New("AUTH_ERROR", message).WithType(ErrorTypeAuthentication),
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeAuthentication,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
 	}
 }
 
-// WithReason adiciona um motivo para a falha de autenticação
-func (e *AuthenticationError) WithReason(reason string) *AuthenticationError {
-	e.Reason = reason
+// WithScheme adiciona o esquema de autenticação
+func (e *AuthenticationError) WithScheme(scheme string) *AuthenticationError {
+	e.Scheme = scheme
 	return e
 }
 
 // AuthorizationError representa erros de autorização
 type AuthorizationError struct {
 	*DomainError
-	RequiredPermission string `json:"required_permission,omitempty"`
-	UserID             string `json:"user_id,omitempty"`
+	Permission string `json:"permission,omitempty"`
+	Resource   string `json:"resource,omitempty"`
 }
 
 // NewAuthorizationError cria um erro de autorização
-func NewAuthorizationError(message string) *AuthorizationError {
+func NewAuthorizationError(code, message string, cause error) *AuthorizationError {
 	return &AuthorizationError{
-		DomainError: New("FORBIDDEN", message).WithType(ErrorTypeAuthorization),
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeAuthorization,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
 	}
 }
 
-// WithRequiredPermission adiciona informações sobre a permissão necessária
-func (e *AuthorizationError) WithRequiredPermission(permission, userID string) *AuthorizationError {
-	e.RequiredPermission = permission
-	e.UserID = userID
-	return e
-}
-
-// TimeoutError representa erros de timeout
-type TimeoutError struct {
-	*DomainError
-	OperationName string `json:"operation_name,omitempty"`
-	Threshold     string `json:"threshold,omitempty"`
-}
-
-// NewTimeoutError cria um erro de timeout
-func NewTimeoutError(operation, message string) *TimeoutError {
-	return &TimeoutError{
-		DomainError:   New("TIMEOUT", message).WithType(ErrorTypeTimeout),
-		OperationName: operation,
-	}
-}
-
-// WithThreshold adiciona informações sobre o limite de tempo excedido
-func (e *TimeoutError) WithThreshold(threshold string) *TimeoutError {
-	e.Threshold = threshold
-	return e
-}
-
-// UnsupportedOperationError representa erros de operações não suportadas
-type UnsupportedOperationError struct {
-	*DomainError
-	Operation string `json:"operation,omitempty"`
-}
-
-// NewUnsupportedOperationError cria um erro de operação não suportada
-func NewUnsupportedOperationError(operation, message string) *UnsupportedOperationError {
-	return &UnsupportedOperationError{
-		DomainError: New("UNSUPPORTED", message).WithType(ErrorTypeUnsupported),
-		Operation:   operation,
-	}
-}
-
-// BadRequestError representa erros de requisição inválida
-type BadRequestError struct {
-	*DomainError
-	InvalidParams map[string]string `json:"invalid_params,omitempty"`
-}
-
-// NewBadRequestError cria um erro de requisição inválida
-func NewBadRequestError(message string) *BadRequestError {
-	return &BadRequestError{
-		DomainError:   New("BAD_REQUEST", message).WithType(ErrorTypeBadRequest),
-		InvalidParams: make(map[string]string),
-	}
-}
-
-// WithInvalidParam adiciona informações sobre um parâmetro inválido
-func (e *BadRequestError) WithInvalidParam(param, reason string) *BadRequestError {
-	if e.InvalidParams == nil {
-		e.InvalidParams = make(map[string]string)
-	}
-	e.InvalidParams[param] = reason
-	return e
-}
-
-// ConflictError representa erros de conflito (quando um recurso já existe)
-type ConflictError struct {
-	*DomainError
-	ConflictingResource string `json:"conflicting_resource,omitempty"`
-	ConflictReason      string `json:"conflict_reason,omitempty"`
-}
-
-// NewConflictError cria um erro de conflito
-func NewConflictError(message string) *ConflictError {
-	return &ConflictError{
-		DomainError: New("CONFLICT", message).WithType(ErrorTypeConflict),
-	}
-}
-
-// WithConflictingResource adiciona informações sobre o recurso em conflito
-func (e *ConflictError) WithConflictingResource(resource, reason string) *ConflictError {
-	e.ConflictingResource = resource
-	e.ConflictReason = reason
-	return e
-}
-
-// RateLimitError representa erros de limite de taxa
-type RateLimitError struct {
-	*DomainError
-	Limit      int    `json:"limit,omitempty"`
-	Remaining  int    `json:"remaining,omitempty"`
-	ResetTime  string `json:"reset_time,omitempty"`
-	RetryAfter string `json:"retry_after,omitempty"`
-}
-
-// NewRateLimitError cria um erro de limite de taxa
-func NewRateLimitError(message string) *RateLimitError {
-	return &RateLimitError{
-		DomainError: New("RATE_LIMIT", message).WithType(ErrorTypeRateLimit),
-	}
-}
-
-// WithRateLimit adiciona informações sobre o limite de taxa
-func (e *RateLimitError) WithRateLimit(limit, remaining int, resetTime, retryAfter string) *RateLimitError {
-	e.Limit = limit
-	e.Remaining = remaining
-	e.ResetTime = resetTime
-	e.RetryAfter = retryAfter
-	return e
-}
-
-// CircuitBreakerError representa erros quando um circuit breaker está aberto
-type CircuitBreakerError struct {
-	*DomainError
-	ServiceName string `json:"service_name,omitempty"`
-	State       string `json:"state,omitempty"`
-	Failures    int    `json:"failures,omitempty"`
-}
-
-// NewCircuitBreakerError cria um erro de circuit breaker
-func NewCircuitBreakerError(serviceName, message string) *CircuitBreakerError {
-	return &CircuitBreakerError{
-		DomainError: New("CIRCUIT_BREAKER", message).WithType(ErrorTypeCircuitBreaker),
-		ServiceName: serviceName,
-	}
-}
-
-// WithCircuitState adiciona informações sobre o estado do circuit breaker
-func (e *CircuitBreakerError) WithCircuitState(state string, failures int) *CircuitBreakerError {
-	e.State = state
-	e.Failures = failures
-	return e
-}
-
-// ConfigurationError representa erros de configuração
-type ConfigurationError struct {
-	*DomainError
-	ConfigKey   string `json:"config_key,omitempty"`
-	ConfigValue string `json:"config_value,omitempty"`
-	Expected    string `json:"expected,omitempty"`
-}
-
-// NewConfigurationError cria um erro de configuração
-func NewConfigurationError(message string) *ConfigurationError {
-	return &ConfigurationError{
-		DomainError: New("CONFIG_ERROR", message).WithType(ErrorTypeConfiguration),
-	}
-}
-
-// WithConfigDetails adiciona informações sobre a configuração problemática
-func (e *ConfigurationError) WithConfigDetails(key, value, expected string) *ConfigurationError {
-	e.ConfigKey = key
-	e.ConfigValue = value
-	e.Expected = expected
+// WithPermission adiciona informações da permissão
+func (e *AuthorizationError) WithPermission(permission, resource string) *AuthorizationError {
+	e.Permission = permission
+	e.Resource = resource
 	return e
 }
 
 // SecurityError representa erros de segurança
 type SecurityError struct {
 	*DomainError
-	SecurityContext string `json:"security_context,omitempty"`
-	ThreatLevel     string `json:"threat_level,omitempty"`
-	UserAgent       string `json:"user_agent,omitempty"`
-	IPAddress       string `json:"ip_address,omitempty"`
+	ThreatType string `json:"threat_type,omitempty"`
+	Severity   string `json:"severity,omitempty"`
+	ClientIP   string `json:"client_ip,omitempty"`
 }
 
 // NewSecurityError cria um erro de segurança
-func NewSecurityError(message string) *SecurityError {
+func NewSecurityError(code, message string) *SecurityError {
 	return &SecurityError{
-		DomainError: New("SECURITY_ERROR", message).WithType(ErrorTypeSecurity),
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeSecurity,
+			Timestamp: time.Now(),
+		},
 	}
 }
 
-// WithSecurityContext adiciona contexto de segurança
-func (e *SecurityError) WithSecurityContext(context, threatLevel string) *SecurityError {
-	e.SecurityContext = context
-	e.ThreatLevel = threatLevel
+// WithThreat adiciona informações da ameaça
+func (e *SecurityError) WithThreat(threatType, severity string) *SecurityError {
+	e.ThreatType = threatType
+	e.Severity = severity
 	return e
 }
 
-// WithClientInfo adiciona informações do cliente
-func (e *SecurityError) WithClientInfo(userAgent, ipAddress string) *SecurityError {
-	e.UserAgent = userAgent
-	e.IPAddress = ipAddress
+// WithClientIP adiciona o IP do cliente
+func (e *SecurityError) WithClientIP(clientIP string) *SecurityError {
+	e.ClientIP = clientIP
 	return e
 }
 
-// ResourceExhaustedError representa erros quando recursos estão esgotados
+// TimeoutError representa erros de timeout
+type TimeoutError struct {
+	*DomainError
+	Operation string        `json:"operation,omitempty"`
+	Duration  time.Duration `json:"duration,omitempty"`
+	Timeout   time.Duration `json:"timeout,omitempty"`
+}
+
+// NewTimeoutError cria um erro de timeout
+func NewTimeoutError(code, operation, message string, cause error) *TimeoutError {
+	return &TimeoutError{
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeTimeout,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
+		Operation: operation,
+	}
+}
+
+// WithDuration adiciona informações de duração
+func (e *TimeoutError) WithDuration(duration, timeout time.Duration) *TimeoutError {
+	e.Duration = duration
+	e.Timeout = timeout
+	return e
+}
+
+// RateLimitError representa erros de limite de taxa
+type RateLimitError struct {
+	*DomainError
+	Limit     int    `json:"limit,omitempty"`
+	Remaining int    `json:"remaining,omitempty"`
+	ResetTime string `json:"reset_time,omitempty"`
+	Window    string `json:"window,omitempty"`
+}
+
+// NewRateLimitError cria um erro de limite de taxa
+func NewRateLimitError(code, message string) *RateLimitError {
+	return &RateLimitError{
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeRateLimit,
+			Timestamp: time.Now(),
+		},
+	}
+}
+
+// WithRateLimit adiciona informações do limite de taxa
+func (e *RateLimitError) WithRateLimit(limit, remaining int, resetTime, window string) *RateLimitError {
+	e.Limit = limit
+	e.Remaining = remaining
+	e.ResetTime = resetTime
+	e.Window = window
+	return e
+}
+
+// ResourceExhaustedError representa erros de recurso esgotado
 type ResourceExhaustedError struct {
 	*DomainError
-	ResourceType string `json:"resource_type,omitempty"`
-	Limit        int64  `json:"limit,omitempty"`
-	Current      int64  `json:"current,omitempty"`
-	Unit         string `json:"unit,omitempty"`
+	Resource string `json:"resource,omitempty"`
+	Limit    int64  `json:"limit,omitempty"`
+	Used     int64  `json:"used,omitempty"`
+	Unit     string `json:"unit,omitempty"`
 }
 
 // NewResourceExhaustedError cria um erro de recurso esgotado
-func NewResourceExhaustedError(resourceType, message string) *ResourceExhaustedError {
+func NewResourceExhaustedError(code, resource, message string) *ResourceExhaustedError {
 	return &ResourceExhaustedError{
-		DomainError:  New("RESOURCE_EXHAUSTED", message).WithType(ErrorTypeResourceExhausted),
-		ResourceType: resourceType,
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeResourceExhausted,
+			Timestamp: time.Now(),
+		},
+		Resource: resource,
 	}
 }
 
-// WithResourceLimits adiciona informações sobre os limites de recurso
-func (e *ResourceExhaustedError) WithResourceLimits(limit, current int64, unit string) *ResourceExhaustedError {
+// WithLimits adiciona informações dos limites do recurso
+func (e *ResourceExhaustedError) WithLimits(limit, used int64, unit string) *ResourceExhaustedError {
 	e.Limit = limit
-	e.Current = current
+	e.Used = used
 	e.Unit = unit
 	return e
 }
 
-// DependencyError representa erros de dependências externas
-type DependencyError struct {
+// CircuitBreakerError representa erros de circuit breaker
+type CircuitBreakerError struct {
 	*DomainError
-	DependencyName string `json:"dependency_name,omitempty"`
-	DependencyType string `json:"dependency_type,omitempty"`
-	Version        string `json:"version,omitempty"`
-	HealthStatus   string `json:"health_status,omitempty"`
+	CircuitName string `json:"circuit_name,omitempty"`
+	State       string `json:"state,omitempty"`
+	Failures    int    `json:"failures,omitempty"`
+	Timeout     string `json:"timeout,omitempty"`
 }
 
-// NewDependencyError cria um erro de dependência
-func NewDependencyError(dependencyName, message string, err error) *DependencyError {
-	return &DependencyError{
-		DomainError:    NewWithError("DEPENDENCY_ERROR", message, err).WithType(ErrorTypeDependency),
-		DependencyName: dependencyName,
+// NewCircuitBreakerError cria um erro de circuit breaker
+func NewCircuitBreakerError(code, circuitName, message string) *CircuitBreakerError {
+	return &CircuitBreakerError{
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeCircuitBreaker,
+			Timestamp: time.Now(),
+		},
+		CircuitName: circuitName,
 	}
 }
 
-// WithDependencyInfo adiciona informações sobre a dependência
-func (e *DependencyError) WithDependencyInfo(depType, version, healthStatus string) *DependencyError {
-	e.DependencyType = depType
-	e.Version = version
-	e.HealthStatus = healthStatus
+// WithCircuitState adiciona informações do estado do circuit breaker
+func (e *CircuitBreakerError) WithCircuitState(state string, failures int) *CircuitBreakerError {
+	e.State = state
+	e.Failures = failures
 	return e
 }
 
-// SerializationError representa erros de serialização/deserialização
+// SerializationError representa erros de serialização
 type SerializationError struct {
 	*DomainError
-	Format       string `json:"format,omitempty"`
-	FieldName    string `json:"field_name,omitempty"`
-	ExpectedType string `json:"expected_type,omitempty"`
-	ActualType   string `json:"actual_type,omitempty"`
+	Format   string `json:"format,omitempty"`
+	Field    string `json:"field,omitempty"`
+	Expected string `json:"expected,omitempty"`
+	Received string `json:"received,omitempty"`
 }
 
 // NewSerializationError cria um erro de serialização
-func NewSerializationError(format, message string, err error) *SerializationError {
+func NewSerializationError(code, format, message string, cause error) *SerializationError {
 	return &SerializationError{
-		DomainError: NewWithError("SERIALIZATION_ERROR", message, err).WithType(ErrorTypeSerialization),
-		Format:      format,
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeSerialization,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
+		Format: format,
 	}
 }
 
-// WithTypeInfo adiciona informações sobre tipos esperados e atuais
-func (e *SerializationError) WithTypeInfo(fieldName, expectedType, actualType string) *SerializationError {
-	e.FieldName = fieldName
-	e.ExpectedType = expectedType
-	e.ActualType = actualType
+// WithTypeInfo adiciona informações do tipo
+func (e *SerializationError) WithTypeInfo(field, expected, received string) *SerializationError {
+	e.Field = field
+	e.Expected = expected
+	e.Received = received
 	return e
 }
 
-// CacheError representa erros relacionados a cache
+// CacheError representa erros de cache
 type CacheError struct {
 	*DomainError
 	CacheType string `json:"cache_type,omitempty"`
@@ -458,177 +461,258 @@ type CacheError struct {
 }
 
 // NewCacheError cria um erro de cache
-func NewCacheError(cacheType, operation, message string, err error) *CacheError {
+func NewCacheError(code, cacheType, operation, message string, cause error) *CacheError {
 	return &CacheError{
-		DomainError: NewWithError("CACHE_ERROR", message, err).WithType(ErrorTypeCache),
-		CacheType:   cacheType,
-		Operation:   operation,
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeCache,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
+		CacheType: cacheType,
+		Operation: operation,
 	}
 }
 
-// WithCacheDetails adiciona detalhes sobre a operação de cache
+// WithCacheDetails adiciona detalhes do cache
 func (e *CacheError) WithCacheDetails(key, ttl string) *CacheError {
 	e.Key = key
 	e.TTL = ttl
 	return e
 }
 
-// WorkflowError representa erros em workflows ou processos de negócio
-type WorkflowError struct {
-	*DomainError
-	WorkflowID    string `json:"workflow_id,omitempty"`
-	StepName      string `json:"step_name,omitempty"`
-	CurrentState  string `json:"current_state,omitempty"`
-	ExpectedState string `json:"expected_state,omitempty"`
-}
-
-// NewWorkflowError cria um erro de workflow
-func NewWorkflowError(workflowID, stepName, message string) *WorkflowError {
-	return &WorkflowError{
-		DomainError: New("WORKFLOW_ERROR", message).WithType(ErrorTypeWorkflow),
-		WorkflowID:  workflowID,
-		StepName:    stepName,
-	}
-}
-
-// WithStateInfo adiciona informações sobre o estado do workflow
-func (e *WorkflowError) WithStateInfo(currentState, expectedState string) *WorkflowError {
-	e.CurrentState = currentState
-	e.ExpectedState = expectedState
-	return e
-}
-
-// MigrationError representa erros durante migrações de dados
+// MigrationError representa erros de migração
 type MigrationError struct {
 	*DomainError
-	MigrationVersion string `json:"migration_version,omitempty"`
-	MigrationName    string `json:"migration_name,omitempty"`
-	Direction        string `json:"direction,omitempty"`
-	AffectedRecords  int64  `json:"affected_records,omitempty"`
+	Version string `json:"version,omitempty"`
+	Script  string `json:"script,omitempty"`
+	Stage   string `json:"stage,omitempty"`
 }
 
 // NewMigrationError cria um erro de migração
-func NewMigrationError(version, name, message string, err error) *MigrationError {
+func NewMigrationError(code, version, message string, cause error) *MigrationError {
 	return &MigrationError{
-		DomainError:      NewWithError("MIGRATION_ERROR", message, err).WithType(ErrorTypeMigration),
-		MigrationVersion: version,
-		MigrationName:    name,
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeMigration,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
+		Version: version,
 	}
 }
 
-// WithMigrationDetails adiciona detalhes sobre a migração
-func (e *MigrationError) WithMigrationDetails(direction string, affectedRecords int64) *MigrationError {
-	e.Direction = direction
-	e.AffectedRecords = affectedRecords
+// WithMigrationDetails adiciona detalhes da migração
+func (e *MigrationError) WithMigrationDetails(script, stage string) *MigrationError {
+	e.Script = script
+	e.Stage = stage
+	return e
+}
+
+// ConfigurationError representa erros de configuração
+type ConfigurationError struct {
+	*DomainError
+	ConfigKey string `json:"config_key,omitempty"`
+	Expected  string `json:"expected,omitempty"`
+	Received  string `json:"received,omitempty"`
+}
+
+// NewConfigurationError cria um erro de configuração
+func NewConfigurationError(code, configKey, message string, cause error) *ConfigurationError {
+	return &ConfigurationError{
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeConfiguration,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
+		ConfigKey: configKey,
+	}
+}
+
+// WithConfigDetails adiciona detalhes da configuração
+func (e *ConfigurationError) WithConfigDetails(expected, received string) *ConfigurationError {
+	e.Expected = expected
+	e.Received = received
+	return e
+}
+
+// UnsupportedOperationError representa operações não suportadas
+type UnsupportedOperationError struct {
+	*DomainError
+	Operation string `json:"operation,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+// NewUnsupportedOperationError cria um erro de operação não suportada
+func NewUnsupportedOperationError(code, operation, message string) *UnsupportedOperationError {
+	return &UnsupportedOperationError{
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeUnsupported,
+			Timestamp: time.Now(),
+		},
+		Operation: operation,
+	}
+}
+
+// WithReason adiciona o motivo da operação não suportada
+func (e *UnsupportedOperationError) WithReason(reason string) *UnsupportedOperationError {
+	e.Reason = reason
+	return e
+}
+
+// BadRequestError representa erros de requisição inválida
+type BadRequestError struct {
+	*DomainError
+	Parameter string `json:"parameter,omitempty"`
+	Expected  string `json:"expected,omitempty"`
+	Received  string `json:"received,omitempty"`
+}
+
+// NewBadRequestError cria um erro de requisição inválida
+func NewBadRequestError(code, message string, cause error) *BadRequestError {
+	return &BadRequestError{
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeBadRequest,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
+	}
+}
+
+// WithParameter adiciona informações do parâmetro inválido
+func (e *BadRequestError) WithParameter(parameter, expected, received string) *BadRequestError {
+	e.Parameter = parameter
+	e.Expected = expected
+	e.Received = received
+	return e
+}
+
+// ConflictError representa erros de conflito
+type ConflictError struct {
+	*DomainError
+	Resource       string `json:"resource,omitempty"`
+	ConflictReason string `json:"conflict_reason,omitempty"`
+}
+
+// NewConflictError cria um erro de conflito
+func NewConflictError(code, message string) *ConflictError {
+	return &ConflictError{
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeConflict,
+			Timestamp: time.Now(),
+		},
+	}
+}
+
+// WithConflictingResource adiciona informações do recurso em conflito
+func (e *ConflictError) WithConflictingResource(resource, reason string) *ConflictError {
+	e.Resource = resource
+	e.ConflictReason = reason
 	return e
 }
 
 // InvalidSchemaError representa erros de schema inválido
 type InvalidSchemaError struct {
 	*DomainError
-	SchemaName    string              `json:"schema_name,omitempty"`
-	SchemaVersion string              `json:"schema_version,omitempty"`
-	Details       map[string][]string `json:"details,omitempty"`
+	SchemaName string              `json:"schema_name,omitempty"`
+	Version    string              `json:"version,omitempty"`
+	Details    map[string][]string `json:"details,omitempty"`
 }
 
 // NewInvalidSchemaError cria um erro de schema inválido
-func NewInvalidSchemaError(message string) *InvalidSchemaError {
+func NewInvalidSchemaError(code, message string) *InvalidSchemaError {
 	return &InvalidSchemaError{
-		DomainError: New("INVALID_SCHEMA", message).WithType(ErrorTypeValidation),
-		Details:     make(map[string][]string),
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeInvalidSchema,
+			Timestamp: time.Now(),
+		},
+		Details: make(map[string][]string),
 	}
 }
 
-// WithSchemaInfo adiciona informações sobre o schema
-func (e *InvalidSchemaError) WithSchemaInfo(name, version string) *InvalidSchemaError {
-	e.SchemaName = name
-	e.SchemaVersion = version
+// WithSchemaInfo adiciona informações do schema
+func (e *InvalidSchemaError) WithSchemaInfo(schemaName, version string) *InvalidSchemaError {
+	e.SchemaName = schemaName
+	e.Version = version
 	return e
 }
 
-// WithSchemaDetails adiciona detalhes específicos sobre os erros do schema
+// WithSchemaDetails adiciona detalhes de validação do schema
 func (e *InvalidSchemaError) WithSchemaDetails(details map[string][]string) *InvalidSchemaError {
-	if e.Details == nil {
-		e.Details = make(map[string][]string)
-	}
-
-	for field, messages := range details {
-		e.Details[field] = append(e.Details[field], messages...)
-	}
+	e.Details = details
 	return e
 }
 
 // UnsupportedMediaTypeError representa erros de tipo de mídia não suportado
 type UnsupportedMediaTypeError struct {
 	*DomainError
-	ProvidedType   string   `json:"provided_type,omitempty"`
-	SupportedTypes []string `json:"supported_types,omitempty"`
+	MediaType string   `json:"media_type,omitempty"`
+	Supported []string `json:"supported,omitempty"`
 }
 
 // NewUnsupportedMediaTypeError cria um erro de tipo de mídia não suportado
-func NewUnsupportedMediaTypeError(message string) *UnsupportedMediaTypeError {
+func NewUnsupportedMediaTypeError(code, mediaType, message string) *UnsupportedMediaTypeError {
 	return &UnsupportedMediaTypeError{
-		DomainError: New("UNSUPPORTED_MEDIA_TYPE", message).WithType(ErrorTypeUnsupported),
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeUnsupportedMedia,
+			Timestamp: time.Now(),
+		},
+		MediaType: mediaType,
 	}
 }
 
-// WithMediaTypeInfo adiciona informações sobre os tipos de mídia
-func (e *UnsupportedMediaTypeError) WithMediaTypeInfo(providedType string, supportedTypes []string) *UnsupportedMediaTypeError {
-	e.ProvidedType = providedType
-	e.SupportedTypes = supportedTypes
+// WithSupportedTypes adiciona tipos suportados
+func (e *UnsupportedMediaTypeError) WithSupportedTypes(supported []string) *UnsupportedMediaTypeError {
+	e.Supported = supported
 	return e
-}
-
-// StatusCode implementa HttpStatusProvider
-func (e *UnsupportedMediaTypeError) StatusCode() int {
-	return http.StatusUnsupportedMediaType
 }
 
 // ServerError representa erros internos do servidor
 type ServerError struct {
 	*DomainError
-	ErrorCode     string         `json:"error_code,omitempty"`
-	Metadata      map[string]any `json:"metadata,omitempty"`
-	RequestID     string         `json:"request_id,omitempty"`
-	CorrelationID string         `json:"correlation_id,omitempty"`
+	RequestID     string `json:"request_id,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+	Component     string `json:"component,omitempty"`
 }
 
 // NewServerError cria um erro interno do servidor
-func NewServerError(message string, err error) *ServerError {
+func NewServerError(code, message string, cause error) *ServerError {
 	return &ServerError{
-		DomainError: NewWithError("SERVER_ERROR", message, err).WithType(ErrorTypeInternal),
-		Metadata:    make(map[string]any),
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeServer,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
 	}
 }
 
-// WithErrorCode adiciona um código de erro específico
-func (e *ServerError) WithErrorCode(code string) *ServerError {
-	e.ErrorCode = code
-	return e
-}
-
-// WithRequestInfo adiciona informações sobre a requisição
+// WithRequestInfo adiciona informações da requisição
 func (e *ServerError) WithRequestInfo(requestID, correlationID string) *ServerError {
 	e.RequestID = requestID
 	e.CorrelationID = correlationID
 	return e
 }
 
-// WithMetadata adiciona metadados ao erro
-func (e *ServerError) WithMetadata(metadata map[string]any) *ServerError {
-	if e.Metadata == nil {
-		e.Metadata = make(map[string]any)
-	}
-
-	for key, value := range metadata {
-		e.Metadata[key] = value
-	}
+// WithComponent adiciona informações do componente
+func (e *ServerError) WithComponent(component string) *ServerError {
+	e.Component = component
 	return e
-}
-
-// StatusCode implementa HttpStatusProvider
-func (e *ServerError) StatusCode() int {
-	return http.StatusInternalServerError
 }
 
 // UnprocessableEntityError representa erros de entidade não processável
@@ -641,15 +725,20 @@ type UnprocessableEntityError struct {
 }
 
 // NewUnprocessableEntityError cria um erro de entidade não processável
-func NewUnprocessableEntityError(message string) *UnprocessableEntityError {
+func NewUnprocessableEntityError(code, message string) *UnprocessableEntityError {
 	return &UnprocessableEntityError{
-		DomainError:      New("UNPROCESSABLE_ENTITY", message).WithType(ErrorTypeUnprocessable),
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeUnprocessable,
+			Timestamp: time.Now(),
+		},
 		ValidationErrors: make(map[string][]string),
 		BusinessRules:    make([]string, 0),
 	}
 }
 
-// WithEntityInfo adiciona informações sobre a entidade
+// WithEntityInfo adiciona informações da entidade
 func (e *UnprocessableEntityError) WithEntityInfo(entityType, entityID string) *UnprocessableEntityError {
 	e.EntityType = entityType
 	e.EntityID = entityID
@@ -657,294 +746,348 @@ func (e *UnprocessableEntityError) WithEntityInfo(entityType, entityID string) *
 }
 
 // WithValidationErrors adiciona erros de validação
-func (e *UnprocessableEntityError) WithValidationErrors(errors map[string][]string) *UnprocessableEntityError {
-	if e.ValidationErrors == nil {
-		e.ValidationErrors = make(map[string][]string)
-	}
-
-	for field, messages := range errors {
-		e.ValidationErrors[field] = append(e.ValidationErrors[field], messages...)
-	}
+func (e *UnprocessableEntityError) WithValidationErrors(validationErrors map[string][]string) *UnprocessableEntityError {
+	e.ValidationErrors = validationErrors
 	return e
 }
 
-// WithBusinessRuleViolation adiciona uma violação de regra de negócio
+// WithBusinessRuleViolation adiciona violação de regra de negócio
 func (e *UnprocessableEntityError) WithBusinessRuleViolation(rule string) *UnprocessableEntityError {
 	e.BusinessRules = append(e.BusinessRules, rule)
 	return e
 }
 
-// StatusCode implementa HttpStatusProvider
-func (e *UnprocessableEntityError) StatusCode() int {
-	return http.StatusUnprocessableEntity
-}
-
-// ServiceUnavailableError representa erros quando um serviço está indisponível
+// ServiceUnavailableError representa erros de serviço indisponível
 type ServiceUnavailableError struct {
 	*DomainError
-	ServiceName     string `json:"service_name,omitempty"`
-	ServiceType     string `json:"service_type,omitempty"`
-	RetryAfter      string `json:"retry_after,omitempty"`
-	EstimatedUptime string `json:"estimated_uptime,omitempty"`
-	HealthEndpoint  string `json:"health_endpoint,omitempty"`
+	ServiceName string `json:"service_name,omitempty"`
+	RetryAfter  string `json:"retry_after,omitempty"`
+	Endpoint    string `json:"endpoint,omitempty"`
 }
 
 // NewServiceUnavailableError cria um erro de serviço indisponível
-func NewServiceUnavailableError(serviceName, message string, err error) *ServiceUnavailableError {
+func NewServiceUnavailableError(code, serviceName, message string, cause error) *ServiceUnavailableError {
 	return &ServiceUnavailableError{
-		DomainError: NewWithError("SERVICE_UNAVAILABLE", message, err).WithType(ErrorTypeExternalService),
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeServiceUnavailable,
+			Cause:     cause,
+			Timestamp: time.Now(),
+		},
 		ServiceName: serviceName,
 	}
 }
 
-// WithServiceInfo adiciona informações sobre o serviço
-func (e *ServiceUnavailableError) WithServiceInfo(serviceType, healthEndpoint string) *ServiceUnavailableError {
-	e.ServiceType = serviceType
-	e.HealthEndpoint = healthEndpoint
-	return e
-}
-
-// WithRetryInfo adiciona informações sobre quando tentar novamente
-func (e *ServiceUnavailableError) WithRetryInfo(retryAfter, estimatedUptime string) *ServiceUnavailableError {
+// WithRetryInfo adiciona informações de retry
+func (e *ServiceUnavailableError) WithRetryInfo(retryAfter string) *ServiceUnavailableError {
 	e.RetryAfter = retryAfter
-	e.EstimatedUptime = estimatedUptime
 	return e
 }
 
-// StatusCode implementa HttpStatusProvider
-func (e *ServiceUnavailableError) StatusCode() int {
-	return http.StatusServiceUnavailable
+// WithEndpoint adiciona informações do endpoint
+func (e *ServiceUnavailableError) WithEndpoint(endpoint string) *ServiceUnavailableError {
+	e.Endpoint = endpoint
+	return e
 }
 
-// HttpStatusProvider é uma interface para tipos que podem fornecer um código de status HTTP
-type HttpStatusProvider interface {
-	StatusCode() int
+// WorkflowError representa erros de workflow
+type WorkflowError struct {
+	*DomainError
+	WorkflowName  string `json:"workflow_name,omitempty"`
+	StepName      string `json:"step_name,omitempty"`
+	CurrentState  string `json:"current_state,omitempty"`
+	ExpectedState string `json:"expected_state,omitempty"`
 }
 
-// GetStatusCode retorna o código de status HTTP para um erro
-// Se o erro implementa HttpStatusProvider, usa esse método
-// Caso contrário, tenta mapear com base no tipo do erro
-func GetStatusCode(err error) int {
-	if err == nil {
-		return http.StatusOK
-	}
-
-	// Se o erro implementa HttpStatusProvider, use o método
-	if provider, ok := err.(HttpStatusProvider); ok {
-		return provider.StatusCode()
-	}
-
-	// Tente verificar o tipo usando errors.Is e errors.As
-	switch {
-	case errors.Is(err, ErrNoRows):
-		return http.StatusNotFound
-	}
-
-	// Verificar tipos específicos usando errors.As
-	var (
-		validationErr           *ValidationError
-		notFoundErr             *NotFoundError
-		businessErr             *BusinessError
-		infraErr                *InfrastructureError
-		dbErr                   *DatabaseError
-		extServiceErr           *ExternalServiceError
-		authErr                 *AuthenticationError
-		authzErr                *AuthorizationError
-		timeoutErr              *TimeoutError
-		unsupportedOpErr        *UnsupportedOperationError
-		badReqErr               *BadRequestError
-		conflictErr             *ConflictError
-		rateLimitErr            *RateLimitError
-		circuitBreakerErr       *CircuitBreakerError
-		configErr               *ConfigurationError
-		securityErr             *SecurityError
-		resourceExhaustedErr    *ResourceExhaustedError
-		dependencyErr           *DependencyError
-		serializationErr        *SerializationError
-		cacheErr                *CacheError
-		workflowErr             *WorkflowError
-		migrationErr            *MigrationError
-		invalidSchemaErr        *InvalidSchemaError
-		unsupportedMediaTypeErr *UnsupportedMediaTypeError
-		serverErr               *ServerError
-		unprocessableEntityErr  *UnprocessableEntityError
-		serviceUnavailableErr   *ServiceUnavailableError
-	)
-
-	switch {
-	case errors.As(err, &validationErr):
-		return validationErr.StatusCode()
-	case errors.As(err, &notFoundErr):
-		return notFoundErr.StatusCode()
-	case errors.As(err, &businessErr):
-		return businessErr.StatusCode()
-	case errors.As(err, &infraErr):
-		return infraErr.StatusCode()
-	case errors.As(err, &dbErr):
-		return dbErr.StatusCode()
-	case errors.As(err, &extServiceErr):
-		return extServiceErr.StatusCode()
-	case errors.As(err, &authErr):
-		return authErr.StatusCode()
-	case errors.As(err, &authzErr):
-		return authzErr.StatusCode()
-	case errors.As(err, &timeoutErr):
-		return timeoutErr.StatusCode()
-	case errors.As(err, &unsupportedOpErr):
-		return unsupportedOpErr.StatusCode()
-	case errors.As(err, &badReqErr):
-		return badReqErr.StatusCode()
-	case errors.As(err, &conflictErr):
-		return conflictErr.StatusCode()
-	case errors.As(err, &rateLimitErr):
-		return rateLimitErr.StatusCode()
-	case errors.As(err, &circuitBreakerErr):
-		return circuitBreakerErr.StatusCode()
-	case errors.As(err, &configErr):
-		return configErr.StatusCode()
-	case errors.As(err, &securityErr):
-		return securityErr.StatusCode()
-	case errors.As(err, &resourceExhaustedErr):
-		return resourceExhaustedErr.StatusCode()
-	case errors.As(err, &dependencyErr):
-		return dependencyErr.StatusCode()
-	case errors.As(err, &serializationErr):
-		return serializationErr.StatusCode()
-	case errors.As(err, &cacheErr):
-		return cacheErr.StatusCode()
-	case errors.As(err, &workflowErr):
-		return workflowErr.StatusCode()
-	case errors.As(err, &migrationErr):
-		return migrationErr.StatusCode()
-	case errors.As(err, &invalidSchemaErr):
-		return invalidSchemaErr.StatusCode()
-	case errors.As(err, &unsupportedMediaTypeErr):
-		return unsupportedMediaTypeErr.StatusCode()
-	case errors.As(err, &serverErr):
-		return serverErr.StatusCode()
-	case errors.As(err, &unprocessableEntityErr):
-		return unprocessableEntityErr.StatusCode()
-	case errors.As(err, &serviceUnavailableErr):
-		return serviceUnavailableErr.StatusCode()
-	default:
-		return http.StatusInternalServerError
+// NewWorkflowError cria um erro de workflow
+func NewWorkflowError(code, workflowName, stepName, message string) *WorkflowError {
+	return &WorkflowError{
+		DomainError: &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      ErrorTypeWorkflow,
+			Timestamp: time.Now(),
+		},
+		WorkflowName: workflowName,
+		StepName:     stepName,
 	}
 }
 
-// StatusCode implementa HttpStatusProvider para ValidationError
-func (e *ValidationError) StatusCode() int {
-	return http.StatusBadRequest
+// WithStateInfo adiciona informações do estado
+func (e *WorkflowError) WithStateInfo(currentState, expectedState string) *WorkflowError {
+	e.CurrentState = currentState
+	e.ExpectedState = expectedState
+	return e
 }
 
-// StatusCode implementa HttpStatusProvider para NotFoundError
-func (e *NotFoundError) StatusCode() int {
-	return http.StatusNotFound
-}
-
-// StatusCode implementa HttpStatusProvider para BusinessError
-func (e *BusinessError) StatusCode() int {
-	return http.StatusUnprocessableEntity
-}
-
-// StatusCode implementa HttpStatusProvider para InfrastructureError
-func (e *InfrastructureError) StatusCode() int {
-	return http.StatusInternalServerError
-}
-
-// StatusCode implementa HttpStatusProvider para DatabaseError
-func (e *DatabaseError) StatusCode() int {
-	return http.StatusInternalServerError
-}
-
-// StatusCode implementa HttpStatusProvider para ExternalServiceError
-func (e *ExternalServiceError) StatusCode() int {
-	if e.HTTPStatus > 0 {
-		return e.HTTPStatus
+// Wrap é uma função utilitária para empilhar erros com código
+// Cria um novo DomainError encapsulando o erro original mantendo a cadeia de erros
+func Wrap(code, message string, cause error) *DomainError {
+	if cause == nil {
+		return nil
 	}
-	return http.StatusBadGateway
+
+	// Function to extract DomainError from various error types
+	extractDomainError := func(err error) *DomainError {
+		switch e := err.(type) {
+		case *DomainError:
+			return e
+		case *ValidationError:
+			return e.DomainError
+		case *NotFoundError:
+			return e.DomainError
+		case *BusinessError:
+			return e.DomainError
+		case *DatabaseError:
+			return e.DomainError
+		case *ExternalServiceError:
+			return e.DomainError
+		case *TimeoutError:
+			return e.DomainError
+		case *RateLimitError:
+			return e.DomainError
+		case *CircuitBreakerError:
+			return e.DomainError
+		case *InvalidSchemaError:
+			return e.DomainError
+		case *ServerError:
+			return e.DomainError
+		case *UnprocessableEntityError:
+			return e.DomainError
+		case *ServiceUnavailableError:
+			return e.DomainError
+		case *WorkflowError:
+			return e.DomainError
+		case *InfrastructureError:
+			return e.DomainError
+		case *AuthenticationError:
+			return e.DomainError
+		case *AuthorizationError:
+			return e.DomainError
+		case *SecurityError:
+			return e.DomainError
+		case *ResourceExhaustedError:
+			return e.DomainError
+		case *DependencyError:
+			return e.DomainError
+		case *BadRequestError:
+			return e.DomainError
+		case *ConflictError:
+			return e.DomainError
+		case *UnsupportedMediaTypeError:
+			return e.DomainError
+		case *MigrationError:
+			return e.DomainError
+		case *ConfigurationError:
+			return e.DomainError
+		case *UnsupportedOperationError:
+			return e.DomainError
+		case *SerializationError:
+			return e.DomainError
+		case *CacheError:
+			return e.DomainError
+		}
+		return nil
+	}
+
+	// Se o erro original já é um DomainError (ou tem DomainError embutido), preserve suas informações
+	if domainErr := extractDomainError(cause); domainErr != nil {
+		// Cria novo erro mantendo o contexto original
+		wrapped := &DomainError{
+			Code:      code,
+			Message:   message,
+			Type:      domainErr.Type, // Preserva o tipo original
+			Cause:     cause,
+			Timestamp: time.Now(),
+			Metadata:  make(map[string]interface{}),
+		}
+
+		// Copia metadados importantes do erro original
+		if domainErr.Metadata != nil {
+			for k, v := range domainErr.Metadata {
+				wrapped.Metadata[k] = v
+			}
+		}
+
+		wrapped.captureStackFrame("error wrapped")
+		return wrapped
+	}
+
+	// Para erros não-domain, cria um novo erro server
+	err := &DomainError{
+		Code:      code,
+		Message:   message,
+		Type:      ErrorTypeServer,
+		Cause:     cause,
+		Timestamp: time.Now(),
+		Metadata:  make(map[string]interface{}),
+	}
+	err.captureStackFrame("error wrapped")
+	return err
 }
 
-// StatusCode implementa HttpStatusProvider para AuthenticationError
-func (e *AuthenticationError) StatusCode() int {
-	return http.StatusUnauthorized
+// WrapWithContext é uma função utilitária para empilhar erros com contexto
+// Adiciona informações do contexto ao erro encapsulado
+func WrapWithContext(ctx context.Context, code, message string, cause error) *DomainError {
+	if cause == nil {
+		return nil
+	}
+
+	wrapped := Wrap(code, message, cause)
+
+	// Adiciona informações do contexto aos metadados
+	if ctx != nil {
+		// Extrai informações úteis do contexto
+		if deadline, ok := ctx.Deadline(); ok {
+			wrapped.WithMetadata("context_deadline", deadline.Format(time.RFC3339))
+		}
+
+		// Adiciona timeout se disponível
+		if ctx.Err() == context.DeadlineExceeded {
+			wrapped.WithMetadata("context_timeout", true)
+		}
+
+		// Adiciona cancelamento se disponível
+		if ctx.Err() == context.Canceled {
+			wrapped.WithMetadata("context_canceled", true)
+		}
+
+		// Adiciona valores do contexto se existirem
+		if traceID := ctx.Value("trace_id"); traceID != nil {
+			wrapped.WithMetadata("trace_id", traceID)
+		}
+
+		if requestID := ctx.Value("request_id"); requestID != nil {
+			wrapped.WithMetadata("request_id", requestID)
+		}
+	}
+
+	wrapped.captureStackFrame("error wrapped with context")
+	return wrapped
 }
 
-// StatusCode implementa HttpStatusProvider para AuthorizationError
-func (e *AuthorizationError) StatusCode() int {
-	return http.StatusForbidden
+// WrapWithType é uma função utilitária para empilhar erros com tipo específico
+// Permite especificar o tipo de erro ao fazer wrap
+func WrapWithType(code, message string, errorType ErrorType, cause error) *DomainError {
+	if cause == nil {
+		return nil
+	}
+
+	// Function to extract DomainError from various error types
+	extractDomainError := func(err error) *DomainError {
+		switch e := err.(type) {
+		case *DomainError:
+			return e
+		case *ValidationError:
+			return e.DomainError
+		case *NotFoundError:
+			return e.DomainError
+		case *BusinessError:
+			return e.DomainError
+		case *DatabaseError:
+			return e.DomainError
+		case *ExternalServiceError:
+			return e.DomainError
+		case *TimeoutError:
+			return e.DomainError
+		case *RateLimitError:
+			return e.DomainError
+		case *CircuitBreakerError:
+			return e.DomainError
+		case *InvalidSchemaError:
+			return e.DomainError
+		case *ServerError:
+			return e.DomainError
+		case *UnprocessableEntityError:
+			return e.DomainError
+		case *ServiceUnavailableError:
+			return e.DomainError
+		case *WorkflowError:
+			return e.DomainError
+		case *InfrastructureError:
+			return e.DomainError
+		case *AuthenticationError:
+			return e.DomainError
+		case *AuthorizationError:
+			return e.DomainError
+		case *SecurityError:
+			return e.DomainError
+		case *ResourceExhaustedError:
+			return e.DomainError
+		case *DependencyError:
+			return e.DomainError
+		case *BadRequestError:
+			return e.DomainError
+		case *ConflictError:
+			return e.DomainError
+		case *UnsupportedMediaTypeError:
+			return e.DomainError
+		case *MigrationError:
+			return e.DomainError
+		case *ConfigurationError:
+			return e.DomainError
+		case *UnsupportedOperationError:
+			return e.DomainError
+		case *SerializationError:
+			return e.DomainError
+		case *CacheError:
+			return e.DomainError
+		}
+		return nil
+	}
+
+	err := &DomainError{
+		Code:      code,
+		Message:   message,
+		Type:      errorType,
+		Cause:     cause,
+		Timestamp: time.Now(),
+		Metadata:  make(map[string]interface{}),
+	}
+
+	// Se o erro original é um DomainError, copia metadados relevantes
+	if domainErr := extractDomainError(cause); domainErr != nil && domainErr.Metadata != nil {
+		for k, v := range domainErr.Metadata {
+			err.Metadata[k] = v
+		}
+	}
+
+	err.captureStackFrame("error wrapped with type")
+	return err
 }
 
-// StatusCode implementa HttpStatusProvider para TimeoutError
-func (e *TimeoutError) StatusCode() int {
-	return http.StatusRequestTimeout
+// WrapChain é uma função utilitária para criar uma cadeia de erros
+// Permite adicionar múltiplas camadas de contexto ao erro
+func WrapChain(code, message string, cause error, layers ...string) *DomainError {
+	if cause == nil {
+		return nil
+	}
+
+	wrapped := Wrap(code, message, cause)
+
+	// Adiciona camadas de contexto
+	for i, layer := range layers {
+		wrapped.WithMetadata(fmt.Sprintf("layer_%d", i), layer)
+	}
+
+	wrapped.captureStackFrame("error wrapped in chain")
+	return wrapped
 }
 
-// StatusCode implementa HttpStatusProvider para UnsupportedOperationError
-func (e *UnsupportedOperationError) StatusCode() int {
-	return http.StatusNotImplemented
-}
+// FormatStackTrace retorna uma string formatada do stack de erros
+func (e *DomainError) FormatStackTrace() string {
+	if len(e.Stack) == 0 {
+		return ""
+	}
 
-// StatusCode implementa HttpStatusProvider para BadRequestError
-func (e *BadRequestError) StatusCode() int {
-	return http.StatusBadRequest
-}
+	var b strings.Builder
+	b.WriteString("Error Stack Trace:\n")
 
-// StatusCode implementa HttpStatusProvider para ConflictError
-func (e *ConflictError) StatusCode() int {
-	return http.StatusConflict
-}
+	for i, st := range e.Stack {
+		b.WriteString(fmt.Sprintf("%d: [%s] in %s (%s:%d)\n",
+			i+1, st.Message, st.Function, st.File, st.Line))
+	}
 
-// StatusCode implementa HttpStatusProvider para RateLimitError
-func (e *RateLimitError) StatusCode() int {
-	return http.StatusTooManyRequests
-}
-
-// StatusCode implementa HttpStatusProvider para CircuitBreakerError
-func (e *CircuitBreakerError) StatusCode() int {
-	return http.StatusServiceUnavailable
-}
-
-// StatusCode implementa HttpStatusProvider para ConfigurationError
-func (e *ConfigurationError) StatusCode() int {
-	return http.StatusInternalServerError
-}
-
-// StatusCode implementa HttpStatusProvider para SecurityError
-func (e *SecurityError) StatusCode() int {
-	return http.StatusForbidden
-}
-
-// StatusCode implementa HttpStatusProvider para ResourceExhaustedError
-func (e *ResourceExhaustedError) StatusCode() int {
-	return http.StatusInsufficientStorage
-}
-
-// StatusCode implementa HttpStatusProvider para DependencyError
-func (e *DependencyError) StatusCode() int {
-	return http.StatusFailedDependency
-}
-
-// StatusCode implementa HttpStatusProvider para SerializationError
-func (e *SerializationError) StatusCode() int {
-	return http.StatusUnprocessableEntity
-}
-
-// StatusCode implementa HttpStatusProvider para CacheError
-func (e *CacheError) StatusCode() int {
-	return http.StatusInternalServerError
-}
-
-// StatusCode implementa HttpStatusProvider para WorkflowError
-func (e *WorkflowError) StatusCode() int {
-	return http.StatusUnprocessableEntity
-}
-
-// StatusCode implementa HttpStatusProvider para MigrationError
-func (e *MigrationError) StatusCode() int {
-	return http.StatusInternalServerError
-}
-
-// StatusCode implementa HttpStatusProvider para InvalidSchemaError
-func (e *InvalidSchemaError) StatusCode() int {
-	return http.StatusBadRequest
+	return b.String()
 }

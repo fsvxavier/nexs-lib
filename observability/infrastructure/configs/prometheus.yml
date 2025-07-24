@@ -1,0 +1,68 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # OpenTelemetry Collector metrics
+  - job_name: 'otel-collector'
+    static_configs:
+      - targets: ['otel-collector:8888']
+    scrape_interval: 10s
+    metrics_path: /metrics
+
+  # Prometheus metrics from OTEL Collector
+  - job_name: 'otel-prometheus'
+    static_configs:
+      - targets: ['otel-collector:8889']
+    scrape_interval: 10s
+    metrics_path: /metrics
+
+  # Tempo metrics
+  - job_name: 'tempo'
+    static_configs:
+      - targets: ['tempo:3200']
+    scrape_interval: 15s
+    metrics_path: /metrics
+
+  # Jaeger metrics
+  - job_name: 'jaeger'
+    static_configs:
+      - targets: ['jaeger:14269']
+    scrape_interval: 15s
+    metrics_path: /metrics
+
+  # Elasticsearch metrics
+  - job_name: 'elasticsearch'
+    static_configs:
+      - targets: ['elasticsearch:9200']
+    scrape_interval: 30s
+    metrics_path: /_prometheus/metrics
+
+  # Redis metrics (if redis-exporter is available)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 15s
+
+  # PostgreSQL metrics (if postgres-exporter is available)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    scrape_interval: 15s
+
+  # Application metrics (for nexs-lib services)
+  - job_name: 'nexs-services'
+    static_configs:
+      - targets: ['host.docker.internal:8080', 'host.docker.internal:8081', 'host.docker.internal:8082']
+    scrape_interval: 10s
+    metrics_path: /metrics
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093

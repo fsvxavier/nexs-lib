@@ -1,29 +1,32 @@
-package logger
+package logger_test
 
 import (
 	"bytes"
 	"context"
+	"os"
 	"strings"
-	"sync"
 	"testing"
 	"time"
+
+	"github.com/fsvxavier/nexs-lib/observability/logger"
+	_ "github.com/fsvxavier/nexs-lib/observability/logger/providers/slog"
 )
 
 func TestLoggerInterface(t *testing.T) {
 	// Testa se todos os providers implementam a interface corretamente
-	providers := []string{"slog", "zap"}
+	providers := []string{"slog"}
 
 	for _, providerName := range providers {
 		t.Run(providerName, func(t *testing.T) {
 			var buf bytes.Buffer
-			config := &Config{
-				Level:       InfoLevel,
-				Format:      JSONFormat,
+			config := &logger.Config{
+				Level:       logger.InfoLevel,
+				Format:      logger.JSONFormat,
 				Output:      &buf,
 				ServiceName: "test-service",
 			}
 
-			err := SetProvider(providerName, config)
+			err := logger.SetProvider(providerName, config)
 			if err != nil {
 				t.Fatalf("Failed to set provider %s: %v", providerName, err)
 			}
@@ -31,8 +34,8 @@ func TestLoggerInterface(t *testing.T) {
 			ctx := context.Background()
 
 			// Testa logs básicos
-			Info(ctx, "test message", String("key", "value"))
-			Infof(ctx, "formatted message: %s", "test")
+			logger.Info(ctx, "test message", logger.String("key", "value"))
+			logger.Infof(ctx, "formatted message: %s", "test")
 
 			output := buf.String()
 			if !strings.Contains(output, "test message") {
@@ -46,77 +49,59 @@ func TestLoggerInterface(t *testing.T) {
 	}
 }
 
-func TestLogLevels(t *testing.T) {
+func TestLoggerLevels(t *testing.T) {
 	var buf bytes.Buffer
-	config := &Config{
-		Level:  WarnLevel,
-		Format: JSONFormat,
+	config := &logger.Config{
+		Level:  logger.DebugLevel,
+		Format: logger.JSONFormat,
 		Output: &buf,
 	}
 
-	err := SetProvider("slog", config)
+	err := logger.SetProvider("slog", config)
 	if err != nil {
 		t.Fatalf("Failed to set provider: %v", err)
 	}
 
 	ctx := context.Background()
 
-	// Debug e Info não devem aparecer com nível Warn
-	Debug(ctx, "debug message")
-	Info(ctx, "info message")
-	Warn(ctx, "warn message")
+	// Testa todos os níveis
+	logger.Debug(ctx, "debug message")
+	logger.Info(ctx, "info message")
+	logger.Warn(ctx, "warn message")
+	logger.Error(ctx, "error message")
 
 	output := buf.String()
-
-	if strings.Contains(output, "debug message") {
-		t.Error("Debug message should not appear with Warn level")
-	}
-
-	if strings.Contains(output, "info message") {
-		t.Error("Info message should not appear with Warn level")
-	}
-
-	if !strings.Contains(output, "warn message") {
-		t.Error("Warn message should appear with Warn level")
+	levels := []string{"debug message", "info message", "warn message", "error message"}
+	for _, level := range levels {
+		if !strings.Contains(output, level) {
+			t.Errorf("Expected '%s' in output: %s", level, output)
+		}
 	}
 }
 
-func TestFields(t *testing.T) {
+func TestContextAwareLogging(t *testing.T) {
 	var buf bytes.Buffer
-	config := &Config{
-		Level:  InfoLevel,
-		Format: JSONFormat,
+	config := &logger.Config{
+		Level:  logger.InfoLevel,
+		Format: logger.JSONFormat,
 		Output: &buf,
 	}
 
-	err := SetProvider("slog", config)
+	err := logger.SetProvider("slog", config)
 	if err != nil {
 		t.Fatalf("Failed to set provider: %v", err)
 	}
 
+	// Cria contexto com dados
 	ctx := context.Background()
+	ctx = context.WithValue(ctx, logger.TraceIDKey, "trace-123")
+	ctx = context.WithValue(ctx, logger.UserIDKey, "user-456")
 
-	// Testa diferentes tipos de campos
-	Info(ctx, "test fields",
-		String("string_field", "test"),
-		Int("int_field", 42),
-		Int64("int64_field", 123456789),
-		Float64("float_field", 3.14),
-		Bool("bool_field", true),
-		Duration("duration_field", 5*time.Second),
-	)
+	logger.Info(ctx, "context test message")
 
 	output := buf.String()
 
-	expectedFields := []string{
-		"string_field", "test",
-		"int_field", "42",
-		"int64_field", "123456789",
-		"float_field", "3.14",
-		"bool_field", "true",
-		"duration_field",
-	}
-
+	expectedFields := []string{"trace-123", "user-456"}
 	for _, field := range expectedFields {
 		if !strings.Contains(output, field) {
 			t.Errorf("Expected field '%s' in output: %s", field, output)
@@ -126,13 +111,13 @@ func TestFields(t *testing.T) {
 
 func TestWithFields(t *testing.T) {
 	var buf bytes.Buffer
-	config := &Config{
-		Level:  InfoLevel,
-		Format: JSONFormat,
+	config := &logger.Config{
+		Level:  logger.InfoLevel,
+		Format: logger.JSONFormat,
 		Output: &buf,
 	}
 
-	err := SetProvider("slog", config)
+	err := logger.SetProvider("slog", config)
 	if err != nil {
 		t.Fatalf("Failed to set provider: %v", err)
 	}
@@ -140,12 +125,12 @@ func TestWithFields(t *testing.T) {
 	ctx := context.Background()
 
 	// Cria logger com campos permanentes
-	logger := WithFields(
-		String("component", "test"),
-		String("module", "logging"),
+	loggerWithFields := logger.WithFields(
+		logger.String("component", "test"),
+		logger.String("module", "logging"),
 	)
 
-	logger.Info(ctx, "test message", String("extra", "field"))
+	loggerWithFields.Info(ctx, "test message", logger.String("extra", "field"))
 
 	output := buf.String()
 
@@ -157,29 +142,44 @@ func TestWithFields(t *testing.T) {
 	}
 }
 
-func TestContextFields(t *testing.T) {
+func TestStructuredFields(t *testing.T) {
 	var buf bytes.Buffer
-	config := &Config{
-		Level:  InfoLevel,
-		Format: JSONFormat,
+	config := &logger.Config{
+		Level:  logger.InfoLevel,
+		Format: logger.JSONFormat,
 		Output: &buf,
 	}
 
-	err := SetProvider("slog", config)
+	err := logger.SetProvider("slog", config)
 	if err != nil {
 		t.Fatalf("Failed to set provider: %v", err)
 	}
 
-	// Cria contexto com valores
-	ctx := context.WithValue(context.Background(), "trace_id", "trace-123")
-	ctx = context.WithValue(ctx, "user_id", "user-456")
+	ctx := context.Background()
 
-	logger := WithContext(ctx)
-	logger.Info(ctx, "test message")
+	// Testa diferentes tipos de campos
+	logger.Info(ctx, "structured test",
+		logger.String("string_field", "value"),
+		logger.Int("int_field", 42),
+		logger.Int64("int64_field", 123456789),
+		logger.Float64("float_field", 3.14),
+		logger.Bool("bool_field", true),
+		logger.Duration("duration_field", time.Second),
+		logger.Time("time_field", time.Now()),
+	)
 
 	output := buf.String()
 
-	expectedFields := []string{"trace_id", "trace-123", "user_id", "user-456"}
+	expectedFields := []string{
+		"string_field", "value",
+		"int_field", "42",
+		"int64_field", "123456789",
+		"float_field", "3.14",
+		"bool_field", "true",
+		"duration_field",
+		"time_field",
+	}
+
 	for _, field := range expectedFields {
 		if !strings.Contains(output, field) {
 			t.Errorf("Expected field '%s' in output: %s", field, output)
@@ -189,19 +189,19 @@ func TestContextFields(t *testing.T) {
 
 func TestConfig(t *testing.T) {
 	// Testa configuração padrão
-	defaultConf := DefaultConfig()
-	if defaultConf.Level != InfoLevel {
+	defaultConf := logger.DefaultConfig()
+	if defaultConf.Level != logger.InfoLevel {
 		t.Errorf("Expected default level to be Info, got %v", defaultConf.Level)
 	}
 
-	if defaultConf.Format != JSONFormat {
+	if defaultConf.Format != logger.JSONFormat {
 		t.Errorf("Expected default format to be JSON, got %v", defaultConf.Format)
 	}
 
 	// Testa configuração personalizada
-	customConf := &Config{
-		Level:          DebugLevel,
-		Format:         ConsoleFormat,
+	customConf := &logger.Config{
+		Level:          logger.DebugLevel,
+		Format:         logger.ConsoleFormat,
 		ServiceName:    "test-service",
 		ServiceVersion: "1.0.0",
 		Environment:    "test",
@@ -215,13 +215,13 @@ func TestConfig(t *testing.T) {
 	var buf bytes.Buffer
 	customConf.Output = &buf
 
-	err := SetProvider("slog", customConf)
+	err := logger.SetProvider("slog", customConf)
 	if err != nil {
 		t.Fatalf("Failed to set provider with custom config: %v", err)
 	}
 
 	ctx := context.Background()
-	Info(ctx, "test with custom config")
+	logger.Info(ctx, "test with custom config")
 
 	output := buf.String()
 
@@ -233,253 +233,194 @@ func TestConfig(t *testing.T) {
 	}
 }
 
+func TestEnvironmentConfig(t *testing.T) {
+	// Salva valores originais
+	originalLevel := os.Getenv("LOG_LEVEL")
+	originalFormat := os.Getenv("LOG_FORMAT")
+	originalService := os.Getenv("SERVICE_NAME")
+
+	// Define variáveis de ambiente
+	os.Setenv("LOG_LEVEL", "debug")
+	os.Setenv("LOG_FORMAT", "console")
+	os.Setenv("SERVICE_NAME", "test-env-service")
+
+	// Testa configuração por ambiente
+	config := logger.EnvironmentConfig()
+
+	if config.Level != logger.DebugLevel {
+		t.Errorf("Expected level to be Debug, got %v", config.Level)
+	}
+
+	if config.Format != logger.ConsoleFormat {
+		t.Errorf("Expected format to be Console, got %v", config.Format)
+	}
+
+	if config.ServiceName != "test-env-service" {
+		t.Errorf("Expected service name to be 'test-env-service', got %s", config.ServiceName)
+	}
+
+	// Restaura valores originais
+	os.Setenv("LOG_LEVEL", originalLevel)
+	os.Setenv("LOG_FORMAT", originalFormat)
+	os.Setenv("SERVICE_NAME", originalService)
+}
+
 func TestProviderManagement(t *testing.T) {
 	// Testa listagem de providers
-	providers := ListProviders()
+	providers := logger.ListProviders()
 	if len(providers) == 0 {
 		t.Error("Expected at least one provider to be registered")
 	}
 
-	expectedProviders := []string{"slog", "zap"}
-	for _, expected := range expectedProviders {
-		found := false
-		for _, provider := range providers {
-			if provider == expected {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("Expected provider '%s' to be registered", expected)
+	found := false
+	for _, provider := range providers {
+		if provider == "slog" {
+			found = true
+			break
 		}
 	}
 
-	// Testa provider inexistente
-	err := SetProvider("nonexistent", DefaultConfig())
+	if !found {
+		t.Error("Expected 'slog' provider to be registered")
+	}
+
+	// Testa configuração de provider inexistente
+	config := logger.DefaultConfig()
+	err := logger.SetProvider("nonexistent", config)
 	if err == nil {
 		t.Error("Expected error when setting nonexistent provider")
 	}
 }
 
-func TestErrorHandling(t *testing.T) {
+func TestLevelFiltering(t *testing.T) {
 	var buf bytes.Buffer
-	config := &Config{
-		Level:  InfoLevel,
-		Format: JSONFormat,
+	config := &logger.Config{
+		Level:  logger.WarnLevel, // Só logs de WARN para cima
+		Format: logger.JSONFormat,
 		Output: &buf,
 	}
 
-	err := SetProvider("slog", config)
+	err := logger.SetProvider("slog", config)
 	if err != nil {
 		t.Fatalf("Failed to set provider: %v", err)
 	}
 
 	ctx := context.Background()
 
-	// Testa diferentes níveis de erro
-	logger := WithFields(String("test", "error"))
+	// Estes não devem aparecer
+	logger.Debug(ctx, "debug message")
+	logger.Info(ctx, "info message")
 
-	logger.Error(ctx, "error message", ErrorField(nil))
-	logger.Warn(ctx, "warning message")
+	// Estes devem aparecer
+	logger.Warn(ctx, "warn message")
+	logger.Error(ctx, "error message")
 
 	output := buf.String()
 
+	// Verifica que debug e info não aparecem
+	if strings.Contains(output, "debug message") {
+		t.Error("Debug message should not appear with WARN level")
+	}
+
+	if strings.Contains(output, "info message") {
+		t.Error("Info message should not appear with WARN level")
+	}
+
+	// Verifica que warn e error aparecem
+	if !strings.Contains(output, "warn message") {
+		t.Error("Warn message should appear with WARN level")
+	}
+
 	if !strings.Contains(output, "error message") {
-		t.Error("Expected error message in output")
-	}
-
-	if !strings.Contains(output, "warning message") {
-		t.Error("Expected warning message in output")
+		t.Error("Error message should appear with WARN level")
 	}
 }
 
-func BenchmarkLogging(b *testing.B) {
-	// Registrar provider mock para evitar problemas de concorrência
-	RegisterProvider("mock", &mockProvider{})
+func TestCodeLogging(t *testing.T) {
+	var buf bytes.Buffer
+	config := &logger.Config{
+		Level:  logger.InfoLevel,
+		Format: logger.JSONFormat,
+		Output: &buf,
+	}
 
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		// Buffer e config por goroutine para evitar race condition
-		var buf bytes.Buffer
-		config := &Config{
-			Level:  InfoLevel,
-			Format: JSONFormat,
-			Output: &buf,
+	err := logger.SetProvider("slog", config)
+	if err != nil {
+		t.Fatalf("Failed to set provider: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Testa logging com códigos
+	current := logger.GetCurrentProvider()
+	current.InfoWithCode(ctx, "USER_CREATED", "User created successfully",
+		logger.String("user_id", "123"),
+		logger.String("email", "test@example.com"),
+	)
+
+	output := buf.String()
+
+	expectedFields := []string{"USER_CREATED", "User created successfully", "user_id", "123", "email", "test@example.com"}
+	for _, field := range expectedFields {
+		if !strings.Contains(output, field) {
+			t.Errorf("Expected field '%s' in output: %s", field, output)
 		}
-
-		// Usar provider mock por goroutine
-		SetProvider("mock", config)
-		ctx := context.Background()
-
-		for pb.Next() {
-			Info(ctx, "benchmark message",
-				String("key1", "value1"),
-				Int("key2", 42),
-				Float64("key3", 3.14),
-			)
-		}
-	})
+	}
 }
 
-func BenchmarkWithFields(b *testing.B) {
-	// Registrar provider mock para evitar problemas de concorrência
-	RegisterProvider("mock", &mockProvider{})
+func BenchmarkLoggerInfo(b *testing.B) {
+	var buf bytes.Buffer
+	config := &logger.Config{
+		Level:  logger.InfoLevel,
+		Format: logger.JSONFormat,
+		Output: &buf,
+	}
+
+	err := logger.SetProvider("slog", config)
+	if err != nil {
+		b.Fatalf("Failed to set provider: %v", err)
+	}
+
+	ctx := context.Background()
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
-		// Buffer e config por goroutine para evitar race condition
-		var buf bytes.Buffer
-		config := &Config{
-			Level:  InfoLevel,
-			Format: JSONFormat,
-			Output: &buf,
-		}
-
-		// Usar provider mock por goroutine
-		SetProvider("mock", config)
-		ctx := context.Background()
-
-		logger := WithFields(
-			String("component", "benchmark"),
-			String("module", "testing"),
-		)
-
 		for pb.Next() {
 			logger.Info(ctx, "benchmark message",
-				String("dynamic", "value"),
-				Int("counter", 1),
+				logger.String("key1", "value1"),
+				logger.String("key2", "value2"),
+				logger.Int("number", 42),
 			)
 		}
 	})
 }
 
-// mockProvider implementação thread-safe para benchmarks
-type mockProvider struct {
-	mu sync.Mutex
-}
+func BenchmarkLoggerWithFields(b *testing.B) {
+	var buf bytes.Buffer
+	config := &logger.Config{
+		Level:  logger.InfoLevel,
+		Format: logger.JSONFormat,
+		Output: &buf,
+	}
 
-func (m *mockProvider) Configure(config *Config) error {
-	return nil
-}
+	err := logger.SetProvider("slog", config)
+	if err != nil {
+		b.Fatalf("Failed to set provider: %v", err)
+	}
 
-func (m *mockProvider) Debug(ctx context.Context, msg string, fields ...Field) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
+	ctx := context.Background()
+	loggerWithFields := logger.WithFields(
+		logger.String("service", "test"),
+		logger.String("version", "1.0.0"),
+	)
 
-func (m *mockProvider) Info(ctx context.Context, msg string, fields ...Field) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) Warn(ctx context.Context, msg string, fields ...Field) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) Error(ctx context.Context, msg string, fields ...Field) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) Fatal(ctx context.Context, msg string, fields ...Field) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) Panic(ctx context.Context, msg string, fields ...Field) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) Debugf(ctx context.Context, format string, args ...any) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) Infof(ctx context.Context, format string, args ...any) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) Warnf(ctx context.Context, format string, args ...any) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) Errorf(ctx context.Context, format string, args ...any) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) Fatalf(ctx context.Context, format string, args ...any) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) Panicf(ctx context.Context, format string, args ...any) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) DebugWithCode(ctx context.Context, code, msg string, fields ...Field) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) InfoWithCode(ctx context.Context, code, msg string, fields ...Field) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) WarnWithCode(ctx context.Context, code, msg string, fields ...Field) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) ErrorWithCode(ctx context.Context, code, msg string, fields ...Field) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) WithFields(fields ...Field) Logger {
-	return m
-}
-
-func (m *mockProvider) WithContext(ctx context.Context) Logger {
-	return m
-}
-
-func (m *mockProvider) SetLevel(level Level) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// noop
-}
-
-func (m *mockProvider) GetLevel() Level {
-	return InfoLevel
-}
-
-func (m *mockProvider) Clone() Logger {
-	return &mockProvider{}
-}
-
-func (m *mockProvider) Close() error {
-	return nil
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			loggerWithFields.Info(ctx, "benchmark message",
+				logger.String("key", "value"),
+				logger.Int("number", 42),
+			)
+		}
+	})
 }

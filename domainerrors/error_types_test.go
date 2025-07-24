@@ -2,586 +2,811 @@ package domainerrors
 
 import (
 	"errors"
-	"net/http"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
+	"time"
 )
 
-// Custom error type that implements HttpStatusProvider
-type customStatusError struct{}
+func TestNewValidationError(t *testing.T) {
+	cause := errors.New("validation failed")
 
-func (e customStatusError) Error() string {
-	return "custom status error"
-}
+	err := NewValidationError("VALIDATION_FAILED", "validation error", cause)
 
-func (e customStatusError) StatusCode() int {
-	return http.StatusTeapot
-}
-
-func TestValidationError2(t *testing.T) {
-	t.Run("NewValidationError", func(t *testing.T) {
-		fields := map[string][]string{"email": {"invalid format"}}
-		err := NewValidationError("validation failed", fields)
-
-		assert.Equal(t, "VALIDATION_ERROR", err.Code)
-		assert.Equal(t, "validation failed", err.Message)
-		assert.Equal(t, ErrorTypeValidation, err.Type)
-		assert.Equal(t, fields, err.ValidatedFields)
-	})
-
-	t.Run("WithField", func(t *testing.T) {
-		err := NewValidationError("validation failed", nil)
-		err.WithField("email", "invalid format")
-		err.WithField("email", "required field")
-
-		assert.Equal(t, 2, len(err.ValidatedFields["email"]))
-		assert.Contains(t, err.ValidatedFields["email"], "invalid format")
-		assert.Contains(t, err.ValidatedFields["email"], "required field")
-	})
-
-	t.Run("WithFields", func(t *testing.T) {
-		err := NewValidationError("validation failed", nil)
-		fields := map[string][]string{
-			"email":    {"invalid format"},
-			"password": {"too short", "needs special character"},
-		}
-		err.WithFields(fields)
-
-		assert.Equal(t, 1, len(err.ValidatedFields["email"]))
-		assert.Equal(t, 2, len(err.ValidatedFields["password"]))
-	})
-}
-
-func TestNotFoundError2(t *testing.T) {
-	t.Run("NewNotFoundError", func(t *testing.T) {
-		err := NewNotFoundError("user not found")
-
-		assert.Equal(t, "NOT_FOUND", err.Code)
-		assert.Equal(t, "user not found", err.Message)
-		assert.Equal(t, ErrorTypeNotFound, err.Type)
-	})
-
-	t.Run("WithResource", func(t *testing.T) {
-		err := NewNotFoundError("user not found").WithResource("user", "123")
-
-		assert.Equal(t, "user", err.ResourceType)
-		assert.Equal(t, "123", err.ResourceID)
-	})
-}
-
-func TestBusinessError2(t *testing.T) {
-	t.Run("NewBusinessError", func(t *testing.T) {
-		err := NewBusinessError("CREDIT_LIMIT", "credit limit exceeded")
-
-		assert.Equal(t, "CREDIT_LIMIT", err.Code)
-		assert.Equal(t, "credit limit exceeded", err.Message)
-		assert.Equal(t, ErrorTypeBusinessRule, err.Type)
-		assert.Equal(t, "CREDIT_LIMIT", err.BusinessCode)
-	})
-}
-
-func TestInfrastructureError(t *testing.T) {
-	t.Run("NewInfrastructureError", func(t *testing.T) {
-		underlying := errors.New("connection refused")
-		err := NewInfrastructureError("database", "failed to connect", underlying)
-
-		assert.Equal(t, "INFRA_ERROR", err.Code)
-		assert.Equal(t, "failed to connect", err.Message)
-		assert.Equal(t, ErrorTypeInfrastructure, err.Type)
-		assert.Equal(t, "database", err.Component)
-		assert.ErrorIs(t, err.Unwrap(), underlying)
-	})
-}
-
-func TestDatabaseError2(t *testing.T) {
-	t.Run("NewDatabaseError", func(t *testing.T) {
-		underlying := errors.New("duplicate key value")
-		err := NewDatabaseError("insert failed", underlying)
-
-		assert.Equal(t, "INFRA_ERROR", err.Code)
-		assert.Equal(t, "insert failed", err.Message)
-		assert.Equal(t, ErrorTypeInfrastructure, err.Type)
-		assert.Equal(t, "database", err.Component)
-	})
-
-	t.Run("WithOperation", func(t *testing.T) {
-		err := NewDatabaseError("insert failed", nil).WithOperation("INSERT", "users")
-
-		assert.Equal(t, "INSERT", err.Operation)
-		assert.Equal(t, "users", err.Table)
-	})
-
-	t.Run("WithSQLState", func(t *testing.T) {
-		err := NewDatabaseError("insert failed", nil).WithSQLState("23505")
-
-		assert.Equal(t, "23505", err.SQLState)
-	})
-}
-
-func TestExternalServiceError2(t *testing.T) {
-	t.Run("NewExternalServiceError", func(t *testing.T) {
-		underlying := errors.New("timeout")
-		err := NewExternalServiceError("payment-api", "payment failed", underlying)
-
-		assert.Equal(t, "EXTERNAL_ERROR", err.Code)
-		assert.Equal(t, "payment failed", err.Message)
-		assert.Equal(t, ErrorTypeExternalService, err.Type)
-		assert.Equal(t, "payment-api", err.ServiceName)
-	})
-
-	t.Run("WithStatusCode", func(t *testing.T) {
-		err := NewExternalServiceError("payment-api", "payment failed", nil).WithStatusCode(502)
-
-		assert.Equal(t, 502, err.HTTPStatus)
-	})
-
-	t.Run("WithResponse", func(t *testing.T) {
-		response := map[string]interface{}{"error": "insufficient funds"}
-		err := NewExternalServiceError("payment-api", "payment failed", nil).WithResponse(response)
-
-		assert.Equal(t, response, err.Response)
-	})
-}
-
-func TestAuthenticationError(t *testing.T) {
-	t.Run("NewAuthenticationError", func(t *testing.T) {
-		err := NewAuthenticationError("invalid credentials")
-
-		assert.Equal(t, "AUTH_ERROR", err.Code)
-		assert.Equal(t, "invalid credentials", err.Message)
-		assert.Equal(t, ErrorTypeAuthentication, err.Type)
-	})
-
-	t.Run("WithReason", func(t *testing.T) {
-		err := NewAuthenticationError("invalid credentials").WithReason("password mismatch")
-
-		assert.Equal(t, "password mismatch", err.Reason)
-	})
-}
-
-func TestAuthorizationError(t *testing.T) {
-	t.Run("NewAuthorizationError", func(t *testing.T) {
-		err := NewAuthorizationError("insufficient permissions")
-
-		assert.Equal(t, "FORBIDDEN", err.Code)
-		assert.Equal(t, "insufficient permissions", err.Message)
-		assert.Equal(t, ErrorTypeAuthorization, err.Type)
-	})
-
-	t.Run("WithRequiredPermission", func(t *testing.T) {
-		err := NewAuthorizationError("insufficient permissions").WithRequiredPermission("admin:write", "user123")
-
-		assert.Equal(t, "admin:write", err.RequiredPermission)
-		assert.Equal(t, "user123", err.UserID)
-	})
-}
-
-func TestGetStatusCode(t *testing.T) {
-	t.Run("nil error", func(t *testing.T) {
-		code := GetStatusCode(nil)
-		assert.Equal(t, http.StatusOK, code)
-	})
-
-	t.Run("HttpStatusProvider implementation", func(t *testing.T) {
-		err := customStatusError{}
-		code := GetStatusCode(err)
-		assert.Equal(t, http.StatusTeapot, code)
-	})
-
-	t.Run("ErrNoRows", func(t *testing.T) {
-		code := GetStatusCode(ErrNoRows)
-		assert.Equal(t, http.StatusNotFound, code)
-	})
-
-	t.Run("generic error", func(t *testing.T) {
-		err := errors.New("some error")
-		code := GetStatusCode(err)
-		assert.Equal(t, http.StatusInternalServerError, code)
-	})
-}
-
-func TestTimeoutError(t *testing.T) {
-	t.Run("NewTimeoutError", func(t *testing.T) {
-		err := NewTimeoutError("database query", "operation timed out")
-
-		assert.Equal(t, "TIMEOUT", err.Code)
-		assert.Equal(t, "operation timed out", err.Message)
-		assert.Equal(t, "database query", err.OperationName)
-		assert.Equal(t, ErrorTypeTimeout, err.Type)
-	})
-
-	t.Run("WithThreshold", func(t *testing.T) {
-		err := NewTimeoutError("database query", "operation timed out").WithThreshold("30s")
-
-		assert.Equal(t, "30s", err.Threshold)
-	})
-}
-
-func TestBadRequestError(t *testing.T) {
-	t.Run("NewBadRequestError", func(t *testing.T) {
-		err := NewBadRequestError("invalid request parameters")
-
-		assert.Equal(t, "BAD_REQUEST", err.Code)
-		assert.Equal(t, "invalid request parameters", err.Message)
-		assert.Equal(t, ErrorTypeBadRequest, err.Type)
-		assert.NotNil(t, err.InvalidParams)
-	})
-
-	t.Run("WithInvalidParam", func(t *testing.T) {
-		err := NewBadRequestError("invalid request parameters")
-		err.WithInvalidParam("age", "must be positive number")
-
-		assert.Equal(t, "must be positive number", err.InvalidParams["age"])
-	})
-}
-func TestUnsupportedOperationError(t *testing.T) {
-	t.Run("NewUnsupportedOperationError", func(t *testing.T) {
-		operation := "deleteAllData"
-		message := "operation not allowed"
-		err := NewUnsupportedOperationError(operation, message)
-
-		assert.Equal(t, "UNSUPPORTED", err.Code)
-		assert.Equal(t, message, err.Message)
-		assert.Equal(t, ErrorTypeUnsupported, err.Type)
-		assert.Equal(t, operation, err.Operation)
-	})
-}
-
-func TestInvalidSchemaError(t *testing.T) {
-	t.Run("NewInvalidSchemaError", func(t *testing.T) {
-		details := map[string][]string{
-			"name": {"required field missing"},
-			"age":  {"must be a positive number"},
-		}
-
-		err := NewInvalidSchemaError("Schema validation failed").
-			WithSchemaInfo("user-schema", "v1.0").
-			WithSchemaDetails(details)
-
-		assert.Equal(t, "INVALID_SCHEMA", err.Code)
-		assert.Equal(t, "Schema validation failed", err.Message)
-		assert.Equal(t, ErrorTypeValidation, err.Type)
-		assert.Equal(t, "user-schema", err.SchemaName)
-		assert.Equal(t, "v1.0", err.SchemaVersion)
-		assert.Equal(t, http.StatusBadRequest, err.StatusCode())
-		assert.Len(t, err.Details["name"], 1)
-		assert.Contains(t, err.Details["name"], "required field missing")
-		assert.Len(t, err.Details["age"], 1)
-		assert.Contains(t, err.Details["age"], "must be a positive number")
-	})
-
-	t.Run("WithSchemaInfo", func(t *testing.T) {
-		err := NewInvalidSchemaError("test").WithSchemaInfo("product-schema", "v2.1")
-
-		assert.Equal(t, "product-schema", err.SchemaName)
-		assert.Equal(t, "v2.1", err.SchemaVersion)
-	})
-
-	t.Run("WithSchemaDetails", func(t *testing.T) {
-		err := NewInvalidSchemaError("test")
-		details := map[string][]string{
-			"field1": {"error1", "error2"},
-			"field2": {"error3"},
-		}
-		err.WithSchemaDetails(details)
-
-		assert.Len(t, err.Details["field1"], 2)
-		assert.Len(t, err.Details["field2"], 1)
-		assert.Contains(t, err.Details["field1"], "error1")
-		assert.Contains(t, err.Details["field1"], "error2")
-	})
-}
-
-func TestUnsupportedMediaTypeError(t *testing.T) {
-	t.Run("NewUnsupportedMediaTypeError", func(t *testing.T) {
-		supportedTypes := []string{"application/json", "application/xml"}
-		err := NewUnsupportedMediaTypeError("Media type not supported").
-			WithMediaTypeInfo("text/plain", supportedTypes)
-
-		assert.Equal(t, "UNSUPPORTED_MEDIA_TYPE", err.Code)
-		assert.Equal(t, "Media type not supported", err.Message)
-		assert.Equal(t, ErrorTypeUnsupported, err.Type)
-		assert.Equal(t, "text/plain", err.ProvidedType)
-		assert.Equal(t, http.StatusUnsupportedMediaType, err.StatusCode())
-		assert.Len(t, err.SupportedTypes, 2)
-		assert.Contains(t, err.SupportedTypes, "application/json")
-		assert.Contains(t, err.SupportedTypes, "application/xml")
-	})
-
-	t.Run("WithMediaTypeInfo", func(t *testing.T) {
-		supportedTypes := []string{"application/json"}
-		err := NewUnsupportedMediaTypeError("test").WithMediaTypeInfo("text/csv", supportedTypes)
-
-		assert.Equal(t, "text/csv", err.ProvidedType)
-		assert.Equal(t, supportedTypes, err.SupportedTypes)
-	})
-}
-
-func TestServerError(t *testing.T) {
-	t.Run("NewServerError", func(t *testing.T) {
-		originalErr := errors.New("database connection failed")
-		metadata := map[string]any{
-			"db_host": "localhost",
-			"db_port": 5432,
-		}
-
-		err := NewServerError("Internal server error", originalErr).
-			WithErrorCode("DB_CONN_001").
-			WithRequestInfo("req-123", "corr-456").
-			WithMetadata(metadata)
-
-		assert.Equal(t, "SERVER_ERROR", err.Code)
-		assert.Equal(t, "Internal server error", err.Message)
-		assert.Equal(t, ErrorTypeInternal, err.Type)
-		assert.Equal(t, "DB_CONN_001", err.ErrorCode)
-		assert.Equal(t, "req-123", err.RequestID)
-		assert.Equal(t, "corr-456", err.CorrelationID)
-		assert.Equal(t, http.StatusInternalServerError, err.StatusCode())
-		assert.Equal(t, "localhost", err.Metadata["db_host"])
-		assert.Equal(t, 5432, err.Metadata["db_port"])
-		assert.ErrorIs(t, err.Unwrap(), originalErr)
-	})
-
-	t.Run("WithErrorCode", func(t *testing.T) {
-		err := NewServerError("test", nil).WithErrorCode("ERR_001")
-
-		assert.Equal(t, "ERR_001", err.ErrorCode)
-	})
-
-	t.Run("WithRequestInfo", func(t *testing.T) {
-		err := NewServerError("test", nil).WithRequestInfo("req-456", "corr-789")
-
-		assert.Equal(t, "req-456", err.RequestID)
-		assert.Equal(t, "corr-789", err.CorrelationID)
-	})
-
-	t.Run("WithMetadata", func(t *testing.T) {
-		metadata := map[string]any{
-			"key1": "value1",
-			"key2": 42,
-		}
-		err := NewServerError("test", nil).WithMetadata(metadata)
-
-		assert.Equal(t, "value1", err.Metadata["key1"])
-		assert.Equal(t, 42, err.Metadata["key2"])
-	})
-}
-
-func TestUnprocessableEntityError(t *testing.T) {
-	t.Run("NewUnprocessableEntityError", func(t *testing.T) {
-		validationErrors := map[string][]string{
-			"email": {"invalid format", "already exists"},
-			"age":   {"must be 18 or older"},
-		}
-
-		err := NewUnprocessableEntityError("Entity validation failed").
-			WithEntityInfo("User", "user-123").
-			WithValidationErrors(validationErrors).
-			WithBusinessRuleViolation("User must be verified before activation")
-
-		assert.Equal(t, "UNPROCESSABLE_ENTITY", err.Code)
-		assert.Equal(t, "Entity validation failed", err.Message)
-		assert.Equal(t, ErrorTypeUnprocessable, err.Type)
-		assert.Equal(t, "User", err.EntityType)
-		assert.Equal(t, "user-123", err.EntityID)
-		assert.Equal(t, http.StatusUnprocessableEntity, err.StatusCode())
-		assert.Len(t, err.ValidationErrors["email"], 2)
-		assert.Contains(t, err.ValidationErrors["email"], "invalid format")
-		assert.Contains(t, err.ValidationErrors["email"], "already exists")
-		assert.Len(t, err.BusinessRules, 1)
-		assert.Contains(t, err.BusinessRules, "User must be verified before activation")
-	})
-
-	t.Run("WithEntityInfo", func(t *testing.T) {
-		err := NewUnprocessableEntityError("test").WithEntityInfo("Product", "prod-456")
-
-		assert.Equal(t, "Product", err.EntityType)
-		assert.Equal(t, "prod-456", err.EntityID)
-	})
-
-	t.Run("WithValidationErrors", func(t *testing.T) {
-		err := NewUnprocessableEntityError("test")
-		errors := map[string][]string{
-			"name":  {"required"},
-			"price": {"must be positive", "required"},
-		}
-		err.WithValidationErrors(errors)
-
-		assert.Len(t, err.ValidationErrors["name"], 1)
-		assert.Len(t, err.ValidationErrors["price"], 2)
-	})
-
-	t.Run("WithBusinessRuleViolation", func(t *testing.T) {
-		err := NewUnprocessableEntityError("test").
-			WithBusinessRuleViolation("Rule 1").
-			WithBusinessRuleViolation("Rule 2")
-
-		assert.Len(t, err.BusinessRules, 2)
-		assert.Contains(t, err.BusinessRules, "Rule 1")
-		assert.Contains(t, err.BusinessRules, "Rule 2")
-	})
-}
-
-func TestServiceUnavailableError(t *testing.T) {
-	t.Run("NewServiceUnavailableError", func(t *testing.T) {
-		originalErr := errors.New("connection timeout")
-		err := NewServiceUnavailableError("payment-service", "Service temporarily unavailable", originalErr).
-			WithServiceInfo("payment", "/health").
-			WithRetryInfo("30s", "5 minutes")
-
-		assert.Equal(t, "SERVICE_UNAVAILABLE", err.Code)
-		assert.Equal(t, "Service temporarily unavailable", err.Message)
-		assert.Equal(t, ErrorTypeExternalService, err.Type)
-		assert.Equal(t, "payment-service", err.ServiceName)
-		assert.Equal(t, "payment", err.ServiceType)
-		assert.Equal(t, "/health", err.HealthEndpoint)
-		assert.Equal(t, "30s", err.RetryAfter)
-		assert.Equal(t, "5 minutes", err.EstimatedUptime)
-		assert.Equal(t, http.StatusServiceUnavailable, err.StatusCode())
-		assert.ErrorIs(t, err.Unwrap(), originalErr)
-	})
-
-	t.Run("WithServiceInfo", func(t *testing.T) {
-		err := NewServiceUnavailableError("test", "test", nil).
-			WithServiceInfo("auth", "/status")
-
-		assert.Equal(t, "auth", err.ServiceType)
-		assert.Equal(t, "/status", err.HealthEndpoint)
-	})
-
-	t.Run("WithRetryInfo", func(t *testing.T) {
-		err := NewServiceUnavailableError("test", "test", nil).
-			WithRetryInfo("60s", "10 minutes")
-
-		assert.Equal(t, "60s", err.RetryAfter)
-		assert.Equal(t, "10 minutes", err.EstimatedUptime)
-	})
-}
-
-func TestExtendedGetStatusCode(t *testing.T) {
-	tests := []struct {
-		name     string
-		err      error
-		expected int
-	}{
-		{
-			name:     "InvalidSchemaError",
-			err:      NewInvalidSchemaError("test"),
-			expected: http.StatusBadRequest,
-		},
-		{
-			name:     "UnsupportedMediaTypeError",
-			err:      NewUnsupportedMediaTypeError("test"),
-			expected: http.StatusUnsupportedMediaType,
-		},
-		{
-			name:     "ServerError",
-			err:      NewServerError("test", nil),
-			expected: http.StatusInternalServerError,
-		},
-		{
-			name:     "UnprocessableEntityError",
-			err:      NewUnprocessableEntityError("test"),
-			expected: http.StatusUnprocessableEntity,
-		},
-		{
-			name:     "ServiceUnavailableError",
-			err:      NewServiceUnavailableError("test", "test", nil),
-			expected: http.StatusServiceUnavailable,
-		},
+	if err == nil {
+		t.Fatal("expected error, got nil")
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			statusCode := GetStatusCode(tt.err)
-			assert.Equal(t, tt.expected, statusCode, "Expected status code %d for %s, got %d", tt.expected, tt.name, statusCode)
-		})
+	if err.Code != "VALIDATION_FAILED" {
+		t.Errorf("expected code 'VALIDATION_FAILED', got %q", err.Code)
+	}
+
+	if err.Message != "validation error" {
+		t.Errorf("expected message 'validation error', got %q", err.Message)
+	}
+
+	if err.Type != ErrorTypeValidation {
+		t.Errorf("expected type %q, got %q", ErrorTypeValidation, err.Type)
+	}
+
+	if err.Cause != cause {
+		t.Errorf("expected cause %v, got %v", cause, err.Cause)
+	}
+
+	if err.Fields == nil {
+		t.Error("expected fields to be initialized")
 	}
 }
 
-func TestNewErrorTypesHelperFunctions(t *testing.T) {
-	t.Run("IsInvalidSchemaError", func(t *testing.T) {
-		err := NewInvalidSchemaError("test")
-		assert.True(t, IsInvalidSchemaError(err))
-		assert.False(t, IsInvalidSchemaError(NewValidationError("test", nil)))
-		assert.False(t, IsInvalidSchemaError(errors.New("regular error")))
-	})
+func TestValidationError_WithField(t *testing.T) {
+	err := NewValidationError("VALIDATION_FAILED", "validation error", nil)
 
-	t.Run("IsUnsupportedMediaTypeError", func(t *testing.T) {
-		err := NewUnsupportedMediaTypeError("test")
-		assert.True(t, IsUnsupportedMediaTypeError(err))
-		assert.False(t, IsUnsupportedMediaTypeError(NewValidationError("test", nil)))
-	})
+	result := err.WithField("email", "invalid format")
+	if result != err {
+		t.Error("expected same instance")
+	}
 
-	t.Run("IsServerError", func(t *testing.T) {
-		err := NewServerError("test", nil)
-		assert.True(t, IsServerError(err))
-		assert.False(t, IsServerError(NewValidationError("test", nil)))
-	})
+	if len(err.Fields["email"]) != 1 {
+		t.Errorf("expected 1 error for email, got %d", len(err.Fields["email"]))
+	}
 
-	t.Run("IsUnprocessableEntityError", func(t *testing.T) {
-		err := NewUnprocessableEntityError("test")
-		assert.True(t, IsUnprocessableEntityError(err))
-		assert.False(t, IsUnprocessableEntityError(NewValidationError("test", nil)))
-	})
+	if err.Fields["email"][0] != "invalid format" {
+		t.Errorf("expected 'invalid format', got %q", err.Fields["email"][0])
+	}
 
-	t.Run("IsServiceUnavailableError", func(t *testing.T) {
-		err := NewServiceUnavailableError("test", "test", nil)
-		assert.True(t, IsServiceUnavailableError(err))
-		assert.False(t, IsServiceUnavailableError(NewValidationError("test", nil)))
-	})
+	// Test adding multiple errors for same field
+	err.WithField("email", "required")
+	if len(err.Fields["email"]) != 2 {
+		t.Errorf("expected 2 errors for email, got %d", len(err.Fields["email"]))
+	}
+}
 
-	t.Run("NewInvalidSchemaErrorFromDetails", func(t *testing.T) {
-		details := map[string][]string{
-			"field1": {"error1", "error2"},
-		}
-		err := NewInvalidSchemaErrorFromDetails("test-schema", details)
+func TestNewNotFoundError(t *testing.T) {
+	err := NewNotFoundError("NOT_FOUND", "user not found", nil)
 
-		assert.Equal(t, "test-schema", err.SchemaName)
-		assert.Len(t, err.Details["field1"], 2)
-		assert.Contains(t, err.Details["field1"], "error1")
-		assert.Contains(t, err.Details["field1"], "error2")
-		assert.Contains(t, err.Message, "test-schema")
-	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
 
-	t.Run("NewUnsupportedMediaTypeErrorFromTypes", func(t *testing.T) {
-		supportedTypes := []string{"application/json", "application/xml"}
-		err := NewUnsupportedMediaTypeErrorFromTypes("text/plain", supportedTypes)
+	if err.Code != "NOT_FOUND" {
+		t.Errorf("expected code 'NOT_FOUND', got %q", err.Code)
+	}
 
-		assert.Equal(t, "text/plain", err.ProvidedType)
-		assert.Len(t, err.SupportedTypes, 2)
-		assert.Contains(t, err.SupportedTypes, "application/json")
-		assert.Contains(t, err.SupportedTypes, "application/xml")
-		assert.Contains(t, err.Message, "text/plain")
-	})
+	if err.Message != "user not found" {
+		t.Errorf("expected message 'user not found', got %q", err.Message)
+	}
 
-	t.Run("NewServerErrorWithCode", func(t *testing.T) {
-		err := NewServerErrorWithCode("DB_001", "Database error", nil)
+	if err.Type != ErrorTypeNotFound {
+		t.Errorf("expected type %q, got %q", ErrorTypeNotFound, err.Type)
+	}
+}
 
-		assert.Equal(t, "SERVER_ERROR", err.Code)
-		assert.Equal(t, "DB_001", err.ErrorCode)
-		assert.Equal(t, "Database error", err.Message)
-	})
+func TestNotFoundError_WithResource(t *testing.T) {
+	err := NewNotFoundError("NOT_FOUND", "resource not found", nil)
 
-	t.Run("NewUnprocessableEntityErrorFromValidation", func(t *testing.T) {
-		validationErrors := map[string][]string{
-			"email": {"invalid"},
-			"age":   {"required"},
-		}
-		err := NewUnprocessableEntityErrorFromValidation("User", "user-123", validationErrors)
+	result := err.WithResource("user", "123")
+	if result != err {
+		t.Error("expected same instance")
+	}
 
-		assert.Equal(t, "User", err.EntityType)
-		assert.Equal(t, "user-123", err.EntityID)
-		assert.Equal(t, validationErrors, err.ValidationErrors)
-		assert.Contains(t, err.Message, "User")
-	})
+	if err.ResourceType != "user" {
+		t.Errorf("expected resource type 'user', got %q", err.ResourceType)
+	}
 
-	t.Run("NewServiceUnavailableErrorWithRetry", func(t *testing.T) {
-		err := NewServiceUnavailableErrorWithRetry("payment-service", "30s", nil)
+	if err.ResourceID != "123" {
+		t.Errorf("expected resource ID '123', got %q", err.ResourceID)
+	}
+}
 
-		assert.Equal(t, "payment-service", err.ServiceName)
-		assert.Equal(t, "30s", err.RetryAfter)
-		assert.Contains(t, err.Message, "payment-service")
-	})
+func TestNewBusinessError(t *testing.T) {
+	err := NewBusinessError("INSUFFICIENT_FUNDS", "insufficient funds")
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "INSUFFICIENT_FUNDS" {
+		t.Errorf("expected code 'INSUFFICIENT_FUNDS', got %q", err.Code)
+	}
+
+	if err.Message != "insufficient funds" {
+		t.Errorf("expected message 'insufficient funds', got %q", err.Message)
+	}
+
+	if err.Type != ErrorTypeBusinessRule {
+		t.Errorf("expected type %q, got %q", ErrorTypeBusinessRule, err.Type)
+	}
+
+	if err.BusinessCode != "INSUFFICIENT_FUNDS" {
+		t.Errorf("expected business code 'INSUFFICIENT_FUNDS', got %q", err.BusinessCode)
+	}
+
+	if err.Rules == nil {
+		t.Error("expected rules to be initialized")
+	}
+}
+
+func TestBusinessError_WithRule(t *testing.T) {
+	err := NewBusinessError("BIZ_001", "business error")
+
+	result := err.WithRule("minimum balance required")
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if len(err.Rules) != 1 {
+		t.Errorf("expected 1 rule, got %d", len(err.Rules))
+	}
+
+	if err.Rules[0] != "minimum balance required" {
+		t.Errorf("expected 'minimum balance required', got %q", err.Rules[0])
+	}
+}
+
+func TestNewDatabaseError(t *testing.T) {
+	cause := errors.New("connection failed")
+
+	err := NewDatabaseError("DATABASE_ERROR", "database error", cause)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "DATABASE_ERROR" {
+		t.Errorf("expected code 'DATABASE_ERROR', got %q", err.Code)
+	}
+
+	if err.Message != "database error" {
+		t.Errorf("expected message 'database error', got %q", err.Message)
+	}
+
+	if err.Type != ErrorTypeDatabase {
+		t.Errorf("expected type %q, got %q", ErrorTypeDatabase, err.Type)
+	}
+
+	if err.Cause != cause {
+		t.Errorf("expected cause %v, got %v", cause, err.Cause)
+	}
+}
+
+func TestDatabaseError_WithOperation(t *testing.T) {
+	err := NewDatabaseError("DATABASE_ERROR", "database error", nil)
+
+	result := err.WithOperation("SELECT", "users")
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if err.Operation != "SELECT" {
+		t.Errorf("expected operation 'SELECT', got %q", err.Operation)
+	}
+
+	if err.Table != "users" {
+		t.Errorf("expected table 'users', got %q", err.Table)
+	}
+}
+
+func TestDatabaseError_WithQuery(t *testing.T) {
+	err := NewDatabaseError("DATABASE_ERROR", "database error", nil)
+
+	result := err.WithQuery("SELECT * FROM users")
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if err.Query != "SELECT * FROM users" {
+		t.Errorf("expected query 'SELECT * FROM users', got %q", err.Query)
+	}
+}
+
+func TestNewExternalServiceError(t *testing.T) {
+	cause := errors.New("timeout")
+
+	err := NewExternalServiceError("EXTERNAL_SERVICE_ERROR", "payment-service", "service error", cause)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "EXTERNAL_SERVICE_ERROR" {
+		t.Errorf("expected code 'EXTERNAL_SERVICE_ERROR', got %q", err.Code)
+	}
+
+	if err.Message != "service error" {
+		t.Errorf("expected message 'service error', got %q", err.Message)
+	}
+
+	if err.Type != ErrorTypeExternalService {
+		t.Errorf("expected type %q, got %q", ErrorTypeExternalService, err.Type)
+	}
+
+	if err.Service != "payment-service" {
+		t.Errorf("expected service 'payment-service', got %q", err.Service)
+	}
+
+	if err.Cause != cause {
+		t.Errorf("expected cause %v, got %v", cause, err.Cause)
+	}
+}
+
+func TestExternalServiceError_WithEndpoint(t *testing.T) {
+	err := NewExternalServiceError("EXTERNAL_SERVICE_ERROR", "service", "error", nil)
+
+	result := err.WithEndpoint("/api/v1/users")
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if err.Endpoint != "/api/v1/users" {
+		t.Errorf("expected endpoint '/api/v1/users', got %q", err.Endpoint)
+	}
+}
+
+func TestExternalServiceError_WithResponse(t *testing.T) {
+	err := NewExternalServiceError("EXTERNAL_SERVICE_ERROR", "service", "error", nil)
+
+	result := err.WithResponse(404, "Not Found")
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if err.StatusCode != 404 {
+		t.Errorf("expected status code 404, got %d", err.StatusCode)
+	}
+
+	if err.Response != "Not Found" {
+		t.Errorf("expected response 'Not Found', got %q", err.Response)
+	}
+}
+
+func TestNewTimeoutError(t *testing.T) {
+	cause := errors.New("context deadline exceeded")
+
+	err := NewTimeoutError("TIMEOUT_ERROR", "database-query", "timeout error", cause)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "TIMEOUT_ERROR" {
+		t.Errorf("expected code 'TIMEOUT_ERROR', got %q", err.Code)
+	}
+
+	if err.Message != "timeout error" {
+		t.Errorf("expected message 'timeout error', got %q", err.Message)
+	}
+
+	if err.Type != ErrorTypeTimeout {
+		t.Errorf("expected type %q, got %q", ErrorTypeTimeout, err.Type)
+	}
+
+	if err.Operation != "database-query" {
+		t.Errorf("expected operation 'database-query', got %q", err.Operation)
+	}
+
+	if err.Cause != cause {
+		t.Errorf("expected cause %v, got %v", cause, err.Cause)
+	}
+}
+
+func TestTimeoutError_WithDuration(t *testing.T) {
+	err := NewTimeoutError("TIMEOUT_ERROR", "operation", "timeout", nil)
+
+	duration := 5 * time.Second
+	timeout := 10 * time.Second
+
+	result := err.WithDuration(duration, timeout)
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if err.Duration != duration {
+		t.Errorf("expected duration %v, got %v", duration, err.Duration)
+	}
+
+	if err.Timeout != timeout {
+		t.Errorf("expected timeout %v, got %v", timeout, err.Timeout)
+	}
+}
+
+func TestNewRateLimitError(t *testing.T) {
+	err := NewRateLimitError("RATE_LIMIT_ERROR", "rate limit exceeded")
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "RATE_LIMIT_ERROR" {
+		t.Errorf("expected code 'RATE_LIMIT_ERROR', got %q", err.Code)
+	}
+
+	if err.Message != "rate limit exceeded" {
+		t.Errorf("expected message 'rate limit exceeded', got %q", err.Message)
+	}
+
+	if err.Type != ErrorTypeRateLimit {
+		t.Errorf("expected type %q, got %q", ErrorTypeRateLimit, err.Type)
+	}
+}
+
+func TestRateLimitError_WithRateLimit(t *testing.T) {
+	err := NewRateLimitError("RATE_LIMIT_ERROR", "rate limit exceeded")
+
+	result := err.WithRateLimit(100, 50, "2025-01-01T00:00:00Z", "3600s")
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if err.Limit != 100 {
+		t.Errorf("expected limit 100, got %d", err.Limit)
+	}
+
+	if err.Remaining != 50 {
+		t.Errorf("expected remaining 50, got %d", err.Remaining)
+	}
+
+	if err.ResetTime != "2025-01-01T00:00:00Z" {
+		t.Errorf("expected reset time '2025-01-01T00:00:00Z', got %q", err.ResetTime)
+	}
+
+	if err.Window != "3600s" {
+		t.Errorf("expected window '3600s', got %q", err.Window)
+	}
+}
+
+func TestNewCircuitBreakerError(t *testing.T) {
+	err := NewCircuitBreakerError("CIRCUIT_BREAKER_ERROR", "payment-service", "circuit breaker open")
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "CIRCUIT_BREAKER_ERROR" {
+		t.Errorf("expected code 'CIRCUIT_BREAKER_ERROR', got %q", err.Code)
+	}
+
+	if err.Message != "circuit breaker open" {
+		t.Errorf("expected message 'circuit breaker open', got %q", err.Message)
+	}
+
+	if err.Type != ErrorTypeCircuitBreaker {
+		t.Errorf("expected type %q, got %q", ErrorTypeCircuitBreaker, err.Type)
+	}
+
+	if err.CircuitName != "payment-service" {
+		t.Errorf("expected circuit name 'payment-service', got %q", err.CircuitName)
+	}
+}
+
+func TestCircuitBreakerError_WithCircuitState(t *testing.T) {
+	err := NewCircuitBreakerError("CIRCUIT_BREAKER_ERROR", "service", "circuit breaker open")
+
+	result := err.WithCircuitState("OPEN", 5)
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if err.State != "OPEN" {
+		t.Errorf("expected state 'OPEN', got %q", err.State)
+	}
+
+	if err.Failures != 5 {
+		t.Errorf("expected failures 5, got %d", err.Failures)
+	}
+}
+
+func TestNewInvalidSchemaError(t *testing.T) {
+	err := NewInvalidSchemaError("INVALID_SCHEMA", "invalid schema")
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "INVALID_SCHEMA" {
+		t.Errorf("expected code 'INVALID_SCHEMA', got %q", err.Code)
+	}
+
+	if err.Message != "invalid schema" {
+		t.Errorf("expected message 'invalid schema', got %q", err.Message)
+	}
+
+	if err.Type != ErrorTypeInvalidSchema {
+		t.Errorf("expected type %q, got %q", ErrorTypeInvalidSchema, err.Type)
+	}
+
+	if err.Details == nil {
+		t.Error("expected details to be initialized")
+	}
+}
+
+func TestInvalidSchemaError_WithSchemaInfo(t *testing.T) {
+	err := NewInvalidSchemaError("INVALID_SCHEMA", "invalid schema")
+
+	result := err.WithSchemaInfo("user-schema", "v1.0")
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if err.SchemaName != "user-schema" {
+		t.Errorf("expected schema name 'user-schema', got %q", err.SchemaName)
+	}
+
+	if err.Version != "v1.0" {
+		t.Errorf("expected version 'v1.0', got %q", err.Version)
+	}
+}
+
+func TestInvalidSchemaError_WithSchemaDetails(t *testing.T) {
+	err := NewInvalidSchemaError("INVALID_SCHEMA", "invalid schema")
+
+	details := map[string][]string{
+		"name": {"required"},
+		"age":  {"must be positive"},
+	}
+
+	result := err.WithSchemaDetails(details)
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if len(err.Details) != 2 {
+		t.Errorf("expected 2 details, got %d", len(err.Details))
+	}
+
+	if err.Details["name"][0] != "required" {
+		t.Errorf("expected 'required', got %q", err.Details["name"][0])
+	}
+}
+
+func TestNewServerError(t *testing.T) {
+	cause := errors.New("internal error")
+
+	err := NewServerError("SERVER_ERROR", "server error", cause)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "SERVER_ERROR" {
+		t.Errorf("expected code 'SERVER_ERROR', got %q", err.Code)
+	}
+
+	if err.Message != "server error" {
+		t.Errorf("expected message 'server error', got %q", err.Message)
+	}
+
+	if err.Type != ErrorTypeServer {
+		t.Errorf("expected type %q, got %q", ErrorTypeServer, err.Type)
+	}
+
+	if err.Cause != cause {
+		t.Errorf("expected cause %v, got %v", cause, err.Cause)
+	}
+}
+
+func TestServerError_WithRequestInfo(t *testing.T) {
+	err := NewServerError("SERVER_ERROR", "server error", nil)
+
+	result := err.WithRequestInfo("req-123", "corr-456")
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if err.RequestID != "req-123" {
+		t.Errorf("expected request ID 'req-123', got %q", err.RequestID)
+	}
+
+	if err.CorrelationID != "corr-456" {
+		t.Errorf("expected correlation ID 'corr-456', got %q", err.CorrelationID)
+	}
+}
+
+func TestNewUnprocessableEntityError(t *testing.T) {
+	err := NewUnprocessableEntityError("UNPROCESSABLE_ENTITY", "entity cannot be processed")
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "UNPROCESSABLE_ENTITY" {
+		t.Errorf("expected code 'UNPROCESSABLE_ENTITY', got %q", err.Code)
+	}
+
+	if err.Message != "entity cannot be processed" {
+		t.Errorf("expected message 'entity cannot be processed', got %q", err.Message)
+	}
+
+	if err.Type != ErrorTypeUnprocessable {
+		t.Errorf("expected type %q, got %q", ErrorTypeUnprocessable, err.Type)
+	}
+
+	if err.ValidationErrors == nil {
+		t.Error("expected validation errors to be initialized")
+	}
+
+	if err.BusinessRules == nil {
+		t.Error("expected business rules to be initialized")
+	}
+}
+
+func TestUnprocessableEntityError_WithEntityInfo(t *testing.T) {
+	err := NewUnprocessableEntityError("UNPROCESSABLE_ENTITY", "entity error")
+
+	result := err.WithEntityInfo("User", "user-123")
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if err.EntityType != "User" {
+		t.Errorf("expected entity type 'User', got %q", err.EntityType)
+	}
+
+	if err.EntityID != "user-123" {
+		t.Errorf("expected entity ID 'user-123', got %q", err.EntityID)
+	}
+}
+
+func TestUnprocessableEntityError_WithValidationErrors(t *testing.T) {
+	err := NewUnprocessableEntityError("UNPROCESSABLE_ENTITY", "entity error")
+
+	validationErrors := map[string][]string{
+		"email": {"invalid format"},
+		"age":   {"must be positive"},
+	}
+
+	result := err.WithValidationErrors(validationErrors)
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if len(err.ValidationErrors) != 2 {
+		t.Errorf("expected 2 validation errors, got %d", len(err.ValidationErrors))
+	}
+
+	if err.ValidationErrors["email"][0] != "invalid format" {
+		t.Errorf("expected 'invalid format', got %q", err.ValidationErrors["email"][0])
+	}
+}
+
+func TestUnprocessableEntityError_WithBusinessRuleViolation(t *testing.T) {
+	err := NewUnprocessableEntityError("UNPROCESSABLE_ENTITY", "entity error")
+
+	result := err.WithBusinessRuleViolation("minimum age required")
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if len(err.BusinessRules) != 1 {
+		t.Errorf("expected 1 business rule, got %d", len(err.BusinessRules))
+	}
+
+	if err.BusinessRules[0] != "minimum age required" {
+		t.Errorf("expected 'minimum age required', got %q", err.BusinessRules[0])
+	}
+}
+
+func TestNewServiceUnavailableError(t *testing.T) {
+	cause := errors.New("service down")
+
+	err := NewServiceUnavailableError("SERVICE_UNAVAILABLE", "payment-service", "service unavailable", cause)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "SERVICE_UNAVAILABLE" {
+		t.Errorf("expected code 'SERVICE_UNAVAILABLE', got %q", err.Code)
+	}
+
+	if err.Message != "service unavailable" {
+		t.Errorf("expected message 'service unavailable', got %q", err.Message)
+	}
+
+	if err.Type != ErrorTypeServiceUnavailable {
+		t.Errorf("expected type %q, got %q", ErrorTypeServiceUnavailable, err.Type)
+	}
+
+	if err.ServiceName != "payment-service" {
+		t.Errorf("expected service name 'payment-service', got %q", err.ServiceName)
+	}
+
+	if err.Cause != cause {
+		t.Errorf("expected cause %v, got %v", cause, err.Cause)
+	}
+}
+
+func TestServiceUnavailableError_WithRetryInfo(t *testing.T) {
+	err := NewServiceUnavailableError("SERVICE_UNAVAILABLE", "service", "unavailable", nil)
+
+	result := err.WithRetryInfo("30s")
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if err.RetryAfter != "30s" {
+		t.Errorf("expected retry after '30s', got %q", err.RetryAfter)
+	}
+}
+
+func TestNewWorkflowError(t *testing.T) {
+	err := NewWorkflowError("WORKFLOW_ERROR", "order-process", "payment", "payment failed")
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "WORKFLOW_ERROR" {
+		t.Errorf("expected code 'WORKFLOW_ERROR', got %q", err.Code)
+	}
+
+	if err.Message != "payment failed" {
+		t.Errorf("expected message 'payment failed', got %q", err.Message)
+	}
+
+	if err.Type != ErrorTypeWorkflow {
+		t.Errorf("expected type %q, got %q", ErrorTypeWorkflow, err.Type)
+	}
+
+	if err.WorkflowName != "order-process" {
+		t.Errorf("expected workflow name 'order-process', got %q", err.WorkflowName)
+	}
+
+	if err.StepName != "payment" {
+		t.Errorf("expected step name 'payment', got %q", err.StepName)
+	}
+}
+
+func TestWorkflowError_WithStateInfo(t *testing.T) {
+	err := NewWorkflowError("WORKFLOW_ERROR", "workflow", "step", "error")
+
+	result := err.WithStateInfo("pending", "completed")
+	if result != err {
+		t.Error("expected same instance")
+	}
+
+	if err.CurrentState != "pending" {
+		t.Errorf("expected current state 'pending', got %q", err.CurrentState)
+	}
+
+	if err.ExpectedState != "completed" {
+		t.Errorf("expected expected state 'completed', got %q", err.ExpectedState)
+	}
+}
+
+// Additional error types tests
+func TestNewInfrastructureError(t *testing.T) {
+	cause := errors.New("connection failed")
+
+	err := NewInfrastructureError("INFRASTRUCTURE_ERROR", "database", "infrastructure error", cause)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "INFRASTRUCTURE_ERROR" {
+		t.Errorf("expected code 'INFRASTRUCTURE_ERROR', got %q", err.Code)
+	}
+
+	if err.Component != "database" {
+		t.Errorf("expected component 'database', got %q", err.Component)
+	}
+}
+
+func TestNewAuthenticationError(t *testing.T) {
+	cause := errors.New("invalid token")
+
+	err := NewAuthenticationError("AUTHENTICATION_ERROR", "authentication failed", cause)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "AUTHENTICATION_ERROR" {
+		t.Errorf("expected code 'AUTHENTICATION_ERROR', got %q", err.Code)
+	}
+
+	if err.Type != ErrorTypeAuthentication {
+		t.Errorf("expected type %q, got %q", ErrorTypeAuthentication, err.Type)
+	}
+}
+
+func TestNewAuthorizationError(t *testing.T) {
+	cause := errors.New("insufficient permissions")
+
+	err := NewAuthorizationError("AUTHORIZATION_ERROR", "authorization failed", cause)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "AUTHORIZATION_ERROR" {
+		t.Errorf("expected code 'AUTHORIZATION_ERROR', got %q", err.Code)
+	}
+
+	if err.Type != ErrorTypeAuthorization {
+		t.Errorf("expected type %q, got %q", ErrorTypeAuthorization, err.Type)
+	}
+}
+
+func TestNewSecurityError(t *testing.T) {
+	err := NewSecurityError("SECURITY_ERROR", "security threat detected")
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "SECURITY_ERROR" {
+		t.Errorf("expected code 'SECURITY_ERROR', got %q", err.Code)
+	}
+
+	if err.Type != ErrorTypeSecurity {
+		t.Errorf("expected type %q, got %q", ErrorTypeSecurity, err.Type)
+	}
+}
+
+func TestNewResourceExhaustedError(t *testing.T) {
+	err := NewResourceExhaustedError("RESOURCE_EXHAUSTED", "memory", "memory exhausted")
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "RESOURCE_EXHAUSTED" {
+		t.Errorf("expected code 'RESOURCE_EXHAUSTED', got %q", err.Code)
+	}
+
+	if err.Resource != "memory" {
+		t.Errorf("expected resource 'memory', got %q", err.Resource)
+	}
+
+	if err.Type != ErrorTypeResourceExhausted {
+		t.Errorf("expected type %q, got %q", ErrorTypeResourceExhausted, err.Type)
+	}
+}
+
+func TestNewDependencyError(t *testing.T) {
+	cause := errors.New("dependency unavailable")
+
+	err := NewDependencyError("DEPENDENCY_ERROR", "elasticsearch", "dependency error", cause)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Code != "DEPENDENCY_ERROR" {
+		t.Errorf("expected code 'DEPENDENCY_ERROR', got %q", err.Code)
+	}
+
+	if err.Dependency != "elasticsearch" {
+		t.Errorf("expected dependency 'elasticsearch', got %q", err.Dependency)
+	}
+
+	if err.Type != ErrorTypeDependency {
+		t.Errorf("expected type %q, got %q", ErrorTypeDependency, err.Type)
+	}
+}
+
+// Benchmark tests for error types
+func BenchmarkNewValidationError(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = NewValidationError("VALIDATION_ERROR", "validation error", nil)
+	}
+}
+
+func BenchmarkNewBusinessError(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = NewBusinessError("BIZ_001", "business error")
+	}
+}
+
+func BenchmarkNewDatabaseError(b *testing.B) {
+	cause := errors.New("connection failed")
+	for i := 0; i < b.N; i++ {
+		_ = NewDatabaseError("DATABASE_ERROR", "database error", cause)
+	}
+}
+
+func BenchmarkNewExternalServiceError(b *testing.B) {
+	cause := errors.New("timeout")
+	for i := 0; i < b.N; i++ {
+		_ = NewExternalServiceError("EXTERNAL_SERVICE_ERROR", "service", "error", cause)
+	}
 }

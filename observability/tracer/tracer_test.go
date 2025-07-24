@@ -1,220 +1,347 @@
-package tracer_test
+package tracer
 
 import (
 	"context"
 	"testing"
+	"time"
 
-	tracer "github.com/fsvxavier/nexs-lib/observability/tracer"
-	"github.com/fsvxavier/nexs-lib/observability/tracer/providers/datadog"
-	"github.com/fsvxavier/nexs-lib/observability/tracer/providers/newrelic"
-	"github.com/fsvxavier/nexs-lib/observability/tracer/providers/prometheus"
+	"github.com/fsvxavier/nexs-lib/observability/tracer/interfaces"
 )
 
-func TestDatadogProvider(t *testing.T) {
-	config := &datadog.Config{
-		ServiceName:    "test-service",
-		ServiceVersion: "1.0.0",
-		Environment:    "test",
+func TestNewTracerManager(t *testing.T) {
+	tm := NewTracerManager()
+	if tm == nil {
+		t.Fatal("NewTracerManager() returned nil")
 	}
 
-	provider := datadog.NewProvider(config)
-	defer provider.Shutdown(context.Background())
-
-	tr := provider.CreateTracer("test-tracer")
-
-	ctx, span := tr.StartSpan(context.Background(), "test-operation",
-		tracer.WithSpanKind(tracer.SpanKindServer),
-		tracer.WithAttributes(map[string]interface{}{
-			"test": "value",
-		}),
-	)
-	defer span.End()
-
-	// Test span operations
-	span.SetAttribute("key", "value")
-	span.AddEvent("test-event", map[string]interface{}{
-		"event_data": "test",
-	})
-
-	// Test context operations
-	extractedSpan := tr.SpanFromContext(ctx)
-	if extractedSpan == nil {
-		t.Error("Failed to extract span from context")
+	if tm.provider != nil {
+		t.Error("NewTracerManager() should return uninitialized manager")
 	}
-
-	span.SetStatus(tracer.StatusCodeOk, "Test completed")
 }
 
-func TestNewRelicProvider(t *testing.T) {
-	config := &newrelic.Config{
-		AppName:        "test-app",
-		LicenseKey:     "test-key",
-		Environment:    "test",
-		ServiceVersion: "1.0.0",
-		Enabled:        false, // Disable to avoid requiring real license key
+func TestTracerManager_Init_ValidConfigs(t *testing.T) {
+	tests := []struct {
+		name   string
+		config interfaces.Config
+	}{
+		{
+			name: "opentelemetry config",
+			config: interfaces.Config{
+				ServiceName:   "test-service",
+				Environment:   "test",
+				ExporterType:  "opentelemetry",
+				Endpoint:      "http://localhost:4318/v1/traces",
+				SamplingRatio: 1.0,
+				Version:       "1.0.0",
+				Propagators:   []string{"tracecontext"},
+			},
+		},
+		{
+			name: "datadog config",
+			config: interfaces.Config{
+				ServiceName:   "test-service",
+				Environment:   "test",
+				ExporterType:  "datadog",
+				APIKey:        "test-api-key",
+				SamplingRatio: 0.5,
+				Version:       "1.0.0",
+			},
+		},
+		{
+			name: "newrelic config",
+			config: interfaces.Config{
+				ServiceName:   "test-service",
+				Environment:   "test",
+				ExporterType:  "newrelic",
+				LicenseKey:    "test-license-key",
+				SamplingRatio: 0.8,
+				Version:       "1.0.0",
+			},
+		},
+		{
+			name: "grafana config",
+			config: interfaces.Config{
+				ServiceName:   "test-service",
+				Environment:   "test",
+				ExporterType:  "grafana",
+				Endpoint:      "http://tempo:3200",
+				SamplingRatio: 1.0,
+				Version:       "1.0.0",
+			},
+		},
 	}
 
-	provider, err := newrelic.NewProvider(config)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tm := NewTracerManager()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			tracerProvider, err := tm.Init(ctx, tt.config)
+			if err != nil {
+				t.Fatalf("Init() error = %v", err)
+			}
+
+			if tracerProvider == nil {
+				t.Fatal("Init() returned nil tracer provider")
+			}
+
+			if tm.provider == nil {
+				t.Error("TracerManager should have provider set after Init()")
+			}
+
+			if tm.config.ServiceName != tt.config.ServiceName {
+				t.Errorf("Config not stored correctly, got %s, want %s", tm.config.ServiceName, tt.config.ServiceName)
+			}
+
+			// Test shutdown
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer shutdownCancel()
+
+			if err := tm.Shutdown(shutdownCtx); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestTracerManager_Init_InvalidConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  interfaces.Config
+		wantErr bool
+	}{
+		{
+			name: "missing service name",
+			config: interfaces.Config{
+				ExporterType:  "opentelemetry",
+				SamplingRatio: 1.0,
+			},
+			wantErr: true,
+		},
+		{
+			name: "unsupported exporter type",
+			config: interfaces.Config{
+				ServiceName:   "test-service",
+				ExporterType:  "unsupported",
+				SamplingRatio: 1.0,
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid sampling ratio",
+			config: interfaces.Config{
+				ServiceName:   "test-service",
+				ExporterType:  "opentelemetry",
+				Endpoint:      "http://localhost:4318",
+				SamplingRatio: 2.0,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tm := NewTracerManager()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			_, err := tm.Init(ctx, tt.config)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Init() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			// Always try to shutdown
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+			tm.Shutdown(shutdownCtx)
+		})
+	}
+}
+
+func TestTracerManager_Shutdown_NoInit(t *testing.T) {
+	tm := NewTracerManager()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Should not error even if not initialized
+	if err := tm.Shutdown(ctx); err != nil {
+		t.Errorf("Shutdown() error = %v", err)
+	}
+}
+
+func TestTracerManager_GetConfig(t *testing.T) {
+	tm := NewTracerManager()
+	config := interfaces.Config{
+		ServiceName:   "test-service",
+		Environment:   "test",
+		ExporterType:  "opentelemetry",
+		Endpoint:      "http://localhost:4318/v1/traces",
+		SamplingRatio: 1.0,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := tm.Init(ctx, config)
 	if err != nil {
-		t.Skipf("Skipping New Relic test due to configuration error: %v", err)
+		t.Fatalf("Init() error = %v", err)
 	}
-	defer provider.Shutdown(context.Background())
 
-	tr := provider.CreateTracer("test-tracer")
+	retrievedConfig := tm.GetConfig()
+	if retrievedConfig.ServiceName != config.ServiceName {
+		t.Errorf("GetConfig() service name = %s, want %s", retrievedConfig.ServiceName, config.ServiceName)
+	}
 
-	_, span := tr.StartSpan(context.Background(), "test-operation",
-		tracer.WithSpanKind(tracer.SpanKindClient),
-	)
-	defer span.End()
+	if retrievedConfig.ExporterType != config.ExporterType {
+		t.Errorf("GetConfig() exporter type = %s, want %s", retrievedConfig.ExporterType, config.ExporterType)
+	}
 
-	span.SetAttribute("test", "value")
-	span.SetStatus(tracer.StatusCodeOk, "Test completed")
+	// Cleanup
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	tm.Shutdown(shutdownCtx)
+}
 
-	// Verify span context
-	spanCtx := span.Context()
-	if spanCtx.TraceID == "" {
-		t.Error("Trace ID should not be empty")
+func TestTracerManager_GetProvider(t *testing.T) {
+	tm := NewTracerManager()
+	config := interfaces.Config{
+		ServiceName:   "test-service",
+		Environment:   "test",
+		ExporterType:  "opentelemetry",
+		Endpoint:      "http://localhost:4318/v1/traces",
+		SamplingRatio: 1.0,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := tm.Init(ctx, config)
+	if err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	provider := tm.GetProvider()
+	if provider == nil {
+		t.Error("GetProvider() returned nil")
+	}
+
+	// Cleanup
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	tm.Shutdown(shutdownCtx)
+}
+
+func TestNewTracerProvider(t *testing.T) {
+	tests := []struct {
+		name         string
+		exporterType string
+		wantErr      bool
+	}{
+		{"datadog", "datadog", false},
+		{"grafana", "grafana", false},
+		{"newrelic", "newrelic", false},
+		{"opentelemetry", "opentelemetry", false},
+		{"unsupported", "unsupported", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := interfaces.Config{
+				ServiceName:  "test-service",
+				ExporterType: tt.exporterType,
+			}
+
+			provider, err := NewTracerProvider(config)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewTracerProvider() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr && provider == nil {
+				t.Error("NewTracerProvider() returned nil provider for valid type")
+			}
+		})
 	}
 }
 
-func TestPrometheusProvider(t *testing.T) {
-	config := &prometheus.Config{
-		ServiceName:    "test-service",
-		ServiceVersion: "1.0.0",
-		Environment:    "test",
-		Namespace:      "test",
-		Subsystem:      "tracer",
+func TestFactory(t *testing.T) {
+	factory := NewFactory()
+	if factory == nil {
+		t.Fatal("NewFactory() returned nil")
 	}
 
-	provider := prometheus.NewProvider(config)
-	defer provider.Shutdown(context.Background())
+	// Test SupportedTypes
+	types := factory.SupportedTypes()
+	expectedTypes := []string{"datadog", "grafana", "newrelic", "opentelemetry"}
 
-	tr := provider.CreateTracer("test-tracer")
-
-	_, span := tr.StartSpan(context.Background(), "test-operation",
-		tracer.WithSpanKind(tracer.SpanKindInternal),
-	)
-	defer span.End()
-
-	span.SetAttribute("test", "value")
-	span.SetStatus(tracer.StatusCodeOk, "Test completed")
-
-	// Test metrics recording
-	registry := provider.GetRegistry()
-	if registry == nil {
-		t.Error("Registry should not be nil")
+	if len(types) != len(expectedTypes) {
+		t.Errorf("SupportedTypes() returned %d types, want %d", len(types), len(expectedTypes))
 	}
 
-	// Verify span context
-	spanCtx := span.Context()
-	if spanCtx.TraceID == "" {
-		t.Error("Trace ID should not be empty")
-	}
-}
-
-func TestMultipleProviders(t *testing.T) {
-	// Test using multiple providers simultaneously
-	ddProvider := datadog.NewProvider(&datadog.Config{
-		ServiceName: "test-service",
-		Environment: "test",
-	})
-	defer ddProvider.Shutdown(context.Background())
-
-	promProvider := prometheus.NewProvider(&prometheus.Config{
-		ServiceName: "test-service",
-		Environment: "test",
-		Namespace:   "test",
-	})
-	defer promProvider.Shutdown(context.Background())
-
-	ddTracer := ddProvider.CreateTracer("datadog-tracer")
-	promTracer := promProvider.CreateTracer("prometheus-tracer")
-
-	// Create spans with both tracers
-	ctx, ddSpan := ddTracer.StartSpan(context.Background(), "multi-provider-test")
-	_, promSpan := promTracer.StartSpan(ctx, "multi-provider-test")
-
-	ddSpan.SetAttribute("provider", "datadog")
-	promSpan.SetAttribute("provider", "prometheus")
-
-	promSpan.End()
-	ddSpan.End()
-
-	t.Log("Multiple providers test completed successfully")
-}
-
-func TestSpanOptions(t *testing.T) {
-	provider := prometheus.NewProvider(&prometheus.Config{
-		ServiceName: "test-service",
-		Namespace:   "test",
-	})
-
-	tr := provider.CreateTracer("test-tracer")
-
-	// Test all span options
-	ctx, span := tr.StartSpan(context.Background(), "test-span",
-		tracer.WithSpanKind(tracer.SpanKindServer),
-		tracer.WithAttributes(map[string]interface{}{
-			"key1": "value1",
-			"key2": 42,
-			"key3": true,
-		}),
-	)
-	defer span.End()
-
-	// Test span operations
-	span.SetName("updated-name")
-	span.SetAttribute("dynamic", "attribute")
-	span.AddEvent("test-event", map[string]interface{}{
-		"event_key": "event_value",
-	})
-
-	// Test error recording
-	err := &testError{message: "test error"}
-	span.RecordError(err, map[string]interface{}{
-		"error_context": "test",
-	})
-
-	span.SetStatus(tracer.StatusCodeError, "Test error occurred")
-
-	// Verify span is recording
-	if !span.IsRecording() {
-		t.Error("Span should be recording")
+	for _, expectedType := range expectedTypes {
+		found := false
+		for _, t := range types {
+			if t == expectedType {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("SupportedTypes() missing type: %s", expectedType)
+		}
 	}
 
-	// Get span context
-	spanCtx := span.Context()
-	if spanCtx.TraceID == "" || spanCtx.SpanID == "" {
-		t.Error("Span context should have valid IDs")
+	// Test CreateProvider
+	config := interfaces.Config{
+		ServiceName:  "test-service",
+		ExporterType: "opentelemetry",
 	}
 
-	// Test context with span
-	newCtx := tr.ContextWithSpan(ctx, span)
-	if newCtx == nil {
-		t.Error("Context with span should not be nil")
+	provider, err := factory.CreateProvider(config)
+	if err != nil {
+		t.Errorf("CreateProvider() error = %v", err)
+	}
+
+	if provider == nil {
+		t.Error("CreateProvider() returned nil provider")
 	}
 }
 
-type testError struct {
-	message string
-}
+func TestQuickStart(t *testing.T) {
+	tests := []struct {
+		name         string
+		serviceName  string
+		exporterType string
+		wantErr      bool
+	}{
+		{"valid opentelemetry", "test-service", "opentelemetry", false},
+		{"valid datadog", "test-service", "datadog", false},
+		{"invalid exporter", "test-service", "invalid", true},
+		{"empty service name", "", "opentelemetry", true},
+	}
 
-func (e *testError) Error() string {
-	return e.message
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider, tm, err := QuickStart(tt.serviceName, tt.exporterType)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("QuickStart() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 
-func BenchmarkSpanCreation(b *testing.B) {
-	provider := prometheus.NewProvider(&prometheus.Config{
-		ServiceName: "benchmark-service",
-		Namespace:   "bench",
-	})
+			if !tt.wantErr {
+				if provider == nil {
+					t.Error("QuickStart() returned nil provider")
+				}
+				if tm == nil {
+					t.Error("QuickStart() returned nil tracer manager")
+				}
 
-	tr := provider.CreateTracer("benchmark-tracer")
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, span := tr.StartSpan(context.Background(), "benchmark-operation")
-		span.SetAttribute("iteration", i)
-		span.End()
+				// Cleanup
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				tm.Shutdown(ctx)
+			}
+		})
 	}
 }

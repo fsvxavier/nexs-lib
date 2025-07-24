@@ -6,31 +6,144 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"runtime"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/fsvxavier/nexs-lib/observability/logger"
+	"github.com/fsvxavier/nexs-lib/observability/logger/interfaces"
 )
 
-const ProviderName = "slog"
-
-// Provider implementação do Slog para o sistema de logging
+// Provider implementa o provider de logging usando slog
 type Provider struct {
-	logger        *slog.Logger
-	config        *logger.Config
-	level         slog.Level
-	mu            sync.RWMutex
-	contextFields map[string]any
-	handler       slog.Handler
+	config *logger.Config
+	logger *slog.Logger
+	level  slog.Level
+	writer io.Writer
+	buffer *logger.CircularBuffer
 }
 
-// NewProvider cria uma nova instância do provider Slog
+// NewProvider cria uma nova instância do provider slog
 func NewProvider() *Provider {
-	return &Provider{
-		level:         slog.LevelInfo,
-		contextFields: make(map[string]any),
+	return &Provider{}
+}
+
+// bufferedHandler implementa slog.Handler com suporte a buffer
+type bufferedHandler struct {
+	handler slog.Handler
+	buffer  *logger.CircularBuffer
+	config  *logger.Config
+}
+
+// Enabled implementa slog.Handler
+func (bh *bufferedHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return bh.handler.Enabled(ctx, level)
+}
+
+// Handle implementa slog.Handler
+func (bh *bufferedHandler) Handle(ctx context.Context, record slog.Record) error {
+	if bh.buffer == nil {
+		return bh.handler.Handle(ctx, record)
+	}
+
+	// Converte slog.Record para LogEntry
+	entry := bh.slogRecordToLogEntry(ctx, record)
+
+	// Escreve no buffer
+	if err := bh.buffer.Write(entry); err != nil {
+		// Se falhar no buffer, usa handler original
+		return bh.handler.Handle(ctx, record)
+	}
+
+	return nil
+}
+
+// WithAttrs implementa slog.Handler
+func (bh *bufferedHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &bufferedHandler{
+		handler: bh.handler.WithAttrs(attrs),
+		buffer:  bh.buffer,
+		config:  bh.config,
+	}
+}
+
+// WithGroup implementa slog.Handler
+func (bh *bufferedHandler) WithGroup(name string) slog.Handler {
+	return &bufferedHandler{
+		handler: bh.handler.WithGroup(name),
+		buffer:  bh.buffer,
+		config:  bh.config,
+	}
+}
+
+// slogRecordToLogEntry converte slog.Record para LogEntry
+func (bh *bufferedHandler) slogRecordToLogEntry(ctx context.Context, record slog.Record) *interfaces.LogEntry {
+	entry := &interfaces.LogEntry{
+		Timestamp: record.Time,
+		Level:     bh.slogLevelToLevel(record.Level),
+		Message:   record.Message,
+		Fields:    make(map[string]any),
+		Context:   ctx,
+	}
+
+	// Adiciona campos do record
+	record.Attrs(func(a slog.Attr) bool {
+		entry.Fields[a.Key] = a.Value.Any()
+		return true
+	})
+
+	// Adiciona campos de contexto
+	bh.addContextFields(ctx, entry)
+
+	// Adiciona campos de serviço
+	if bh.config != nil {
+		if bh.config.ServiceName != "" {
+			entry.Fields["service"] = bh.config.ServiceName
+		}
+		if bh.config.ServiceVersion != "" {
+			entry.Fields["version"] = bh.config.ServiceVersion
+		}
+		if bh.config.Environment != "" {
+			entry.Fields["environment"] = bh.config.Environment
+		}
+	}
+
+	return entry
+}
+
+// slogLevelToLevel converte slog.Level para Level
+func (bh *bufferedHandler) slogLevelToLevel(level slog.Level) interfaces.Level {
+	switch {
+	case level <= slog.LevelDebug:
+		return interfaces.DebugLevel
+	case level <= slog.LevelInfo:
+		return interfaces.InfoLevel
+	case level <= slog.LevelWarn:
+		return interfaces.WarnLevel
+	case level <= slog.LevelError:
+		return interfaces.ErrorLevel
+	case level <= slog.LevelError+4:
+		return interfaces.FatalLevel
+	default:
+		return interfaces.PanicLevel
+	}
+}
+
+// addContextFields adiciona campos do contexto à entrada
+func (bh *bufferedHandler) addContextFields(ctx context.Context, entry *interfaces.LogEntry) {
+	if ctx == nil {
+		return
+	}
+
+	if traceID := ctx.Value(interfaces.TraceIDKey); traceID != nil {
+		entry.Fields["trace_id"] = traceID
+	}
+	if spanID := ctx.Value(interfaces.SpanIDKey); spanID != nil {
+		entry.Fields["span_id"] = spanID
+	}
+	if userID := ctx.Value(interfaces.UserIDKey); userID != nil {
+		entry.Fields["user_id"] = userID
+	}
+	if requestID := ctx.Value(interfaces.RequestIDKey); requestID != nil {
+		entry.Fields["request_id"] = requestID
 	}
 }
 
@@ -38,23 +151,45 @@ func NewProvider() *Provider {
 func (p *Provider) Configure(config *logger.Config) error {
 	p.config = config
 
-	// Configura o nível
-	slogLevel := p.convertLevel(config.Level)
-	p.level = slogLevel
-
-	// Configura o writer
-	var writer io.Writer = config.Output
-	if writer == nil {
-		writer = os.Stdout
+	// Mapeia os níveis
+	switch config.Level {
+	case logger.DebugLevel:
+		p.level = slog.LevelDebug
+	case logger.InfoLevel:
+		p.level = slog.LevelInfo
+	case logger.WarnLevel:
+		p.level = slog.LevelWarn
+	case logger.ErrorLevel:
+		p.level = slog.LevelError
+	case logger.FatalLevel:
+		p.level = slog.LevelError + 4
+	case logger.PanicLevel:
+		p.level = slog.LevelError + 8
+	default:
+		p.level = slog.LevelInfo
 	}
 
-	// Configura as opções do handler
+	// Configura o writer
+	if config.Output != nil {
+		if w, ok := config.Output.(io.Writer); ok {
+			p.writer = w
+		} else {
+			p.writer = os.Stdout
+		}
+	} else {
+		p.writer = os.Stdout
+	}
+
+	// Configura o buffer se habilitado
+	if config.BufferConfig != nil && config.BufferConfig.Enabled {
+		p.buffer = logger.NewCircularBuffer(config.BufferConfig, p.writer)
+	}
+
 	opts := &slog.HandlerOptions{
-		Level:     slogLevel,
+		Level:     p.level,
 		AddSource: config.AddSource,
 	}
 
-	// Configura o formato de tempo se especificado
 	if config.TimeFormat != "" {
 		opts.ReplaceAttr = func(groups []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.TimeKey {
@@ -66,18 +201,28 @@ func (p *Provider) Configure(config *logger.Config) error {
 		}
 	}
 
-	// Cria o handler baseado no formato
-	var handler slog.Handler
+	// Configura o handler base
+	var baseHandler slog.Handler
 	switch config.Format {
 	case logger.JSONFormat:
-		handler = slog.NewJSONHandler(writer, opts)
+		baseHandler = slog.NewJSONHandler(p.writer, opts)
 	case logger.ConsoleFormat, logger.TextFormat:
-		handler = slog.NewTextHandler(writer, opts)
+		baseHandler = slog.NewTextHandler(p.writer, opts)
 	default:
-		handler = slog.NewJSONHandler(writer, opts)
+		baseHandler = slog.NewJSONHandler(p.writer, opts)
 	}
 
-	p.handler = handler
+	// Envolve com bufferedHandler se buffer estiver habilitado
+	var handler slog.Handler
+	if p.buffer != nil {
+		handler = &bufferedHandler{
+			handler: baseHandler,
+			buffer:  p.buffer,
+			config:  config,
+		}
+	} else {
+		handler = baseHandler
+	}
 
 	// Cria o logger base
 	p.logger = slog.New(handler)
@@ -101,42 +246,42 @@ func (p *Provider) Configure(config *logger.Config) error {
 	}
 
 	if len(globalAttrs) > 0 {
-		// Converte []slog.Attr para []any
-		args := make([]any, len(globalAttrs))
+		// Converte Attr para any
+		globalFields := make([]any, len(globalAttrs))
 		for i, attr := range globalAttrs {
-			args[i] = attr
+			globalFields[i] = attr
 		}
-		p.logger = p.logger.With(args...)
+		p.logger = p.logger.With(globalFields...)
 	}
-
-	// Define como logger padrão do slog
-	slog.SetDefault(p.logger)
 
 	return nil
 }
 
-// convertLevel converte o nível interno para o nível do Slog
-func (p *Provider) convertLevel(level logger.Level) slog.Level {
-	switch level {
-	case logger.DebugLevel:
-		return slog.LevelDebug
-	case logger.InfoLevel:
-		return slog.LevelInfo
-	case logger.WarnLevel:
-		return slog.LevelWarn
-	case logger.ErrorLevel:
-		return slog.LevelError
-	case logger.FatalLevel:
-		return slog.LevelError + 4 // Slog não tem Fatal, usa Error+4
-	case logger.PanicLevel:
-		return slog.LevelError + 8 // Slog não tem Panic, usa Error+8
-	default:
-		return slog.LevelInfo
+// extractContextFields extrai campos relevantes do contexto
+func (p *Provider) extractContextFields(ctx context.Context) []slog.Attr {
+	var attrs []slog.Attr
+
+	if traceID := ctx.Value(logger.TraceIDKey); traceID != nil {
+		attrs = append(attrs, slog.Any(string(logger.TraceIDKey), traceID))
 	}
+
+	if spanID := ctx.Value(logger.SpanIDKey); spanID != nil {
+		attrs = append(attrs, slog.Any(string(logger.SpanIDKey), spanID))
+	}
+
+	if userID := ctx.Value(logger.UserIDKey); userID != nil {
+		attrs = append(attrs, slog.Any(string(logger.UserIDKey), userID))
+	}
+
+	if requestID := ctx.Value(logger.RequestIDKey); requestID != nil {
+		attrs = append(attrs, slog.Any(string(logger.RequestIDKey), requestID))
+	}
+
+	return attrs
 }
 
-// convertFields converte os campos internos para atributos do Slog
-func (p *Provider) convertFields(fields []logger.Field) []slog.Attr {
+// fieldsToAttrs converte fields para slog.Attr
+func (p *Provider) fieldsToAttrs(fields []logger.Field) []slog.Attr {
 	attrs := make([]slog.Attr, len(fields))
 	for i, field := range fields {
 		attrs[i] = slog.Any(field.Key, field.Value)
@@ -144,107 +289,76 @@ func (p *Provider) convertFields(fields []logger.Field) []slog.Attr {
 	return attrs
 }
 
-// extractContext extrai informações relevantes do contexto
-func (p *Provider) extractContextFields(ctx context.Context) []slog.Attr {
-	var attrs []slog.Attr
-
-	// Adiciona trace ID se disponível
-	if traceID := ctx.Value("trace_id"); traceID != nil {
-		if id, ok := traceID.(string); ok && id != "" {
-			attrs = append(attrs, slog.String("trace_id", id))
-		}
-	}
-
-	// Adiciona span ID se disponível
-	if spanID := ctx.Value("span_id"); spanID != nil {
-		if id, ok := spanID.(string); ok && id != "" {
-			attrs = append(attrs, slog.String("span_id", id))
-		}
-	}
-
-	// Adiciona user ID se disponível
-	if userID := ctx.Value("user_id"); userID != nil {
-		if id, ok := userID.(string); ok && id != "" {
-			attrs = append(attrs, slog.String("user_id", id))
-		}
-	}
-
-	// Adiciona request ID se disponível
-	if requestID := ctx.Value("request_id"); requestID != nil {
-		if id, ok := requestID.(string); ok && id != "" {
-			attrs = append(attrs, slog.String("request_id", id))
-		}
-	}
-
-	return attrs
-}
-
-// logWithContext helper para adicionar stack trace se necessário
-func (p *Provider) logWithContext(ctx context.Context, level slog.Level, msg string, fields []logger.Field) {
-	if !p.logger.Enabled(ctx, level) {
+// Debug implementa Logger
+func (p *Provider) Debug(ctx context.Context, msg string, fields ...logger.Field) {
+	if !p.logger.Enabled(ctx, slog.LevelDebug) {
 		return
 	}
 
-	contextAttrs := p.extractContextFields(ctx)
-	fieldAttrs := p.convertFields(fields)
-	allAttrs := append(contextAttrs, fieldAttrs...)
-
-	// Adiciona stack trace se necessário
-	if p.config != nil && p.config.AddStacktrace && level >= slog.LevelError {
-		allAttrs = append(allAttrs, slog.String("stack_trace", p.getStackTrace(3)))
-	}
-
-	p.logger.LogAttrs(ctx, level, msg, allAttrs...)
+	attrs := p.extractContextFields(ctx)
+	attrs = append(attrs, p.fieldsToAttrs(fields)...)
+	p.logger.LogAttrs(ctx, slog.LevelDebug, msg, attrs...)
 }
 
-// getStackTrace captura o stack trace atual
-func (p *Provider) getStackTrace(skip int) string {
-	const depth = 32
-	var pcs [depth]uintptr
-	n := runtime.Callers(skip+1, pcs[:])
-	frames := runtime.CallersFrames(pcs[:n])
-
-	var stack []string
-	for {
-		frame, more := frames.Next()
-		stack = append(stack, fmt.Sprintf("%s:%d %s", frame.File, frame.Line, frame.Function))
-		if !more {
-			break
-		}
-	}
-
-	return strings.Join(stack, "\n")
-}
-
-// Implementação da interface Logger
-func (p *Provider) Debug(ctx context.Context, msg string, fields ...logger.Field) {
-	p.logWithContext(ctx, slog.LevelDebug, msg, fields)
-}
-
+// Info implementa Logger
 func (p *Provider) Info(ctx context.Context, msg string, fields ...logger.Field) {
-	p.logWithContext(ctx, slog.LevelInfo, msg, fields)
+	if !p.logger.Enabled(ctx, slog.LevelInfo) {
+		return
+	}
+
+	attrs := p.extractContextFields(ctx)
+	attrs = append(attrs, p.fieldsToAttrs(fields)...)
+	p.logger.LogAttrs(ctx, slog.LevelInfo, msg, attrs...)
 }
 
+// Warn implementa Logger
 func (p *Provider) Warn(ctx context.Context, msg string, fields ...logger.Field) {
-	p.logWithContext(ctx, slog.LevelWarn, msg, fields)
+	if !p.logger.Enabled(ctx, slog.LevelWarn) {
+		return
+	}
+
+	attrs := p.extractContextFields(ctx)
+	attrs = append(attrs, p.fieldsToAttrs(fields)...)
+	p.logger.LogAttrs(ctx, slog.LevelWarn, msg, attrs...)
 }
 
+// Error implementa Logger
 func (p *Provider) Error(ctx context.Context, msg string, fields ...logger.Field) {
-	p.logWithContext(ctx, slog.LevelError, msg, fields)
+	if !p.logger.Enabled(ctx, slog.LevelError) {
+		return
+	}
+
+	attrs := p.extractContextFields(ctx)
+	attrs = append(attrs, p.fieldsToAttrs(fields)...)
+
+	if p.config != nil && p.config.AddStacktrace {
+		attrs = append(attrs, slog.String("stacktrace", "stack_trace"))
+	}
+
+	p.logger.LogAttrs(ctx, slog.LevelError, msg, attrs...)
 }
 
+// Fatal implementa Logger
 func (p *Provider) Fatal(ctx context.Context, msg string, fields ...logger.Field) {
-	fatalLevel := slog.LevelError + 4
-	p.logWithContext(ctx, fatalLevel, msg, fields)
+	attrs := p.extractContextFields(ctx)
+	attrs = append(attrs, p.fieldsToAttrs(fields)...)
+	attrs = append(attrs, slog.String("stacktrace", "stack_trace"))
+
+	p.logger.LogAttrs(ctx, slog.LevelError+4, msg, attrs...)
 	os.Exit(1)
 }
 
+// Panic implementa Logger
 func (p *Provider) Panic(ctx context.Context, msg string, fields ...logger.Field) {
-	panicLevel := slog.LevelError + 8
-	p.logWithContext(ctx, panicLevel, msg, fields)
+	attrs := p.extractContextFields(ctx)
+	attrs = append(attrs, p.fieldsToAttrs(fields)...)
+	attrs = append(attrs, slog.String("stacktrace", "stack_trace"))
+
+	p.logger.LogAttrs(ctx, slog.LevelError+8, msg, attrs...)
 	panic(msg)
 }
 
+// Debugf implementa Logger
 func (p *Provider) Debugf(ctx context.Context, format string, args ...any) {
 	if !p.logger.Enabled(ctx, slog.LevelDebug) {
 		return
@@ -255,6 +369,7 @@ func (p *Provider) Debugf(ctx context.Context, format string, args ...any) {
 	p.logger.LogAttrs(ctx, slog.LevelDebug, msg, contextAttrs...)
 }
 
+// Infof implementa Logger
 func (p *Provider) Infof(ctx context.Context, format string, args ...any) {
 	if !p.logger.Enabled(ctx, slog.LevelInfo) {
 		return
@@ -265,6 +380,7 @@ func (p *Provider) Infof(ctx context.Context, format string, args ...any) {
 	p.logger.LogAttrs(ctx, slog.LevelInfo, msg, contextAttrs...)
 }
 
+// Warnf implementa Logger
 func (p *Provider) Warnf(ctx context.Context, format string, args ...any) {
 	if !p.logger.Enabled(ctx, slog.LevelWarn) {
 		return
@@ -275,6 +391,7 @@ func (p *Provider) Warnf(ctx context.Context, format string, args ...any) {
 	p.logger.LogAttrs(ctx, slog.LevelWarn, msg, contextAttrs...)
 }
 
+// Errorf implementa Logger
 func (p *Provider) Errorf(ctx context.Context, format string, args ...any) {
 	if !p.logger.Enabled(ctx, slog.LevelError) {
 		return
@@ -283,146 +400,147 @@ func (p *Provider) Errorf(ctx context.Context, format string, args ...any) {
 	contextAttrs := p.extractContextFields(ctx)
 	msg := fmt.Sprintf(format, args...)
 
-	// Adiciona stack trace se necessário
 	if p.config != nil && p.config.AddStacktrace {
-		contextAttrs = append(contextAttrs, slog.String("stack_trace", p.getStackTrace(2)))
+		contextAttrs = append(contextAttrs, slog.String("stacktrace", "stack_trace"))
 	}
 
 	p.logger.LogAttrs(ctx, slog.LevelError, msg, contextAttrs...)
 }
 
+// Fatalf implementa Logger
 func (p *Provider) Fatalf(ctx context.Context, format string, args ...any) {
-	fatalLevel := slog.LevelError + 4
 	contextAttrs := p.extractContextFields(ctx)
-	contextAttrs = append(contextAttrs, slog.String("stack_trace", p.getStackTrace(2)))
+	contextAttrs = append(contextAttrs, slog.String("stacktrace", "stack_trace"))
 	msg := fmt.Sprintf(format, args...)
-	p.logger.LogAttrs(ctx, fatalLevel, msg, contextAttrs...)
+
+	p.logger.LogAttrs(ctx, slog.LevelError+4, msg, contextAttrs...)
 	os.Exit(1)
 }
 
+// Panicf implementa Logger
 func (p *Provider) Panicf(ctx context.Context, format string, args ...any) {
-	panicLevel := slog.LevelError + 8
 	contextAttrs := p.extractContextFields(ctx)
-	contextAttrs = append(contextAttrs, slog.String("stack_trace", p.getStackTrace(2)))
+	contextAttrs = append(contextAttrs, slog.String("stacktrace", "stack_trace"))
 	msg := fmt.Sprintf(format, args...)
-	p.logger.LogAttrs(ctx, panicLevel, msg, contextAttrs...)
+
+	p.logger.LogAttrs(ctx, slog.LevelError+8, msg, contextAttrs...)
 	panic(msg)
 }
 
+// DebugWithCode implementa Logger
 func (p *Provider) DebugWithCode(ctx context.Context, code, msg string, fields ...logger.Field) {
-	allFields := append(fields, logger.String("code", code))
-	p.Debug(ctx, msg, allFields...)
+	if !p.logger.Enabled(ctx, slog.LevelDebug) {
+		return
+	}
+
+	attrs := p.extractContextFields(ctx)
+	attrs = append(attrs, slog.String("code", code))
+	attrs = append(attrs, p.fieldsToAttrs(fields)...)
+	p.logger.LogAttrs(ctx, slog.LevelDebug, msg, attrs...)
 }
 
+// InfoWithCode implementa Logger
 func (p *Provider) InfoWithCode(ctx context.Context, code, msg string, fields ...logger.Field) {
-	allFields := append(fields, logger.String("code", code))
-	p.Info(ctx, msg, allFields...)
+	if !p.logger.Enabled(ctx, slog.LevelInfo) {
+		return
+	}
+
+	attrs := p.extractContextFields(ctx)
+	attrs = append(attrs, slog.String("code", code))
+	attrs = append(attrs, p.fieldsToAttrs(fields)...)
+	p.logger.LogAttrs(ctx, slog.LevelInfo, msg, attrs...)
 }
 
+// WarnWithCode implementa Logger
 func (p *Provider) WarnWithCode(ctx context.Context, code, msg string, fields ...logger.Field) {
-	allFields := append(fields, logger.String("code", code))
-	p.Warn(ctx, msg, allFields...)
+	if !p.logger.Enabled(ctx, slog.LevelWarn) {
+		return
+	}
+
+	attrs := p.extractContextFields(ctx)
+	attrs = append(attrs, slog.String("code", code))
+	attrs = append(attrs, p.fieldsToAttrs(fields)...)
+	p.logger.LogAttrs(ctx, slog.LevelWarn, msg, attrs...)
 }
 
+// ErrorWithCode implementa Logger
 func (p *Provider) ErrorWithCode(ctx context.Context, code, msg string, fields ...logger.Field) {
-	allFields := append(fields, logger.String("code", code))
-	p.Error(ctx, msg, allFields...)
+	if !p.logger.Enabled(ctx, slog.LevelError) {
+		return
+	}
+
+	attrs := p.extractContextFields(ctx)
+	attrs = append(attrs, slog.String("code", code))
+	attrs = append(attrs, p.fieldsToAttrs(fields)...)
+
+	if p.config != nil && p.config.AddStacktrace {
+		attrs = append(attrs, slog.String("stacktrace", "stack_trace"))
+	}
+
+	p.logger.LogAttrs(ctx, slog.LevelError, msg, attrs...)
 }
 
+// WithFields implementa Logger
 func (p *Provider) WithFields(fields ...logger.Field) logger.Logger {
-	attrs := p.convertFields(fields)
-
-	// Converte []slog.Attr para []any
-	args := make([]any, len(attrs))
+	attrs := p.fieldsToAttrs(fields)
+	// Converte Attr para any
+	anyAttrs := make([]any, len(attrs))
 	for i, attr := range attrs {
-		args[i] = attr
+		anyAttrs[i] = attr
 	}
-
-	newProvider := &Provider{
-		logger:        p.logger.With(args...),
-		config:        p.config,
-		level:         p.level,
-		handler:       p.handler,
-		contextFields: make(map[string]any),
+	newLogger := p.logger.With(anyAttrs...)
+	return &Provider{
+		config: p.config,
+		logger: newLogger,
+		level:  p.level,
+		writer: p.writer,
+		buffer: p.buffer,
 	}
-
-	p.mu.RLock()
-	// Copia campos existentes de forma thread-safe
-	for k, v := range p.contextFields {
-		newProvider.contextFields[k] = v
-	}
-	p.mu.RUnlock()
-
-	// Adiciona novos campos
-	for _, field := range fields {
-		newProvider.contextFields[field.Key] = field.Value
-	}
-
-	return newProvider
 }
 
+// WithContext implementa Logger
 func (p *Provider) WithContext(ctx context.Context) logger.Logger {
-	contextAttrs := p.extractContextFields(ctx)
-	if len(contextAttrs) == 0 {
+	attrs := p.extractContextFields(ctx)
+	if len(attrs) == 0 {
 		return p
 	}
 
-	// Converte []slog.Attr para []any
-	args := make([]any, len(contextAttrs))
-	for i, attr := range contextAttrs {
-		args[i] = attr
+	// Converte Attr para any
+	anyAttrs := make([]any, len(attrs))
+	for i, attr := range attrs {
+		anyAttrs[i] = attr
 	}
-
-	newProvider := &Provider{
-		logger:        p.logger.With(args...),
-		config:        p.config,
-		level:         p.level,
-		handler:       p.handler,
-		contextFields: make(map[string]any),
+	newLogger := p.logger.With(anyAttrs...)
+	return &Provider{
+		config: p.config,
+		logger: newLogger,
+		level:  p.level,
+		writer: p.writer,
+		buffer: p.buffer,
 	}
-
-	p.mu.RLock()
-	for k, v := range p.contextFields {
-		newProvider.contextFields[k] = v
-	}
-	p.mu.RUnlock()
-
-	return newProvider
 }
 
+// SetLevel implementa Logger
 func (p *Provider) SetLevel(level logger.Level) {
-	slogLevel := p.convertLevel(level)
-	p.level = slogLevel
-
-	// Cria um novo handler com o nível atualizado
-	opts := &slog.HandlerOptions{
-		Level:     slogLevel,
-		AddSource: p.config != nil && p.config.AddSource,
+	switch level {
+	case logger.DebugLevel:
+		p.level = slog.LevelDebug
+	case logger.InfoLevel:
+		p.level = slog.LevelInfo
+	case logger.WarnLevel:
+		p.level = slog.LevelWarn
+	case logger.ErrorLevel:
+		p.level = slog.LevelError
+	case logger.FatalLevel:
+		p.level = slog.LevelError + 4
+	case logger.PanicLevel:
+		p.level = slog.LevelError + 8
+	default:
+		p.level = slog.LevelInfo
 	}
-
-	var writer io.Writer = os.Stdout
-	if p.config != nil && p.config.Output != nil {
-		writer = p.config.Output
-	}
-
-	var handler slog.Handler
-	if p.config != nil {
-		switch p.config.Format {
-		case logger.JSONFormat:
-			handler = slog.NewJSONHandler(writer, opts)
-		case logger.ConsoleFormat, logger.TextFormat:
-			handler = slog.NewTextHandler(writer, opts)
-		default:
-			handler = slog.NewJSONHandler(writer, opts)
-		}
-	} else {
-		handler = slog.NewJSONHandler(writer, opts)
-	}
-
-	p.handler = handler
-	p.logger = slog.New(handler)
 }
 
+// GetLevel implementa Logger
 func (p *Provider) GetLevel() logger.Level {
 	switch p.level {
 	case slog.LevelDebug:
@@ -434,102 +552,68 @@ func (p *Provider) GetLevel() logger.Level {
 	case slog.LevelError:
 		return logger.ErrorLevel
 	default:
-		if p.level >= slog.LevelError+4 {
-			return logger.FatalLevel
-		}
 		return logger.InfoLevel
 	}
 }
 
+// Clone implementa Logger
 func (p *Provider) Clone() logger.Logger {
-	newProvider := &Provider{
-		logger:        p.logger,
-		config:        p.config,
-		level:         p.level,
-		handler:       p.handler,
-		contextFields: make(map[string]any),
+	return &Provider{
+		config: p.config,
+		logger: p.logger,
+		level:  p.level,
+		writer: p.writer,
+		buffer: p.buffer,
 	}
-
-	p.mu.RLock()
-	for k, v := range p.contextFields {
-		newProvider.contextFields[k] = v
-	}
-	p.mu.RUnlock()
-
-	return newProvider
 }
 
+// Close implementa Logger
 func (p *Provider) Close() error {
-	// Slog não tem método de close explícito
+	if p.buffer != nil {
+		return p.buffer.Close()
+	}
 	return nil
 }
 
-// GetSlogLogger retorna o logger Slog subjacente para uso avançado
-func (p *Provider) GetSlogLogger() *slog.Logger {
-	return p.logger
+// GetBuffer retorna o buffer atual
+func (p *Provider) GetBuffer() interfaces.Buffer {
+	return p.buffer
 }
 
-// GetHandler retorna o handler Slog subjacente para uso avançado
-func (p *Provider) GetHandler() slog.Handler {
-	return p.handler
-}
-
-// StackTrace captura e retorna o stack trace atual
-func StackTrace(skip int) logger.Field {
-	const depth = 32
-	var pcs [depth]uintptr
-	n := runtime.Callers(skip+2, pcs[:])
-	frames := runtime.CallersFrames(pcs[:n])
-
-	var stack []string
-	for {
-		frame, more := frames.Next()
-		stack = append(stack, fmt.Sprintf("%s:%d %s", frame.File, frame.Line, frame.Function))
-		if !more {
-			break
+// SetBuffer define um novo buffer
+func (p *Provider) SetBuffer(buffer interfaces.Buffer) error {
+	// Flush do buffer anterior se existir
+	if p.buffer != nil {
+		if err := p.buffer.Flush(); err != nil {
+			return err
+		}
+		if err := p.buffer.Close(); err != nil {
+			return err
 		}
 	}
 
-	return logger.String("stack_trace", strings.Join(stack, "\n"))
+	p.buffer = buffer.(*logger.CircularBuffer)
+	return nil
 }
 
-// CustomHandler permite criar handlers personalizados
-type CustomHandler struct {
-	slog.Handler
-	attrs []slog.Attr
-}
-
-func NewCustomHandler(handler slog.Handler) *CustomHandler {
-	return &CustomHandler{Handler: handler}
-}
-
-func (h *CustomHandler) Handle(ctx context.Context, r slog.Record) error {
-	// Adiciona hostname se disponível
-	if hostname, err := os.Hostname(); err == nil {
-		r.AddAttrs(slog.String("hostname", hostname))
+// FlushBuffer força o flush do buffer
+func (p *Provider) FlushBuffer() error {
+	if p.buffer != nil {
+		return p.buffer.Flush()
 	}
-
-	// Adiciona PID
-	r.AddAttrs(slog.Int("pid", os.Getpid()))
-
-	return h.Handler.Handle(ctx, r)
+	return nil
 }
 
-func (h *CustomHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &CustomHandler{
-		Handler: h.Handler.WithAttrs(attrs),
-		attrs:   append(h.attrs, attrs...),
+// GetBufferStats retorna estatísticas do buffer
+func (p *Provider) GetBufferStats() interfaces.BufferStats {
+	if p.buffer != nil {
+		return p.buffer.Stats()
 	}
+	return interfaces.BufferStats{}
 }
 
-func (h *CustomHandler) WithGroup(name string) slog.Handler {
-	return &CustomHandler{
-		Handler: h.Handler.WithGroup(name),
-		attrs:   h.attrs,
-	}
-}
-
-// init registra automaticamente o provider
-func init() {
-	logger.RegisterProvider(ProviderName, NewProvider())
-}
+// Certifica que Provider implementa as interfaces
+var (
+	_ logger.Logger   = (*Provider)(nil)
+	_ logger.Provider = (*Provider)(nil)
+)

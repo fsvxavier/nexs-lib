@@ -1,128 +1,56 @@
 package logger
 
 import (
-	"context"
 	"io"
+	"os"
 	"time"
+
+	"github.com/fsvxavier/nexs-lib/observability/logger/interfaces"
 )
 
-// Level representa os níveis de log
-type Level int8
+// Re-export das principais interfaces e tipos
+type (
+	Logger         = interfaces.Logger
+	Provider       = interfaces.Provider
+	Field          = interfaces.Field
+	Level          = interfaces.Level
+	Format         = interfaces.Format
+	Config         = interfaces.Config
+	SamplingConfig = interfaces.SamplingConfig
+	ContextKey     = interfaces.ContextKey
+)
 
+// Re-export das constantes
 const (
-	DebugLevel Level = iota - 1
-	InfoLevel
-	WarnLevel
-	ErrorLevel
-	FatalLevel
-	PanicLevel
+	DebugLevel Level = interfaces.DebugLevel
+	InfoLevel  Level = interfaces.InfoLevel
+	WarnLevel  Level = interfaces.WarnLevel
+	ErrorLevel Level = interfaces.ErrorLevel
+	FatalLevel Level = interfaces.FatalLevel
+	PanicLevel Level = interfaces.PanicLevel
+
+	JSONFormat    Format = interfaces.JSONFormat
+	ConsoleFormat Format = interfaces.ConsoleFormat
+	TextFormat    Format = interfaces.TextFormat
+
+	TraceIDKey   ContextKey = interfaces.TraceIDKey
+	SpanIDKey    ContextKey = interfaces.SpanIDKey
+	UserIDKey    ContextKey = interfaces.UserIDKey
+	RequestIDKey ContextKey = interfaces.RequestIDKey
 )
-
-var levelNames = map[Level]string{
-	DebugLevel: "DEBUG",
-	InfoLevel:  "INFO",
-	WarnLevel:  "WARN",
-	ErrorLevel: "ERROR",
-	FatalLevel: "FATAL",
-	PanicLevel: "PANIC",
-}
-
-func (l Level) String() string {
-	if name, ok := levelNames[l]; ok {
-		return name
-	}
-	return "UNKNOWN"
-}
-
-// Format representa o formato de saída dos logs
-type Format string
-
-const (
-	JSONFormat    Format = "json"
-	ConsoleFormat Format = "console"
-	TextFormat    Format = "text"
-)
-
-// Config representa a configuração do logger
-type Config struct {
-	Level          Level           `json:"level" yaml:"level"`
-	Format         Format          `json:"format" yaml:"format"`
-	Output         io.Writer       `json:"-" yaml:"-"`
-	TimeFormat     string          `json:"time_format" yaml:"time_format"`
-	ServiceName    string          `json:"service_name" yaml:"service_name"`
-	ServiceVersion string          `json:"service_version" yaml:"service_version"`
-	Environment    string          `json:"environment" yaml:"environment"`
-	AddSource      bool            `json:"add_source" yaml:"add_source"`
-	AddStacktrace  bool            `json:"add_stacktrace" yaml:"add_stacktrace"`
-	Fields         map[string]any  `json:"fields" yaml:"fields"`
-	SamplingConfig *SamplingConfig `json:"sampling" yaml:"sampling"`
-}
-
-// SamplingConfig configuração de sampling para logs de alto volume
-type SamplingConfig struct {
-	Initial    int           `json:"initial" yaml:"initial"`
-	Thereafter int           `json:"thereafter" yaml:"thereafter"`
-	Tick       time.Duration `json:"tick" yaml:"tick"`
-}
 
 // DefaultConfig retorna uma configuração padrão
 func DefaultConfig() *Config {
 	return &Config{
-		Level:         InfoLevel,
-		Format:        JSONFormat,
-		TimeFormat:    time.RFC3339,
-		AddSource:     false,
-		AddStacktrace: false,
-		Fields:        make(map[string]any),
+		Level:      InfoLevel,
+		Format:     JSONFormat,
+		Output:     os.Stdout,
+		TimeFormat: time.RFC3339,
+		Fields:     make(map[string]any),
 	}
 }
 
-// Field representa um campo estruturado do log
-type Field struct {
-	Key   string
-	Value any
-}
-
-// Logger interface principal para logging estruturado
-type Logger interface {
-	// Métodos básicos de logging
-	Debug(ctx context.Context, msg string, fields ...Field)
-	Info(ctx context.Context, msg string, fields ...Field)
-	Warn(ctx context.Context, msg string, fields ...Field)
-	Error(ctx context.Context, msg string, fields ...Field)
-	Fatal(ctx context.Context, msg string, fields ...Field)
-	Panic(ctx context.Context, msg string, fields ...Field)
-
-	// Métodos com formatação
-	Debugf(ctx context.Context, format string, args ...any)
-	Infof(ctx context.Context, format string, args ...any)
-	Warnf(ctx context.Context, format string, args ...any)
-	Errorf(ctx context.Context, format string, args ...any)
-	Fatalf(ctx context.Context, format string, args ...any)
-	Panicf(ctx context.Context, format string, args ...any)
-
-	// Métodos com código de erro/evento
-	DebugWithCode(ctx context.Context, code, msg string, fields ...Field)
-	InfoWithCode(ctx context.Context, code, msg string, fields ...Field)
-	WarnWithCode(ctx context.Context, code, msg string, fields ...Field)
-	ErrorWithCode(ctx context.Context, code, msg string, fields ...Field)
-
-	// Métodos utilitários
-	WithFields(fields ...Field) Logger
-	WithContext(ctx context.Context) Logger
-	SetLevel(level Level)
-	GetLevel() Level
-	Clone() Logger
-}
-
-// Provider interface para implementação específica de cada biblioteca
-type Provider interface {
-	Logger
-	Configure(config *Config) error
-	Close() error
-}
-
-// Helper functions para criar fields
+// Funções para criação de campos estruturados
 func String(key, value string) Field {
 	return Field{Key: key, Value: value}
 }
@@ -161,4 +89,102 @@ func ErrorField(err error) Field {
 
 func Stack(key string) Field {
 	return Field{Key: key, Value: "stack_trace"}
+}
+
+// Funções de configuração baseadas em ambiente
+func EnvironmentConfig() *Config {
+	config := DefaultConfig()
+
+	// LOG_LEVEL
+	if levelStr := os.Getenv("LOG_LEVEL"); levelStr != "" {
+		switch levelStr {
+		case "debug", "DEBUG":
+			config.Level = DebugLevel
+		case "info", "INFO":
+			config.Level = InfoLevel
+		case "warn", "WARN", "warning", "WARNING":
+			config.Level = WarnLevel
+		case "error", "ERROR":
+			config.Level = ErrorLevel
+		case "fatal", "FATAL":
+			config.Level = FatalLevel
+		case "panic", "PANIC":
+			config.Level = PanicLevel
+		}
+	}
+
+	// LOG_FORMAT
+	if formatStr := os.Getenv("LOG_FORMAT"); formatStr != "" {
+		switch formatStr {
+		case "json", "JSON":
+			config.Format = JSONFormat
+		case "console", "CONSOLE":
+			config.Format = ConsoleFormat
+		case "text", "TEXT":
+			config.Format = TextFormat
+		}
+	}
+
+	// SERVICE_NAME
+	if serviceName := os.Getenv("SERVICE_NAME"); serviceName != "" {
+		config.ServiceName = serviceName
+	}
+
+	// SERVICE_VERSION
+	if serviceVersion := os.Getenv("SERVICE_VERSION"); serviceVersion != "" {
+		config.ServiceVersion = serviceVersion
+	}
+
+	// ENVIRONMENT
+	if environment := os.Getenv("ENVIRONMENT"); environment != "" {
+		config.Environment = environment
+	} else if env := os.Getenv("ENV"); env != "" {
+		config.Environment = env
+	}
+
+	return config
+}
+
+// DevelopmentConfig retorna uma configuração otimizada para desenvolvimento
+func DevelopmentConfig() *Config {
+	return &Config{
+		Level:         DebugLevel,
+		Format:        ConsoleFormat,
+		Output:        os.Stdout,
+		TimeFormat:    time.RFC3339,
+		AddSource:     true,
+		AddStacktrace: false,
+		Fields:        make(map[string]any),
+	}
+}
+
+// ProductionConfig retorna uma configuração otimizada para produção
+func ProductionConfig() *Config {
+	return &Config{
+		Level:         InfoLevel,
+		Format:        JSONFormat,
+		Output:        os.Stdout,
+		TimeFormat:    time.RFC3339,
+		AddSource:     false,
+		AddStacktrace: true,
+		Fields:        make(map[string]any),
+		SamplingConfig: &SamplingConfig{
+			Initial:    1000,
+			Thereafter: 100,
+			Tick:       time.Second,
+		},
+	}
+}
+
+// TestingConfig retorna uma configuração otimizada para testes
+func TestingConfig() *Config {
+	return &Config{
+		Level:         DebugLevel,
+		Format:        JSONFormat,
+		Output:        io.Discard,
+		TimeFormat:    time.RFC3339,
+		AddSource:     false,
+		AddStacktrace: false,
+		Fields:        make(map[string]any),
+	}
 }

@@ -1,0 +1,308 @@
+version: '3.8'
+
+services:
+  # ===========================
+  # TRACING BACKENDS
+  # ===========================
+  
+  # Jaeger - All-in-one for tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    container_name: nexs-jaeger
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14250:14250"  # gRPC
+      - "6831:6831/udp"  # UDP
+      - "6832:6832/udp"  # UDP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.97.0
+    container_name: nexs-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./config/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Prometheus metrics
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # Health check
+    depends_on:
+      - jaeger
+      - tempo
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+
+  # Grafana Tempo - Distributed tracing backend
+  tempo:
+    image: grafana/tempo:2.3.1
+    container_name: nexs-tempo
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./config/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/tmp/tempo
+    ports:
+      - "3200:3200"   # Tempo
+      - "9095:9095"   # Tempo gRPC
+      - "9411:9411"   # Zipkin
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+
+  # ===========================
+  # LOGGING BACKENDS
+  # ===========================
+
+  # Elasticsearch - Log storage
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    container_name: nexs-elasticsearch
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=nexs-logs
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Kibana - Log visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.2
+    container_name: nexs-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - xpack.security.enabled=false
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+
+  # Logstash - Log processing
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.12.2
+    container_name: nexs-logstash
+    volumes:
+      - ./config/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    ports:
+      - "5044:5044"   # Beats input
+      - "9600:9600"   # Logstash monitoring
+      - "5000:5000/tcp"   # TCP input
+      - "5000:5000/udp"   # UDP input
+    environment:
+      - "LS_JAVA_OPTS=-Xmx256m -Xms256m"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+
+  # Fluentd - Log collector
+  fluentd:
+    image: fluent/fluentd:v1.16-1
+    container_name: nexs-fluentd
+    volumes:
+      - ./config/fluentd.conf:/fluentd/etc/fluent.conf:ro
+      - /var/log:/var/log:ro
+    ports:
+      - "24224:24224"   # Forward input
+      - "24224:24224/udp"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+
+  # ===========================
+  # METRICS & MONITORING
+  # ===========================
+
+  # Prometheus - Metrics storage
+  prometheus:
+    image: prom/prometheus:v2.50.1
+    container_name: nexs-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+
+  # Grafana - Metrics & traces visualization
+  grafana:
+    image: grafana/grafana:10.4.1
+    container_name: nexs-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=nexs123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - tempo
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+
+  # ===========================
+  # MESSAGE QUEUES (for async logging/tracing)
+  # ===========================
+
+  # Redis - Cache and message broker
+  redis:
+    image: redis:7.2-alpine
+    container_name: nexs-redis
+    command: redis-server --appendonly yes --requirepass nexs123
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # RabbitMQ - Message broker
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: nexs-rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=nexs
+      - RABBITMQ_DEFAULT_PASS=nexs123
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ===========================
+  # DATABASES (for testing)
+  # ===========================
+
+  # PostgreSQL - Primary database
+  postgres:
+    image: postgres:16-alpine
+    container_name: nexs-postgres
+    environment:
+      - POSTGRES_DB=nexs_test
+      - POSTGRES_USER=nexs
+      - POSTGRES_PASSWORD=nexs123
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./config/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexs -d nexs_test"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # MongoDB - Document database
+  mongodb:
+    image: mongo:7.0
+    container_name: nexs-mongodb
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=nexs
+      - MONGO_INITDB_ROOT_PASSWORD=nexs123
+      - MONGO_INITDB_DATABASE=nexs_test
+    volumes:
+      - mongodb-data:/data/db
+      - ./config/mongodb/init.js:/docker-entrypoint-initdb.d/init.js:ro
+    ports:
+      - "27017:27017"
+    networks:
+      - nexs-observability
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+# ===========================
+# NETWORKS & VOLUMES
+# ===========================
+
+networks:
+  nexs-observability:
+    driver: bridge
+    name: nexs-observability
+
+volumes:
+  elasticsearch-data:
+    name: nexs-elasticsearch-data
+  tempo-data:
+    name: nexs-tempo-data
+  prometheus-data:
+    name: nexs-prometheus-data
+  grafana-data:
+    name: nexs-grafana-data
+  redis-data:
+    name: nexs-redis-data
+  rabbitmq-data:
+    name: nexs-rabbitmq-data
+  postgres-data:
+    name: nexs-postgres-data
+  mongodb-data:
+    name: nexs-mongodb-data

@@ -18,13 +18,15 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-*.prompt
-
 # Dependency directories (remove the comment below to include it)
 vendor/
 lint/
-tests/
 testes/
+old/
+_old/
+prompts/
+.prompt
+
 
 # Go workspace file
 go.work
@@ -39,32 +41,3 @@ resources/resources.go
 __debug_bin
 .env
 xo
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Build artifacts
-/bin/
-/dist/
-
-# Coverage files
-coverage.html
-coverage.out
-
-# Generated code output (for testing)
-/nexs-lib/
-/generated/
-
-# Log files
-*.log
-
-# Config files with sensitive data
-nexs-lib-conf.local.yaml
-nexs-lib-conf.local.json
-config.local.*

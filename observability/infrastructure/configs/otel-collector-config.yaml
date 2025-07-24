@@ -1,0 +1,108 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://*"
+            - "https://*"
+
+  # Jaeger receiver
+  jaeger:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:14250
+      thrift_http:
+        endpoint: 0.0.0.0:14268
+      thrift_compact:
+        endpoint: 0.0.0.0:6831
+
+  # Zipkin receiver
+  zipkin:
+    endpoint: 0.0.0.0:9411
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
+  memory_limiter:
+    limit_mib: 256
+    spike_limit_mib: 64
+
+  resource:
+    attributes:
+      - key: service.instance.id
+        value: ${env:HOSTNAME}
+        action: upsert
+      - key: nexs.infrastructure
+        value: "docker-compose"
+        action: upsert
+
+exporters:
+  # Jaeger exporter
+  jaeger:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
+
+  # Tempo exporter (OTLP)
+  otlp/tempo:
+    endpoint: http://tempo:3200/otlp
+    tls:
+      insecure: true
+
+  # OTLP exporter (for external collectors)
+  otlp:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:14250}
+    tls:
+      insecure: true
+
+  # Logging exporter (for debugging)
+  logging:
+    loglevel: info
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  # Prometheus metrics exporter
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    const_labels:
+      environment: "nexs-infrastructure"
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: 0.0.0.0:1777
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+  
+  pipelines:
+    traces:
+      receivers: [otlp, jaeger, zipkin]
+      processors: [memory_limiter, batch, resource]
+      exporters: [jaeger, otlp/tempo, logging]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [prometheus, logging]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [logging]
+
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: 0.0.0.0:8888

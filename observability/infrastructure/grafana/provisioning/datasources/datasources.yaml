@@ -1,0 +1,48 @@
+apiVersion: 1
+
+datasources:
+  # Prometheus for metrics
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+
+  # Tempo for traces
+  - name: Tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    editable: true
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        datasourceUid: 'prometheus'
+
+  # Jaeger for traces (alternative)
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: true
+
+  # Elasticsearch for logs
+  - name: Elasticsearch
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    database: "nexs-logs-*"
+    editable: true
+    jsonData:
+      interval: Daily
+      timeField: "@timestamp"
+      esVersion: "8.0.0"
+      maxConcurrentShardRequests: 5
+
+  # Loki alternative for logs (if needed)
+  # - name: Loki
+  #   type: loki
+  #   access: proxy
+  #   url: http://loki:3100
+  #   editable: true

@@ -21,9 +21,9 @@
 # Dependency directories (remove the comment below to include it)
 vendor/
 lint/
-tests/
 testes/
 old/
+_old/
 prompts/
 .prompt
 

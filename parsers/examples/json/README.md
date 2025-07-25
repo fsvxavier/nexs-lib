@@ -14,23 +14,23 @@ Este diretório contém exemplos práticos de uso do parser JSON do nexs-lib.
 
 ## Arquivos de Exemplo
 
-- `basic_usage.go` - Exemplos básicos de parsing e formatação
-- `advanced_features.go` - Funcionalidades avançadas (comentários, vírgulas finais)
-- `special_formats.go` - JSONL, NDJSON, JSON5
-- `utilities.go` - Merge, extração de caminhos, validação
-- `streaming.go` - Parsing de streaming para grandes datasets
-- `compatibility.go` - Exemplos de migração do módulo antigo
+- `basic_usage/main.go` - Exemplos básicos de parsing e formatação
+- `advanced_features/main.go` - Funcionalidades avançadas (comentários, vírgulas finais)
+- `special_formats/main.go` - JSONL, NDJSON, JSON5
+- `utilities/main.go` - Merge, extração de caminhos, validação
+- `streaming/main.go` - Parsing de streaming para grandes datasets
+- `compatibility/main.go` - Exemplos de migração do módulo antigo
 
 ## Como Executar
 
 ```bash
 cd parsers/examples/json
-go run basic_usage.go
-go run advanced_features.go
-go run special_formats.go
-go run utilities.go
-go run streaming.go
-go run compatibility.go
+go run basic_usage/main.go
+go run advanced_features/main.go
+go run special_formats/main.go
+go run utilities/main.go
+go run streaming/main.go
+go run compatibility/main.go
 ```
 
 ## Principais Funcionalidades

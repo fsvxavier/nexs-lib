@@ -43,7 +43,10 @@ func ParseJSONToType[T any](data interface{}) (T, error) {
 
 	// Unmarshal into the target type
 	err = jsonInstance.Unmarshal(jsonBytes, &result)
-	return result, err
+	if err != nil {
+		return result, fmt.Errorf("failed to unmarshal JSON to type %T: %w", result, err)
+	}
+	return result, nil
 }
 
 // ParseJSON parses JSON data from interface{} to interface{}
@@ -284,4 +287,26 @@ func ValidateJSONString(input string) error {
 		}
 	}
 	return nil
+}
+
+// Compatibility aliases for backward compatibility with _old/parse package
+
+// Parse is an alias for ParseJSON to maintain compatibility
+func Parse(data interface{}) (interface{}, error) {
+	return ParseJSON(data)
+}
+
+// ParseString is an alias for ParseJSONString to maintain compatibility
+func ParseString(input string) (interface{}, error) {
+	return ParseJSONString(input)
+}
+
+// ParseBytes is an alias for ParseJSONBytes to maintain compatibility
+func ParseBytes(data []byte) (interface{}, error) {
+	return ParseJSONBytes(data)
+}
+
+// Validate is an alias for ValidateJSONData to maintain compatibility
+func Validate(data interface{}) error {
+	return ValidateJSONData(data)
 }

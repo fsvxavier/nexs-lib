@@ -138,3 +138,95 @@ func TestDateOnlyChecker_IsFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestRFC3339TimeOnlyFormat_Validation(t *testing.T) {
+	checker := NewTimeOnlyChecker()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		// RFC3339 time-only with UTC (Z)
+		{"RFC3339 UTC time", "15:04:05Z", true},
+		{"RFC3339 UTC time noon", "12:00:00Z", true},
+		{"RFC3339 UTC time midnight", "00:00:00Z", true},
+
+		// RFC3339 time-only with timezone offset
+		{"RFC3339 positive offset", "15:04:05+07:00", true},
+		{"RFC3339 negative offset", "15:04:05-07:00", true},
+		{"RFC3339 half hour offset", "15:04:05+05:30", true},
+
+		// Standard time formats (should still work)
+		{"time only no timezone", "15:04:05", true},
+		{"ISO8601 time", "15:04:05", true},
+
+		// Invalid formats
+		{"invalid time", "25:61:61Z", false},
+		{"missing seconds", "15:04Z", false},
+		{"invalid timezone", "15:04:05+25:00", false},
+		{"empty string", "", true}, // AllowEmpty is true by default
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := checker.IsFormat(tt.input)
+			assert.Equal(t, tt.expected, result, "Input: %s", tt.input)
+		})
+	}
+}
+
+func TestRFC3339TimeOnlyFormat_ConstantValidation(t *testing.T) {
+	// Test that our RFC3339TimeOnlyFormat constant works correctly
+	assert.Equal(t, "15:04:05Z07:00", RFC3339TimeOnlyFormat, "RFC3339TimeOnlyFormat constant should match RFC3339 specification")
+
+	// Test parsing with the constant
+	checker := NewTimeOnlyChecker()
+
+	// These should work with our RFC3339TimeOnlyFormat
+	validTimes := []string{
+		"15:04:05Z",      // UTC
+		"15:04:05+07:00", // Positive offset
+		"15:04:05-07:00", // Negative offset
+		"00:00:00Z",      // Midnight UTC
+		"23:59:59-12:00", // End of day with max negative offset
+	}
+
+	for _, timeStr := range validTimes {
+		assert.True(t, checker.IsFormat(timeStr), "Should accept RFC3339 time: %s", timeStr)
+	}
+}
+
+func TestRFC3339_FullDateTime_Formats(t *testing.T) {
+	checker := NewDateTimeFormatChecker()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		// Full RFC3339 datetime formats
+		{"RFC3339 UTC datetime", "2006-01-02T15:04:05Z", true},
+		{"RFC3339 with positive timezone", "2006-01-02T15:04:05+07:00", true},
+		{"RFC3339 with negative timezone", "2006-01-02T15:04:05-07:00", true},
+		{"RFC3339 with nanoseconds UTC", "2006-01-02T15:04:05.999999999Z", true},
+		{"RFC3339 with nanoseconds and timezone", "2006-01-02T15:04:05.123456789-05:00", true},
+
+		// Real-world examples
+		{"Real datetime UTC", "2023-12-25T10:30:45Z", true},
+		{"Real datetime with timezone", "2023-12-25T10:30:45-03:00", true},
+		{"Real datetime with milliseconds", "2023-12-25T10:30:45.123Z", true},
+
+		// Edge cases
+		{"Leap year date", "2024-02-29T12:00:00Z", true},
+		{"New Year UTC", "2024-01-01T00:00:00Z", true},
+		{"End of year", "2023-12-31T23:59:59Z", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := checker.IsFormat(tt.input)
+			assert.Equal(t, tt.expected, result, "Input: %s", tt.input)
+		})
+	}
+}

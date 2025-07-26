@@ -174,6 +174,40 @@ func TestDecimalChecker_NoZero(t *testing.T) {
 	assert.True(t, checker.IsFormat(0.1))
 }
 
+func TestDecimalChecker_WithRootDecimalLibrary(t *testing.T) {
+	checker := NewDecimalChecker()
+
+	// Test with high precision decimal values that would be problematic with float
+	tests := []struct {
+		name     string
+		input    interface{}
+		expected bool
+	}{
+		// High precision strings that should work with decimal library
+		{"high precision string", "123.123456789012345678901234567890", true},
+		{"scientific notation", "1.23e10", true},
+		{"negative high precision", "-0.000000000123456789", true},
+		{"very large number", "999999999999999999999999999999.99", true},
+
+		// Edge cases that should be handled by decimal library
+		{"leading zeros", "000123.45000", true},
+		{"no decimal point", "12345", true},
+		{"only decimal", "0.123", true},
+
+		// Invalid inputs
+		{"empty string", "", false},
+		{"invalid string", "not-a-number", false},
+		{"nil", nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := checker.IsFormat(tt.input)
+			assert.Equal(t, tt.expected, result, "Failed for input: %v", tt.input)
+		})
+	}
+}
+
 func TestIntegerChecker_IsFormat(t *testing.T) {
 	checker := NewIntegerChecker()
 

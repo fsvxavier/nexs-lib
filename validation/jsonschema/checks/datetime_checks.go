@@ -161,7 +161,7 @@ func (t *TimeOnlyChecker) IsFormat(input interface{}) bool {
 
 	timeFormats := []string{
 		time.TimeOnly,         // 15:04:05
-		RFC3339TimeOnlyFormat, // 15:04:05-07:00
+		RFC3339TimeOnlyFormat, // 15:04:05Z07:00
 		ISO8601TimeFormat,     // 15:04:05
 	}
 

@@ -5,6 +5,8 @@ import (
 	"math/big"
 	"strconv"
 
+	"github.com/fsvxavier/nexs-lib/decimal"
+	decimalInterfaces "github.com/fsvxavier/nexs-lib/decimal/interfaces"
 	"github.com/fsvxavier/nexs-lib/validation/jsonschema/interfaces"
 )
 
@@ -28,18 +30,12 @@ func (j *JSONNumberChecker) IsFormat(input interface{}) bool {
 
 // Check implementa interfaces.Check
 func (j *JSONNumberChecker) Check(data interface{}) []interfaces.ValidationError {
-	if j.IsFormat(data) {
-		return nil
+	if !j.IsFormat(data) {
+		return []interfaces.ValidationError{
+			{Message: "value is not a valid JSON number"},
+		}
 	}
-
-	return []interfaces.ValidationError{
-		{
-			Field:     "json_number",
-			Message:   "Value must be a json.Number",
-			ErrorType: "INVALID_JSON_NUMBER_TYPE",
-			Value:     data,
-		},
-	}
+	return nil
 }
 
 // NumericChecker valida se o valor é numérico (int, float, etc.)
@@ -159,25 +155,26 @@ func (n *NumericChecker) IsFormat(input interface{}) bool {
 
 // Check implementa interfaces.Check
 func (n *NumericChecker) Check(data interface{}) []interfaces.ValidationError {
-	if n.IsFormat(data) {
-		return nil
+	if !n.IsFormat(data) {
+		return []interfaces.ValidationError{
+			{
+				Field:     "numeric",
+				Message:   "value is not a valid number",
+				ErrorType: "INVALID_NUMERIC_VALUE",
+				Value:     data,
+			},
+		}
 	}
-
-	return []interfaces.ValidationError{
-		{
-			Field:     "numeric",
-			Message:   "Value must be a valid number within specified constraints",
-			ErrorType: "INVALID_NUMERIC_VALUE",
-			Value:     data,
-		},
-	}
+	return nil
 }
 
 // DecimalChecker valida valores decimais com precisão específica
+// Usa a biblioteca decimal da raiz do projeto para alta precisão
 type DecimalChecker struct {
 	DecimalFactor  int32
 	ValidateFactor bool
 	AllowZero      bool
+	manager        *decimal.Manager
 }
 
 // NewDecimalChecker cria um novo validador decimal
@@ -186,6 +183,7 @@ func NewDecimalChecker() *DecimalChecker {
 		DecimalFactor:  0,
 		ValidateFactor: false,
 		AllowZero:      true,
+		manager:        decimal.GetDefaultManager(),
 	}
 }
 
@@ -195,6 +193,7 @@ func NewDecimalCheckerByFactor8() *DecimalChecker {
 		DecimalFactor:  -8,
 		ValidateFactor: true,
 		AllowZero:      true,
+		manager:        decimal.GetDefaultManager(),
 	}
 }
 
@@ -205,6 +204,12 @@ func (d *DecimalChecker) WithFactor(factor int32) *DecimalChecker {
 	return d
 }
 
+// WithManager define um manager decimal específico
+func (d *DecimalChecker) WithManager(manager *decimal.Manager) *DecimalChecker {
+	d.manager = manager
+	return d
+}
+
 // IsFormat implementa interfaces.FormatChecker
 func (d *DecimalChecker) IsFormat(input interface{}) bool {
 	decimalValue := d.getDecimalValue(input)
@@ -212,39 +217,70 @@ func (d *DecimalChecker) IsFormat(input interface{}) bool {
 		return false
 	}
 
-	if !d.AllowZero && decimalValue.Sign() == 0 {
+	if !d.AllowZero && decimalValue.IsZero() {
 		return false
 	}
 
 	if d.ValidateFactor {
-		// Verificar se o número tem o fator correto
-		// Esta é uma implementação simplificada - seria necessário
-		// usar uma biblioteca decimal específica para validação completa
+		// Implementação simplificada da validação de fator
+		// Por enquanto, apenas verifica se o valor é válido numericamente
+		// TODO: Implementar validação completa de exponent usando a biblioteca decimal
 		return true
 	}
 
 	return true
 }
 
-// getDecimalValue converte o input para um valor decimal
-func (d *DecimalChecker) getDecimalValue(input interface{}) *big.Float {
+// getDecimalValue converte o input para um valor decimal usando a biblioteca da raiz
+func (d *DecimalChecker) getDecimalValue(input interface{}) decimalInterfaces.Decimal {
 	switch v := input.(type) {
 	case float64:
-		return big.NewFloat(v)
+		result, err := d.manager.NewFromFloat(v)
+		if err != nil {
+			return nil
+		}
+		return result
 	case float32:
-		return big.NewFloat(float64(v))
+		result, err := d.manager.NewFromFloat(float64(v))
+		if err != nil {
+			return nil
+		}
+		return result
 	case int:
-		return big.NewFloat(float64(v))
+		result, err := d.manager.NewFromInt(int64(v))
+		if err != nil {
+			return nil
+		}
+		return result
 	case int64:
-		return big.NewFloat(float64(v))
+		result, err := d.manager.NewFromInt(v)
+		if err != nil {
+			return nil
+		}
+		return result
 	case string:
-		if f, _, err := big.ParseFloat(v, 10, 256, big.ToNearestEven); err == nil {
-			return f
+		result, err := d.manager.NewFromString(v)
+		if err != nil {
+			return nil
 		}
+		return result
 	case json.Number:
-		if f, err := v.Float64(); err == nil {
-			return big.NewFloat(f)
+		result, err := d.manager.NewFromString(string(v))
+		if err != nil {
+			return nil
 		}
+		return result
+	case *big.Rat:
+		// Converter big.Rat para string e depois para decimal
+		floatVal, _ := v.Float64()
+		result, err := d.manager.NewFromFloat(floatVal)
+		if err != nil {
+			return nil
+		}
+		return result
+	case decimalInterfaces.Decimal:
+		// Já é um decimal da nossa biblioteca
+		return v
 	}
 	return nil
 }

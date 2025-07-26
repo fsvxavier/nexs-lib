@@ -8,11 +8,13 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/golang/mock v1.7.0-rc.1
+	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/json-iterator/go v1.1.12
 	github.com/kaptinlin/jsonschema v0.4.6
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/newrelic/go-agent/v3 v3.40.1
+	github.com/oklog/ulid/v2 v2.1.1
 	github.com/rs/zerolog v1.34.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/savsgio/atreugo/v11 v11.13.2
@@ -75,7 +77,6 @@ require (
 	github.com/goccy/go-yaml v1.18.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gotnospirit/makeplural v0.0.0-20180622080156-a5f48d94d976 // indirect
 	github.com/gotnospirit/messageformat v0.0.0-20221001023931-dfe49f1eb092 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.1 // indirect

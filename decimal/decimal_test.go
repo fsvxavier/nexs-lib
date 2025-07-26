@@ -173,6 +173,91 @@ func TestManagerBatchOperations(t *testing.T) {
 	})
 }
 
+func TestManagerOptimizedBatchOperations(t *testing.T) {
+	manager := NewManager(nil)
+
+	dec1, _ := manager.NewFromString("10.5")
+	dec2, _ := manager.NewFromString("20.7")
+	dec3, _ := manager.NewFromString("5.2")
+	decimals := []interfaces.Decimal{dec1, dec2, dec3}
+
+	t.Run("SumSlice", func(t *testing.T) {
+		sum, err := manager.SumSlice(decimals)
+		assert.NoError(t, err)
+		assert.NotNil(t, sum)
+
+		expected, _ := manager.NewFromString("36.4")
+		assert.True(t, sum.IsEqual(expected))
+
+		// Test empty slice
+		sum, err = manager.SumSlice([]interfaces.Decimal{})
+		assert.NoError(t, err)
+		assert.True(t, sum.IsZero())
+	})
+
+	t.Run("AverageSlice", func(t *testing.T) {
+		avg, err := manager.AverageSlice(decimals)
+		assert.NoError(t, err)
+		assert.NotNil(t, avg)
+
+		// Test empty slice
+		_, err = manager.AverageSlice([]interfaces.Decimal{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot calculate average of empty slice")
+	})
+
+	t.Run("MaxSlice", func(t *testing.T) {
+		max, err := manager.MaxSlice(decimals)
+		assert.NoError(t, err)
+		assert.True(t, max.IsEqual(dec2)) // 20.7 is the largest
+
+		// Test empty slice
+		_, err = manager.MaxSlice([]interfaces.Decimal{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot find max of empty slice")
+	})
+
+	t.Run("MinSlice", func(t *testing.T) {
+		min, err := manager.MinSlice(decimals)
+		assert.NoError(t, err)
+		assert.True(t, min.IsEqual(dec3)) // 5.2 is the smallest
+
+		// Test empty slice
+		_, err = manager.MinSlice([]interfaces.Decimal{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot find min of empty slice")
+	})
+}
+
+func TestBatchProcessor(t *testing.T) {
+	manager := NewManager(nil)
+	processor := manager.NewBatchProcessor()
+
+	dec1, _ := manager.NewFromString("10.5")
+	dec2, _ := manager.NewFromString("20.7")
+	dec3, _ := manager.NewFromString("5.2")
+	decimals := []interfaces.Decimal{dec1, dec2, dec3}
+
+	t.Run("ProcessSlice", func(t *testing.T) {
+		result, err := processor.ProcessSlice(decimals)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+
+		// Verify results
+		expectedSum, _ := manager.NewFromString("36.4")
+		assert.True(t, result.Sum.IsEqual(expectedSum))
+		assert.True(t, result.Max.IsEqual(dec2))
+		assert.True(t, result.Min.IsEqual(dec3))
+		assert.Equal(t, 3, result.Count)
+		assert.NotNil(t, result.Average)
+
+		// Test empty slice
+		_, err = processor.ProcessSlice([]interfaces.Decimal{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot process empty slice")
+	})
+}
+
 func TestManagerParse(t *testing.T) {
 	manager := NewManager(nil)
 
@@ -388,6 +473,39 @@ func TestConvenienceFunctions(t *testing.T) {
 		assert.True(t, min.IsEqual(dec1))
 	})
 
+	t.Run("optimized batch operations", func(t *testing.T) {
+		dec1, _ := NewFromString("10")
+		dec2, _ := NewFromString("20")
+		dec3, _ := NewFromString("30")
+		decimals := []interfaces.Decimal{dec1, dec2, dec3}
+
+		sum, err := SumSlice(decimals)
+		assert.NoError(t, err)
+		expected, _ := NewFromString("60")
+		assert.True(t, sum.IsEqual(expected))
+
+		avg, err := AverageSlice(decimals)
+		assert.NoError(t, err)
+		assert.NotNil(t, avg)
+
+		max, err := MaxSlice(decimals)
+		assert.NoError(t, err)
+		assert.True(t, max.IsEqual(dec3))
+
+		min, err := MinSlice(decimals)
+		assert.NoError(t, err)
+		assert.True(t, min.IsEqual(dec1))
+
+		// Test batch processor
+		result, err := ProcessBatchSlice(decimals)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.True(t, result.Sum.IsEqual(expected))
+		assert.True(t, result.Max.IsEqual(dec3))
+		assert.True(t, result.Min.IsEqual(dec1))
+		assert.Equal(t, 3, result.Count)
+	})
+
 	t.Run("Parse", func(t *testing.T) {
 		dec, err := Parse("123.456")
 		assert.NoError(t, err)
@@ -429,15 +547,68 @@ func BenchmarkBatchOperations(b *testing.B) {
 		decimals[i], _ = manager.NewFromInt(int64(i))
 	}
 
-	b.Run("Sum", func(b *testing.B) {
+	b.Run("Sum_Varargs", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			manager.Sum(decimals...)
 		}
 	})
 
-	b.Run("Average", func(b *testing.B) {
+	b.Run("Sum_Slice", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			manager.SumSlice(decimals)
+		}
+	})
+
+	b.Run("Average_Varargs", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			manager.Average(decimals...)
+		}
+	})
+
+	b.Run("Average_Slice", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			manager.AverageSlice(decimals)
+		}
+	})
+
+	b.Run("Max_Varargs", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			manager.Max(decimals...)
+		}
+	})
+
+	b.Run("Max_Slice", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			manager.MaxSlice(decimals)
+		}
+	})
+
+	b.Run("Min_Varargs", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			manager.Min(decimals...)
+		}
+	})
+
+	b.Run("Min_Slice", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			manager.MinSlice(decimals)
+		}
+	})
+
+	b.Run("BatchProcessor_All", func(b *testing.B) {
+		processor := manager.NewBatchProcessor()
+		for i := 0; i < b.N; i++ {
+			processor.ProcessSlice(decimals)
+		}
+	})
+
+	// Separate operations vs single pass
+	b.Run("Separate_Operations", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			manager.SumSlice(decimals)
+			manager.AverageSlice(decimals)
+			manager.MaxSlice(decimals)
+			manager.MinSlice(decimals)
 		}
 	})
 }

@@ -150,7 +150,7 @@ func (q *StandardQueryBuilder) BuildQuery(baseQuery string, params *interfaces.P
 
 	// Add ORDER BY clause
 	if params.SortField != "" && params.SortOrder != "" {
-		query += fmt.Sprintf(" ORDER BY %s %s", params.SortField, params.SortOrder)
+		query += fmt.Sprintf(" ORDER BY %s %s", params.SortField, strings.ToUpper(params.SortOrder))
 	}
 
 	// Add LIMIT and OFFSET

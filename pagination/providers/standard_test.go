@@ -226,7 +226,7 @@ func TestStandardQueryBuilder_BuildQuery(t *testing.T) {
 				SortField: "name",
 				SortOrder: "desc",
 			},
-			expectedSQL: "SELECT * FROM users ORDER BY name desc LIMIT 10 OFFSET 10",
+			expectedSQL: "SELECT * FROM users ORDER BY name DESC LIMIT 10 OFFSET 10",
 		},
 		{
 			name:      "query without sort parameters",
@@ -257,7 +257,7 @@ func TestStandardQueryBuilder_BuildQuery(t *testing.T) {
 				SortField: "id",
 				SortOrder: "asc",
 			},
-			expectedSQL: "SELECT * FROM users ORDER BY id asc LIMIT 10 OFFSET 0",
+			expectedSQL: "SELECT * FROM users ORDER BY id ASC LIMIT 10 OFFSET 0",
 		},
 	}
 

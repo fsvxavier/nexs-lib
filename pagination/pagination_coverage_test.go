@@ -95,7 +95,7 @@ func TestPaginationService_SetQueryBuilderMethod(t *testing.T) {
 	}
 
 	query := service.BuildQuery("SELECT * FROM users", params)
-	assert.Contains(t, query, "ORDER BY name asc")
+	assert.Contains(t, query, "ORDER BY name ASC")
 	assert.Contains(t, query, "LIMIT 10 OFFSET 10")
 }
 

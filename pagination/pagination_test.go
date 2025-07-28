@@ -138,7 +138,7 @@ func TestPaginationService_BuildQuery(t *testing.T) {
 				SortField: "id",
 				SortOrder: "asc",
 			},
-			expectedSQL: "SELECT * FROM users ORDER BY id asc LIMIT 10 OFFSET 0",
+			expectedSQL: "SELECT * FROM users ORDER BY id ASC LIMIT 10 OFFSET 0",
 		},
 		{
 			name:      "query with second page",
@@ -149,7 +149,7 @@ func TestPaginationService_BuildQuery(t *testing.T) {
 				SortField: "created_at",
 				SortOrder: "desc",
 			},
-			expectedSQL: "SELECT * FROM users WHERE active = true ORDER BY created_at desc LIMIT 20 OFFSET 40",
+			expectedSQL: "SELECT * FROM users WHERE active = true ORDER BY created_at DESC LIMIT 20 OFFSET 40",
 		},
 		{
 			name:      "query without sort parameters",

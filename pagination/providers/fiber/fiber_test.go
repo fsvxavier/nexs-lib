@@ -152,7 +152,7 @@ func TestFiberPaginationService_BuildQuery(t *testing.T) {
 			limit:       10,
 			sortField:   "id",
 			sortOrder:   "asc",
-			expectedSQL: "SELECT * FROM users ORDER BY id asc LIMIT 10 OFFSET 0",
+			expectedSQL: "SELECT * FROM users ORDER BY id ASC LIMIT 10 OFFSET 0",
 		},
 		{
 			name:        "second page query",
@@ -161,7 +161,7 @@ func TestFiberPaginationService_BuildQuery(t *testing.T) {
 			limit:       20,
 			sortField:   "price",
 			sortOrder:   "desc",
-			expectedSQL: "SELECT * FROM products ORDER BY price desc LIMIT 20 OFFSET 40",
+			expectedSQL: "SELECT * FROM products ORDER BY price DESC LIMIT 20 OFFSET 40",
 		},
 		{
 			name:        "query without sort",

@@ -1,7 +1,11 @@
 // Package interfaces defines the contracts for pagination functionality.
 package interfaces
 
-import "net/url"
+import (
+	"context"
+	"net/http"
+	"net/url"
+)
 
 // RequestParser extracts pagination parameters from HTTP requests
 type RequestParser interface {
@@ -58,4 +62,51 @@ type PaginationMetadata struct {
 type PaginatedResponse struct {
 	Content  interface{}         `json:"content"`
 	Metadata *PaginationMetadata `json:"metadata"`
+}
+
+// Hook defines a generic hook interface for pagination operations
+type Hook interface {
+	// Execute runs the hook with given context and data
+	Execute(ctx context.Context, data interface{}) error
+}
+
+// MiddlewareFunc defines a function that wraps an HTTP handler with pagination
+type MiddlewareFunc func(http.Handler) http.Handler
+
+// PaginationHooks defines hooks for different pagination stages
+type PaginationHooks struct {
+	PreValidation  []Hook
+	PostValidation []Hook
+	PreQuery       []Hook
+	PostQuery      []Hook
+	PreResponse    []Hook
+	PostResponse   []Hook
+}
+
+// LazyValidator defines a validator that loads validation rules on demand
+type LazyValidator interface {
+	Validator
+	// LoadValidator loads validation rules for specific fields
+	LoadValidator(fields []string) error
+	// IsLoaded checks if validator is loaded for given fields
+	IsLoaded(fields []string) bool
+}
+
+// PoolableQueryBuilder defines a query builder that can be pooled
+type PoolableQueryBuilder interface {
+	QueryBuilder
+	// Reset resets the builder state for reuse
+	Reset()
+	// Clone creates a copy of the builder
+	Clone() PoolableQueryBuilder
+}
+
+// QueryBuilderPool manages a pool of query builders
+type QueryBuilderPool interface {
+	// Get retrieves a builder from the pool
+	Get() PoolableQueryBuilder
+	// Put returns a builder to the pool
+	Put(builder PoolableQueryBuilder)
+	// Size returns the current pool size
+	Size() int
 }

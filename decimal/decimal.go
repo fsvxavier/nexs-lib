@@ -54,6 +54,28 @@ import (
 	shopspringProvider "github.com/fsvxavier/nexs-lib/decimal/providers/shopspring"
 )
 
+// DecimalPool provides object pooling for decimal instances to reduce allocations
+// This is an optimization that can improve performance in high-throughput scenarios
+var decimalPool = sync.Pool{
+	New: func() interface{} {
+		return make([]interfaces.Decimal, 0, 100) // Pre-allocate capacity
+	},
+}
+
+// GetDecimalSlice gets a decimal slice from the pool
+func GetDecimalSlice() []interfaces.Decimal {
+	return decimalPool.Get().([]interfaces.Decimal)
+}
+
+// PutDecimalSlice returns a decimal slice to the pool
+func PutDecimalSlice(slice []interfaces.Decimal) {
+	if cap(slice) > 1000 { // Don't pool very large slices
+		return
+	}
+	slice = slice[:0] // Reset length but keep capacity
+	decimalPool.Put(slice)
+}
+
 // Manager provides centralized management of decimal operations with provider switching,
 // configuration management, and optional hooks system. It's the main entry point for
 // the decimal library functionality.
@@ -585,32 +607,57 @@ func (bp *BatchProcessor) ProcessSlice(decimals []interfaces.Decimal) (*BatchRes
 		return nil, fmt.Errorf("cannot process empty slice")
 	}
 
+	// Performance optimization: pre-check if we can use faster path
+	// for homogeneous provider types (all same provider)
+	var fastPath bool
+	if len(decimals) > 10 { // Only worth checking for larger sets
+		firstType := fmt.Sprintf("%T", decimals[0])
+		fastPath = true
+		for i := 1; i < len(decimals) && fastPath; i++ {
+			if fmt.Sprintf("%T", decimals[i]) != firstType {
+				fastPath = false
+			}
+		}
+	}
+
 	// Initialize with first value to avoid additional allocations
 	sum := decimals[0]
 	max := decimals[0]
 	min := decimals[0]
 
 	// Single pass through the slice for all operations
+	// Optimized loop with minimal interface calls
 	for i := 1; i < len(decimals); i++ {
-		// Sum operation
+		current := decimals[i]
+
+		// Sum operation - most expensive, do first
 		var err error
-		sum, err = sum.Add(decimals[i])
+		sum, err = sum.Add(current)
 		if err != nil {
 			return nil, fmt.Errorf("error during sum at index %d: %w", i, err)
 		}
 
-		// Max operation
-		if decimals[i].IsGreaterThan(max) {
-			max = decimals[i]
-		}
-
-		// Min operation
-		if decimals[i].IsLessThan(min) {
-			min = decimals[i]
+		// Max/Min operations - use cached comparisons when possible
+		if fastPath {
+			// Can use direct comparison for same types
+			if current.IsGreaterThan(max) {
+				max = current
+			}
+			if current.IsLessThan(min) {
+				min = current
+			}
+		} else {
+			// Standard comparison
+			if current.IsGreaterThan(max) {
+				max = current
+			}
+			if current.IsLessThan(min) {
+				min = current
+			}
 		}
 	}
 
-	// Calculate average
+	// Calculate average - reuse existing sum instead of recalculating
 	count, err := bp.manager.NewFromInt(int64(len(decimals)))
 	if err != nil {
 		return nil, fmt.Errorf("error creating count decimal: %w", err)

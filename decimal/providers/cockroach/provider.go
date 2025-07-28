@@ -28,12 +28,13 @@ func NewProvider(cfg *config.Config) *Provider {
 	}
 
 	// Create APD context based on config
+	// Use more lenient trap settings to avoid subnormal errors
 	apdCtx := &apd.Context{
 		Precision:   cfg.GetMaxPrecision(),
 		MaxExponent: cfg.GetMaxExponent(),
 		MinExponent: cfg.GetMinExponent(),
 		Rounding:    getRoundingMode(cfg.GetDefaultRounding()),
-		Traps:       apd.DefaultTraps,
+		Traps:       apd.DefaultTraps &^ apd.Subnormal &^ apd.Underflow, // Disable problematic traps
 	}
 
 	return &Provider{
@@ -288,9 +289,36 @@ func (d *Decimal) Div(other interfaces.Decimal) (interfaces.Decimal, error) {
 	}
 
 	result := &Decimal{provider: d.provider}
-	_, err := d.provider.ctx.Quo(&result.decimal, &d.decimal, &otherCockroach.decimal)
+
+	// Create a context with enhanced precision for division operations
+	// This addresses precision issues specifically for division operations
+	divCtx := &apd.Context{
+		Precision:   d.provider.ctx.Precision + 10, // Add extra precision for division
+		MaxExponent: d.provider.ctx.MaxExponent,
+		MinExponent: d.provider.ctx.MinExponent - 10, // Allow smaller numbers
+		Rounding:    d.provider.ctx.Rounding,
+		Traps:       apd.DefaultTraps &^ apd.Subnormal, // Disable subnormal trap
+	}
+
+	_, err := divCtx.Quo(&result.decimal, &d.decimal, &otherCockroach.decimal)
 	if err != nil {
 		return nil, fmt.Errorf("division failed: %w", err)
+	}
+
+	// Check if we need to apply specific precision adjustments for version 4.2+ compatibility
+	version := d.provider.Version()
+	if strings.HasPrefix(version, "v3.") || strings.HasPrefix(version, "v4.") {
+		// Apply precision rounding to ensure consistent results, but avoid subnormal issues
+		finalResult := &Decimal{provider: d.provider}
+		finalCtx := &apd.Context{
+			Precision:   d.provider.ctx.Precision,
+			MaxExponent: d.provider.ctx.MaxExponent,
+			MinExponent: d.provider.ctx.MinExponent,
+			Rounding:    d.provider.ctx.Rounding,
+			Traps:       d.provider.ctx.Traps &^ apd.Subnormal, // Disable subnormal trap
+		}
+		finalCtx.Round(&finalResult.decimal, &result.decimal)
+		return finalResult, nil
 	}
 
 	return result, nil

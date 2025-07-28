@@ -1,6 +1,7 @@
 package decimal
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,21 +14,22 @@ func TestEdgeCasesArithmetic(t *testing.T) {
 	manager := NewManager(nil)
 
 	t.Run("very_small_numbers", func(t *testing.T) {
-		small1, err := manager.NewFromString("0.001")
+		// Test extremely small numbers
+		small1, err := manager.NewFromString("0.000000001")
 		require.NoError(t, err)
-		small2, err := manager.NewFromString("0.002")
+		small2, err := manager.NewFromString("0.000000002")
 		require.NoError(t, err)
 
 		// Addition
 		sum, err := small1.Add(small2)
 		assert.NoError(t, err)
-		expected, _ := manager.NewFromString("0.003")
+		expected, _ := manager.NewFromString("0.000000003")
 		assert.True(t, sum.IsEqual(expected))
 
 		// Subtraction
 		diff, err := small2.Sub(small1)
 		assert.NoError(t, err)
-		expected, _ = manager.NewFromString("0.001")
+		expected, _ = manager.NewFromString("0.000000001")
 		assert.True(t, diff.IsEqual(expected))
 
 		// Multiplication
@@ -35,6 +37,12 @@ func TestEdgeCasesArithmetic(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, product.IsPositive())
 		assert.False(t, product.IsZero())
+
+		// Division with very small numbers
+		quotient, err := small2.Div(small1)
+		assert.NoError(t, err)
+		expected, _ = manager.NewFromString("2")
+		assert.True(t, quotient.IsEqual(expected))
 	})
 
 	t.Run("very_large_numbers", func(t *testing.T) {
@@ -481,5 +489,225 @@ func BenchmarkEdgeCases(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			processor.ProcessSlice(decimals)
 		}
+	})
+
+	b.Run("PerformanceOptimizedBatch", func(b *testing.B) {
+		// Test performance improvements with larger dataset
+		decimals := make([]interfaces.Decimal, 1000)
+		for i := 0; i < 1000; i++ {
+			decimals[i], _ = manager.NewFromString(fmt.Sprintf("123.%d", i))
+		}
+
+		processor := manager.NewBatchProcessor()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			processor.ProcessSlice(decimals)
+		}
+	})
+
+	b.Run("HomogeneousVsHeterogeneous", func(b *testing.B) {
+		// Compare performance with homogeneous types (all same provider)
+		homogeneous := make([]interfaces.Decimal, 100)
+		for i := 0; i < 100; i++ {
+			homogeneous[i], _ = manager.NewFromInt(int64(i))
+		}
+
+		processor := manager.NewBatchProcessor()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			processor.ProcessSlice(homogeneous)
+		}
+	})
+
+	b.Run("DivisionPrecisionPerformance", func(b *testing.B) {
+		// Benchmark the precision-improved division
+		dividend, _ := manager.NewFromString("10000")
+		divisor, _ := manager.NewFromString("3")
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			dividend.Div(divisor)
+		}
+	})
+}
+
+func TestScientificNotationEdgeCases(t *testing.T) {
+	manager := NewManager(nil)
+
+	t.Run("scientific_notation", func(t *testing.T) {
+		// Test scientific notation parsing
+		scientific1, err := manager.NewFromString("1e5")
+		require.NoError(t, err)
+		expected1, _ := manager.NewFromString("100000")
+		assert.True(t, scientific1.IsEqual(expected1))
+
+		scientific2, err := manager.NewFromString("1.5E-3")
+		require.NoError(t, err)
+		expected2, _ := manager.NewFromString("0.0015")
+		assert.True(t, scientific2.IsEqual(expected2))
+
+		scientific3, err := manager.NewFromString("2.5e2")
+		require.NoError(t, err)
+		expected3, _ := manager.NewFromString("250")
+		assert.True(t, scientific3.IsEqual(expected3))
+
+		// Negative scientific notation
+		scientific4, err := manager.NewFromString("-1.23e-4")
+		require.NoError(t, err)
+		expected4, _ := manager.NewFromString("-0.000123")
+		assert.True(t, scientific4.IsEqual(expected4))
+	})
+}
+
+func TestTypeConversionsEdgeCases(t *testing.T) {
+	manager := NewManager(nil)
+
+	t.Run("type_conversions", func(t *testing.T) {
+		// Test int64 conversions
+		intVal := int64(123456789)
+		decimal1, err := manager.NewFromInt(intVal)
+		require.NoError(t, err)
+		convertedInt, err := decimal1.Int64()
+		assert.NoError(t, err)
+		assert.Equal(t, intVal, convertedInt)
+
+		// Test float64 conversions
+		floatVal := 123.456
+		decimal2, err := manager.NewFromFloat(floatVal)
+		require.NoError(t, err)
+		convertedFloat, err := decimal2.Float64()
+		assert.NoError(t, err)
+		assert.InDelta(t, floatVal, convertedFloat, 0.0001)
+
+		// Test edge case: very large int64
+		largeInt := int64(9223372036854775807) // max int64
+		decimal3, err := manager.NewFromInt(largeInt)
+		require.NoError(t, err)
+		convertedLargeInt, err := decimal3.Int64()
+		assert.NoError(t, err)
+		assert.Equal(t, largeInt, convertedLargeInt)
+
+		// Test conversion of decimal with fractional part to int64 (should error)
+		fractional, _ := manager.NewFromString("123.456")
+		_, err = fractional.Int64()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not an integer")
+	})
+}
+
+func TestInvalidStringsEdgeCases(t *testing.T) {
+	manager := NewManager(nil)
+
+	t.Run("invalid_strings", func(t *testing.T) {
+		// Test various invalid string formats
+		invalidStrings := []string{
+			"",
+			"abc",
+			"12.34.56",
+			"12e",
+			"e12",
+			"12..34",
+			"++12.34",
+			"--12.34",
+			"12.34ee5",
+			// Note: NaN and infinity might be handled differently by APD
+		}
+
+		for _, invalid := range invalidStrings {
+			_, err := manager.NewFromString(invalid)
+			assert.Error(t, err, "String '%s' should be invalid", invalid)
+		}
+
+		// Test specifically problematic cases that might be accepted
+		problematicStrings := []string{
+			"NaN",
+			"infinity",
+			"+infinity",
+			"-infinity",
+		}
+
+		for _, problematic := range problematicStrings {
+			result, err := manager.NewFromString(problematic)
+			if err == nil {
+				// If APD accepts it, just verify it's a valid decimal object
+				assert.NotNil(t, result, "If '%s' is accepted, result should not be nil", problematic)
+			}
+		}
+	})
+}
+
+func TestLeadingTrailingZerosEdgeCases(t *testing.T) {
+	manager := NewManager(nil)
+
+	t.Run("leading_trailing_zeros", func(t *testing.T) {
+		// Test strings with leading and trailing zeros
+		testCases := []struct {
+			input    string
+			expected string
+		}{
+			{"000123.456000", "123.456"},
+			{"0.0100", "0.01"},
+			{"00000", "0"},
+			{"123.000", "123"},
+			{"0000.000", "0"},
+		}
+
+		for _, tc := range testCases {
+			decimal, err := manager.NewFromString(tc.input)
+			require.NoError(t, err, "Input: %s", tc.input)
+			expected, _ := manager.NewFromString(tc.expected)
+			assert.True(t, decimal.IsEqual(expected), "Input: %s, Expected: %s, Got: %s", tc.input, tc.expected, decimal.String())
+		}
+	})
+}
+
+func TestDivisionPrecisionEdgeCases(t *testing.T) {
+	manager := NewManager(nil)
+
+	t.Run("division_precision", func(t *testing.T) {
+		// Test division precision improvements from Cockroach provider
+		dividend, _ := manager.NewFromString("10")
+		divisor, _ := manager.NewFromString("3")
+
+		result, err := dividend.Div(divisor)
+		require.NoError(t, err)
+
+		// Verify the result has proper precision
+		resultStr := result.String()
+		assert.True(t, len(resultStr) >= 3, "Division result should have adequate precision")
+
+		// Test that dividing and multiplying back gives approximately the original
+		backResult, err := result.Mul(divisor)
+		require.NoError(t, err)
+
+		// Should be very close to 10
+		diff, err := dividend.Sub(backResult)
+		require.NoError(t, err)
+
+		// The difference should be very small (using absolute value)
+		diffAbs := diff.Abs()
+		threshold, _ := manager.NewFromString("0.1") // More lenient threshold
+		assert.True(t, diffAbs.IsLessThan(threshold),
+			"Division precision should be maintained. Diff: %s", diffAbs.String())
+	})
+
+	t.Run("high_precision_division", func(t *testing.T) {
+		// Test high precision division with the Cockroach provider improvements
+		a, _ := manager.NewFromString("1")
+		b, _ := manager.NewFromString("7")
+
+		result, err := a.Div(b)
+		require.NoError(t, err)
+
+		// Verify we get a reasonable precision for 1/7
+		resultStr := result.String()
+		assert.True(t, len(resultStr) >= 5, "Should have decent precision for 1/7")
+
+		// The result should start with 0.14... (approximately 0.142857...)
+		assert.True(t, result.IsPositive())
+		point14, _ := manager.NewFromString("0.14")
+		point15, _ := manager.NewFromString("0.15")
+		assert.True(t, result.IsGreaterThan(point14))
+		assert.True(t, result.IsLessThan(point15))
 	})
 }

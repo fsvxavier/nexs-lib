@@ -22,6 +22,8 @@ require (
 	github.com/shopspring/decimal v1.4.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
+	github.com/valkey-io/valkey-glide/go/v2 v2.0.1
+	github.com/valkey-io/valkey-go v1.0.63
 	github.com/valyala/fasthttp v1.64.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.opentelemetry.io/otel v1.37.0

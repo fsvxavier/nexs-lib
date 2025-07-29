@@ -34,8 +34,8 @@ func main() {
 	// Example 7: Rate Limiting Errors
 	rateLimitingExample()
 
-	// Example 8: Infrastructure Errors
-	infrastructureErrorExample()
+	// Example 8: infraestructure Errors
+	infraestructureErrorExample()
 
 	// Example 9: Workflow Errors
 	workflowErrorExample()
@@ -249,15 +249,15 @@ func rateLimitingExample() {
 	fmt.Println()
 }
 
-func infrastructureErrorExample() {
-	fmt.Println("8. Infrastructure Errors:")
+func infraestructureErrorExample() {
+	fmt.Println("8. infraestructure Errors:")
 
-	// Infrastructure error
-	infraErr := domainerrors.NewInfrastructureError("REDIS_CONNECTION_FAILED", "redis",
+	// infraestructure error
+	infraErr := domainerrors.NewinfraestructureError("REDIS_CONNECTION_FAILED", "redis",
 		"Redis connection failed", errors.New("connection refused"))
 	infraErr.WithAction("SET")
 
-	fmt.Printf("   Infrastructure Error: %s\n", infraErr.Error())
+	fmt.Printf("   infraestructure Error: %s\n", infraErr.Error())
 	fmt.Printf("   Component: %s\n", infraErr.Component)
 	fmt.Printf("   Action: %s\n", infraErr.Action)
 

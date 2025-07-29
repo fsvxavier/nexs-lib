@@ -45,7 +45,7 @@ go run main.go
 originalErr := errors.New("network connection failed")
 
 // Camada de infraestrutura
-infraErr := domainerrors.NewInfrastructureError("redis", "Cache operation failed", originalErr)
+infraErr := domainerrors.NewinfraestructureError("redis", "Cache operation failed", originalErr)
 
 // Camada de serviço
 serviceErr := domainerrors.NewServerError("User service failed", infraErr)

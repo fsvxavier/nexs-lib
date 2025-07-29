@@ -68,16 +68,16 @@ A forma mais fácil de executar os exemplos é usando o Docker, que fornece um a
 
 ```bash
 # 1. Iniciar a infraestrutura
-./infrastructure/manage.sh start
+./infraestructure/manage.sh start
 
 # 2. Executar exemplos específicos
-./infrastructure/manage.sh example basic      # Exemplo básico
-./infrastructure/manage.sh example replicas   # Exemplo com replicas
-./infrastructure/manage.sh example advanced   # Exemplo avançado
-./infrastructure/manage.sh example pool       # Exemplo de pool
+./infraestructure/manage.sh example basic      # Exemplo básico
+./infraestructure/manage.sh example replicas   # Exemplo com replicas
+./infraestructure/manage.sh example advanced   # Exemplo avançado
+./infraestructure/manage.sh example pool       # Exemplo de pool
 
 # 3. Parar a infraestrutura
-./infrastructure/manage.sh stop
+./infraestructure/manage.sh stop
 ```
 
 ### Execução Manual
@@ -123,16 +123,16 @@ A infraestrutura Docker inclui:
 
 ```bash
 # Verificar status
-./infrastructure/manage.sh status
+./infraestructure/manage.sh status
 
 # Ver logs
-./infrastructure/manage.sh logs [serviço]
+./infraestructure/manage.sh logs [serviço]
 
 # Resetar banco (cuidado!)
-./infrastructure/manage.sh reset
+./infraestructure/manage.sh reset
 
 # Executar testes
-./infrastructure/manage.sh test
+./infraestructure/manage.sh test
 ```
 
 ## Guia de Aprendizado
@@ -197,17 +197,17 @@ cfg := postgres.NewConfigWithOptions(
 1. **Erro de Conexão**
    ```bash
    # Verificar se a infraestrutura está rodando
-   ./infrastructure/manage.sh status
+   ./infraestructure/manage.sh status
    
    # Verificar logs
-   ./infrastructure/manage.sh logs postgres-primary
+   ./infraestructure/manage.sh logs postgres-primary
    ```
 
 2. **Banco não Inicializado**
    ```bash
    # Resetar e recriar banco
-   ./infrastructure/manage.sh reset
-   ./infrastructure/manage.sh start
+   ./infraestructure/manage.sh reset
+   ./infraestructure/manage.sh start
    ```
 
 3. **Exemplo não Encontrado**
@@ -220,14 +220,14 @@ cfg := postgres.NewConfigWithOptions(
 
 ```bash
 # Logs gerais
-./infrastructure/manage.sh logs
+./infraestructure/manage.sh logs
 
 # Logs específicos
-./infrastructure/manage.sh logs postgres-primary
-./infrastructure/manage.sh logs postgres-replica1
+./infraestructure/manage.sh logs postgres-primary
+./infraestructure/manage.sh logs postgres-replica1
 
 # Status detalhado
-./infrastructure/manage.sh status
+./infraestructure/manage.sh status
 ```
 
 ## Contribuindo

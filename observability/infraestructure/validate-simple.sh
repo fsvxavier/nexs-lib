@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Nexs Infrastructure Simple Validation
-echo "🔍 Validating Nexs Observability Infrastructure..."
+# Nexs infraestructure Simple Validation
+echo "🔍 Validating Nexs Observability infraestructure..."
 echo ""
 
 # Check main files
@@ -47,7 +47,7 @@ grafana_files=(
     "grafana/provisioning/dashboards/dashboards.yaml"
     "grafana/dashboards/nexs-tracer-overview.json"
     "grafana/dashboards/nexs-logger-overview.json"
-    "grafana/dashboards/infrastructure-health.json"
+    "grafana/dashboards/infraestructure-health.json"
 )
 
 for gfile in "${grafana_files[@]}"; do

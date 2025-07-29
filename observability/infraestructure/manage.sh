@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Nexs Observability Infrastructure Management Script
+# Nexs Observability infraestructure Management Script
 
 set -e
 
@@ -35,7 +35,7 @@ error() {
 # Help function
 show_help() {
     cat << EOF
-Nexs Observability Infrastructure Management
+Nexs Observability infraestructure Management
 
 USAGE:
     ./manage.sh COMMAND [OPTIONS]
@@ -80,7 +80,7 @@ check_dependencies() {
 start_services() {
     local service_group=${1:-"all"}
     
-    log "Starting Nexs Observability Infrastructure..."
+    log "Starting Nexs Observability infraestructure..."
     
     case $service_group in
         "all")
@@ -109,14 +109,14 @@ start_services() {
 
 # Stop services
 stop_services() {
-    log "Stopping Nexs Observability Infrastructure..."
+    log "Stopping Nexs Observability infraestructure..."
     docker-compose -f "$COMPOSE_FILE" down
     success "Services stopped successfully!"
 }
 
 # Restart services
 restart_services() {
-    log "Restarting Nexs Observability Infrastructure..."
+    log "Restarting Nexs Observability infraestructure..."
     docker-compose -f "$COMPOSE_FILE" restart
     success "Services restarted successfully!"
 }
@@ -134,7 +134,7 @@ show_logs() {
 
 # Show service status
 show_status() {
-    log "Nexs Observability Infrastructure Status:"
+    log "Nexs Observability infraestructure Status:"
     docker-compose -f "$COMPOSE_FILE" ps
 }
 
@@ -143,7 +143,7 @@ clean_up() {
     warning "This will remove all volumes and networks. Are you sure? (y/N)"
     read -r response
     if [[ "$response" =~ ^[Yy]$ ]]; then
-        log "Cleaning up Nexs Observability Infrastructure..."
+        log "Cleaning up Nexs Observability infraestructure..."
         docker-compose -f "$COMPOSE_FILE" down -v --remove-orphans
         docker network prune -f
         docker volume prune -f
@@ -155,7 +155,7 @@ clean_up() {
 
 # Reset everything
 reset_all() {
-    log "Resetting Nexs Observability Infrastructure..."
+    log "Resetting Nexs Observability infraestructure..."
     clean_up
     start_services
 }

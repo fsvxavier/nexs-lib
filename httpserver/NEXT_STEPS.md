@@ -227,7 +227,7 @@ Each phase should maintain backward compatibility and include comprehensive test
 - **Comprehensive Interface**: 8 new graceful methods added to HTTPServer interface
 - **Manager Pattern**: Centralized graceful operations manager for multi-server coordination
 - **Production Ready**: Signal handling, connection tracking, health monitoring, and hook system
-- **Testing Infrastructure**: Complete mock implementations and integration tests
+- **Testing infraestructure**: Complete mock implementations and integration tests
 - **Zero-Downtime Operations**: Graceful restart and shutdown without dropping connections
 
 ### Key Graceful Features
@@ -290,7 +290,7 @@ Each phase should maintain backward compatibility and include comprehensive test
 - **High Availability**: Connection tracking and health monitoring
 - **Performance Monitoring**: Built-in metrics and observability
 - **Error Handling**: Comprehensive error management
-- **Testing Infrastructure**: High test coverage and mocks
+- **Testing infraestructure**: High test coverage and mocks
 
 ### 🚧 Enterprise Features Pending
 - **Advanced Security**: mTLS, JWT authentication, RBAC authorization

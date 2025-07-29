@@ -39,7 +39,7 @@ db/postgres/
 │       ├── resilience/        # ✅ Retry exponencial + failover
 │       ├── monitoring/        # ✅ Safety monitor + thread-safety detection
 │       └── replicas/          # ✅ Read replicas com load balancing completo
-├── infrastructure/            # ✅ Infraestrutura Docker completa
+├── infraestructure/            # ✅ Infraestrutura Docker completa
 │   ├── docker/                # ✅ PostgreSQL Primary + 2 Replicas + Redis
 │   ├── database/              # ✅ Scripts de setup e migração
 │   └── manage.sh              # ✅ Script de gerenciamento automatizado

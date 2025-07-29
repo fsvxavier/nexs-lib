@@ -13,7 +13,7 @@ Este exemplo demonstra como usar Read Replicas com PostgreSQL.
 
 1. **Infraestrutura**: Execute o script de infraestrutura para configurar PostgreSQL com réplicas:
    ```bash
-   ./infrastructure/manage.sh start
+   ./infraestructure/manage.sh start
    ```
 
 2. **Aguardar**: Aguarde alguns segundos para que as réplicas sejam configuradas.
@@ -22,7 +22,7 @@ Este exemplo demonstra como usar Read Replicas com PostgreSQL.
 
 ```bash
 # Executar com a infraestrutura do projeto
-./infrastructure/manage.sh example replicas
+./infraestructure/manage.sh example replicas
 
 # Ou executar manualmente
 cd db/postgres/examples/replicas

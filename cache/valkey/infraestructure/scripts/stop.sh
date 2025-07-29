@@ -12,7 +12,7 @@ NC='\033[0m' # No Color
 # Get the directory of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Change to infrastructure directory
+# Change to infraestructure directory
 cd "${SCRIPT_DIR}/.."
 
 # Function to display usage

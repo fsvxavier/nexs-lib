@@ -1,5 +1,5 @@
 # Nexs Observability Makefile
-# Central automation for logger, tracer, and infrastructure
+# Central automation for logger, tracer, and infraestructure
 
 .PHONY: help setup test clean validate infra-up infra-down docs examples
 
@@ -9,11 +9,11 @@ help: ## Show this help message
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "Infrastructure Commands:"
-	@echo "  make infra-up           # Start observability infrastructure"
-	@echo "  make infra-down         # Stop observability infrastructure"
-	@echo "  make infra-status       # Check infrastructure status"
-	@echo "  make infra-logs         # View infrastructure logs"
+	@echo "infraestructure Commands:"
+	@echo "  make infra-up           # Start observability infraestructure"
+	@echo "  make infra-down         # Stop observability infraestructure"
+	@echo "  make infra-status       # Check infraestructure status"
+	@echo "  make infra-logs         # View infraestructure logs"
 	@echo ""
 	@echo "Development Commands:"
 	@echo "  make dev-logger         # Setup for logger development"
@@ -49,64 +49,64 @@ test-coverage: ## Run tests with coverage
 	@go tool cover -html=tracer/coverage.out -o tracer/coverage.html
 	@echo "✅ Coverage reports generated!"
 
-test-integration: infra-up ## Run integration tests with real infrastructure
-	@echo "🔄 Waiting for infrastructure to be ready..."
+test-integration: infra-up ## Run integration tests with real infraestructure
+	@echo "🔄 Waiting for infraestructure to be ready..."
 	@sleep 15
 	@echo "🧪 Running integration tests..."
 	@cd tracer && go test -tags=integration -v ./...
 	@cd logger && go test -tags=integration -v ./...
 	@echo "✅ Integration tests completed!"
 
-# Infrastructure management (delegate to infrastructure/Makefile)
-infra-up: ## Start observability infrastructure
-	@cd infrastructure && $(MAKE) infra-up
+# infraestructure management (delegate to infraestructure/Makefile)
+infra-up: ## Start observability infraestructure
+	@cd infraestructure && $(MAKE) infra-up
 
-infra-down: ## Stop observability infrastructure
-	@cd infrastructure && $(MAKE) infra-down
+infra-down: ## Stop observability infraestructure
+	@cd infraestructure && $(MAKE) infra-down
 
-infra-status: ## Show infrastructure status
-	@cd infrastructure && $(MAKE) infra-status
+infra-status: ## Show infraestructure status
+	@cd infraestructure && $(MAKE) infra-status
 
-infra-logs: ## Show infrastructure logs
-	@cd infrastructure && $(MAKE) infra-logs
+infra-logs: ## Show infraestructure logs
+	@cd infraestructure && $(MAKE) infra-logs
 
-infra-clean: ## Clean infrastructure
-	@cd infrastructure && $(MAKE) infra-clean
+infra-clean: ## Clean infraestructure
+	@cd infraestructure && $(MAKE) infra-clean
 
-infra-reset: ## Reset infrastructure
-	@cd infrastructure && $(MAKE) infra-reset
+infra-reset: ## Reset infraestructure
+	@cd infraestructure && $(MAKE) infra-reset
 
 infra-urls: ## Show service URLs
-	@cd infrastructure && $(MAKE) infra-urls
+	@cd infraestructure && $(MAKE) infra-urls
 
-infra-health: ## Check infrastructure health
-	@cd infrastructure && $(MAKE) infra-health
+infra-health: ## Check infraestructure health
+	@cd infraestructure && $(MAKE) infra-health
 
 # Development workflows
 dev-logger: ## Setup environment for logger development
 	@echo "📝 Setting up logger development environment..."
-	@cd infrastructure && $(MAKE) infra-up GROUP=logger
-	@cd infrastructure && $(MAKE) infra-up GROUP=databases
+	@cd infraestructure && $(MAKE) infra-up GROUP=logger
+	@cd infraestructure && $(MAKE) infra-up GROUP=databases
 	@echo "✅ Logger development environment ready!"
 	@echo "   Kibana: http://localhost:5601"
 	@echo "   Elasticsearch: http://localhost:9200"
 
 dev-tracer: ## Setup environment for tracer development
 	@echo "📊 Setting up tracer development environment..."
-	@cd infrastructure && $(MAKE) infra-up GROUP=tracer
-	@cd infrastructure && $(MAKE) infra-up GROUP=databases
+	@cd infraestructure && $(MAKE) infra-up GROUP=tracer
+	@cd infraestructure && $(MAKE) infra-up GROUP=databases
 	@echo "✅ Tracer development environment ready!"
 	@echo "   Jaeger: http://localhost:16686"
 	@echo "   Grafana: http://localhost:3000"
 
 dev-full: ## Setup complete development environment
 	@echo "🚀 Setting up complete development environment..."
-	@cd infrastructure && $(MAKE) infra-up
+	@cd infraestructure && $(MAKE) infra-up
 	@echo "✅ Complete development environment ready!"
-	@cd infrastructure && $(MAKE) infra-urls
+	@cd infraestructure && $(MAKE) infra-urls
 
 dev-stop: ## Stop development environment
-	@cd infrastructure && $(MAKE) infra-down
+	@cd infraestructure && $(MAKE) infra-down
 	@echo "🛑 Development environment stopped."
 
 # Examples
@@ -120,8 +120,8 @@ examples: ## Run all examples
 examples-logger: ## Run logger examples
 	@cd logger/examples && ./run_all_examples.sh
 
-examples-tracer: ## Run tracer examples against infrastructure
-	@echo "💡 Testing tracer examples against infrastructure..."
+examples-tracer: ## Run tracer examples against infraestructure
+	@echo "💡 Testing tracer examples against infraestructure..."
 	@$(MAKE) dev-tracer
 	@sleep 10
 	@cd tracer/examples && for dir in */; do \
@@ -152,7 +152,7 @@ bench: ## Run benchmarks
 	@cd logger && go test -bench=. -benchmem ./...
 	@cd tracer && go test -bench=. -benchmem ./...
 
-bench-integration: infra-up ## Run benchmarks against real infrastructure
+bench-integration: infra-up ## Run benchmarks against real infraestructure
 	@echo "⚡ Running integration benchmarks..."
 	@sleep 15
 	@cd tracer && go test -bench=. -benchmem -tags=integration ./...
@@ -192,27 +192,27 @@ clean: ## Clean build artifacts and caches
 	@go clean -modcache
 	@rm -f logger/coverage.out logger/coverage.html
 	@rm -f tracer/coverage.out tracer/coverage.html
-	@cd infrastructure && $(MAKE) infra-clean
+	@cd infraestructure && $(MAKE) infra-clean
 	@echo "✅ Cleanup complete!"
 
-clean-all: clean ## Deep clean including infrastructure
-	@cd infrastructure && $(MAKE) docker-prune
+clean-all: clean ## Deep clean including infraestructure
+	@cd infraestructure && $(MAKE) docker-prune
 	@echo "✅ Deep cleanup complete!"
 
 # Monitoring and debugging
 monitor: ## Open monitoring UIs
 	@echo "📊 Opening monitoring interfaces..."
-	@cd infrastructure && $(MAKE) monitor-traces
-	@cd infrastructure && $(MAKE) monitor-metrics
-	@cd infrastructure && $(MAKE) monitor-logs
+	@cd infraestructure && $(MAKE) monitor-traces
+	@cd infraestructure && $(MAKE) monitor-metrics
+	@cd infraestructure && $(MAKE) monitor-logs
 
-debug-logger: ## Debug logger with real infrastructure
+debug-logger: ## Debug logger with real infraestructure
 	@$(MAKE) dev-logger
 	@echo "🐛 Logger debug environment ready!"
 	@echo "   View logs: make infra-logs SERVICE=kibana"
 	@echo "   Test: cd logger/examples && go run basic/main.go"
 
-debug-tracer: ## Debug tracer with real infrastructure
+debug-tracer: ## Debug tracer with real infraestructure
 	@$(MAKE) dev-tracer
 	@echo "🐛 Tracer debug environment ready!"
 	@echo "   View traces: make infra-logs SERVICE=jaeger"
@@ -240,12 +240,12 @@ version: ## Show version information
 	@echo "Git commit: $(shell git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 	@echo "Build date: $(shell date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
-# Help for infrastructure commands
-infra-help: ## Show infrastructure-specific help
-	@cd infrastructure && $(MAKE) help
+# Help for infraestructure commands
+infra-help: ## Show infraestructure-specific help
+	@cd infraestructure && $(MAKE) help
 
 # Quick commands
-quick-test: ## Quick test without infrastructure
+quick-test: ## Quick test without infraestructure
 	@go test ./logger/... ./tracer/...
 
 quick-start: ## Quick start for development

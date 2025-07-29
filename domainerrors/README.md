@@ -67,7 +67,7 @@ extErr.WithResponse(503, "Service unavailable")
 baseErr := errors.New("connection refused")
 
 // Camada de infraestrutura
-infraErr := domainerrors.NewInfrastructureError("database", "Connection failed", baseErr)
+infraErr := domainerrors.NewinfraestructureError("database", "Connection failed", baseErr)
 
 // Camada de serviço
 serviceErr := domainerrors.New("SERVICE_ERROR", "User service failed")
@@ -97,7 +97,7 @@ err.WithMetadata("endpoint", "/api/v1/users")
 ### Erros de Infraestrutura
 - `DatabaseError` - Erros de banco de dados
 - `ExternalServiceError` - Falhas de integração com serviços externos
-- `InfrastructureError` - Erros de infraestrutura geral
+- `infraestructureError` - Erros de infraestrutura geral
 - `DependencyError` - Falhas de dependências externas
 
 ### Erros de Segurança

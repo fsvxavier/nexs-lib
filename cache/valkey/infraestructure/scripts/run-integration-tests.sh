@@ -41,7 +41,7 @@ wait_for_service() {
     return 1
 }
 
-# Change to infrastructure directory
+# Change to infraestructure directory
 cd "${SCRIPT_DIR}/.."
 
 echo ""
@@ -108,7 +108,7 @@ fi
 echo ""
 echo "=== Integration Test Results ==="
 
-# Go back to infrastructure directory
+# Go back to infraestructure directory
 cd "${SCRIPT_DIR}/.."
 
 echo "Checking service status..."

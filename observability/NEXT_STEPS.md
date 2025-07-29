@@ -19,7 +19,7 @@
 - [x] **Exemplos**: 6 exemplos completos (todos providers + global + advanced)
 - [x] **Documentação**: README e NEXT_STEPS atualizados
 
-#### Infrastructure
+#### infraestructure
 - [x] **Docker Stack**: Infraestrutura completa com 12+ serviços
 - [x] **Observability Stack**: Jaeger, Tempo, ELK, Grafana, Prometheus
 - [x] **Database Support**: PostgreSQL, MongoDB, Redis, RabbitMQ
@@ -89,7 +89,7 @@ observability/
 │   ├── examples/     ✅ 6 exemplos completos
 │   ├── interfaces/   ✅ Contratos definidos
 │   └── mocks/        ✅ Sistema centralizado
-└── infrastructure/   ✅ COMPLETO
+└── infraestructure/   ✅ COMPLETO
     ├── configs/      ✅ Configurações otimizadas
     ├── grafana/      ✅ Dashboards pré-configurados
     ├── init/         ✅ Scripts de inicialização
@@ -115,7 +115,7 @@ observability/
 **Objetivo**: Validar e estabilizar implementação atual
 
 ```bash
-Infrastructure Validation:
+infraestructure Validation:
 - [ ] Startup automation testing
 - [ ] Service dependency validation  
 - [ ] Health checks implementation
@@ -182,7 +182,7 @@ Scalability & Reliability:
 ## 📊 Métricas de Sucesso
 
 ### Technical KPIs
-- **Infrastructure Startup**: < 2 minutos para stack completa
+- **infraestructure Startup**: < 2 minutos para stack completa
 - **Test Coverage**: > 90% para todos os componentes
 - **Performance**: < 1ms overhead de instrumentação
 - **Reliability**: 99.9% uptime da infraestrutura de desenvolvimento
@@ -226,7 +226,7 @@ make infra-clean             # Clean up resources
 
 ### Responsabilidades
 - **Backend Team**: Provider implementations e optimizations
-- **DevOps Team**: Infrastructure tuning e CI/CD integration  
+- **DevOps Team**: infraestructure tuning e CI/CD integration  
 - **QA Team**: Integration testing e quality assurance
 - **Documentation Team**: User guides e API documentation
 

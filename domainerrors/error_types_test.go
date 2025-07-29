@@ -672,17 +672,17 @@ func TestWorkflowError_WithStateInfo(t *testing.T) {
 }
 
 // Additional error types tests
-func TestNewInfrastructureError(t *testing.T) {
+func TestNewinfraestructureError(t *testing.T) {
 	cause := errors.New("connection failed")
 
-	err := NewInfrastructureError("INFRASTRUCTURE_ERROR", "database", "infrastructure error", cause)
+	err := NewinfraestructureError("infraestructure_ERROR", "database", "infraestructure error", cause)
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 
-	if err.Code != "INFRASTRUCTURE_ERROR" {
-		t.Errorf("expected code 'INFRASTRUCTURE_ERROR', got %q", err.Code)
+	if err.Code != "infraestructure_ERROR" {
+		t.Errorf("expected code 'infraestructure_ERROR', got %q", err.Code)
 	}
 
 	if err.Component != "database" {

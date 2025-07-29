@@ -160,20 +160,20 @@ func (e *ExternalServiceError) WithResponse(statusCode int, response string) *Ex
 	return e
 }
 
-// InfrastructureError representa erros de infraestrutura
-type InfrastructureError struct {
+// infraestructureError representa erros de infraestrutura
+type infraestructureError struct {
 	*DomainError
 	Component string `json:"component,omitempty"`
 	Action    string `json:"action,omitempty"`
 }
 
-// NewInfrastructureError cria um erro de infraestrutura
-func NewInfrastructureError(code, component, message string, cause error) *InfrastructureError {
-	return &InfrastructureError{
+// NewinfraestructureError cria um erro de infraestrutura
+func NewinfraestructureError(code, component, message string, cause error) *infraestructureError {
+	return &infraestructureError{
 		DomainError: &DomainError{
 			Code:      code,
 			Message:   message,
-			Type:      ErrorTypeInfrastructure,
+			Type:      ErrorTypeinfraestructure,
 			Cause:     cause,
 			Timestamp: time.Now(),
 		},
@@ -182,7 +182,7 @@ func NewInfrastructureError(code, component, message string, cause error) *Infra
 }
 
 // WithAction adiciona informações da ação que falhou
-func (e *InfrastructureError) WithAction(action string) *InfrastructureError {
+func (e *infraestructureError) WithAction(action string) *infraestructureError {
 	e.Action = action
 	return e
 }
@@ -859,7 +859,7 @@ func Wrap(code, message string, cause error) *DomainError {
 			return e.DomainError
 		case *WorkflowError:
 			return e.DomainError
-		case *InfrastructureError:
+		case *infraestructureError:
 			return e.DomainError
 		case *AuthenticationError:
 			return e.DomainError
@@ -1005,7 +1005,7 @@ func WrapWithType(code, message string, errorType ErrorType, cause error) *Domai
 			return e.DomainError
 		case *WorkflowError:
 			return e.DomainError
-		case *InfrastructureError:
+		case *infraestructureError:
 			return e.DomainError
 		case *AuthenticationError:
 			return e.DomainError

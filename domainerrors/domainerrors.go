@@ -19,7 +19,7 @@ const (
 	ErrorTypeBusinessRule       ErrorType = "business_rule"
 	ErrorTypeDatabase           ErrorType = "database"
 	ErrorTypeExternalService    ErrorType = "external_service"
-	ErrorTypeInfrastructure     ErrorType = "infrastructure"
+	ErrorTypeinfraestructure     ErrorType = "infraestructure"
 	ErrorTypeDependency         ErrorType = "dependency"
 	ErrorTypeAuthentication     ErrorType = "authentication"
 	ErrorTypeAuthorization      ErrorType = "authorization"

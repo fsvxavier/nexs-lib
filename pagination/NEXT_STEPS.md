@@ -62,7 +62,8 @@
 ## 🚀 Próximas Implementações (Prioridade Alta)
 
 ### 1. Testes de Integração com PostgreSQL ⏳
-- **Descrição**: Criar testes que validem o funcionamento completo com banco PostgreSQL real
+- **Descrição**: Criar testes que validem o funcionamento completo com banco PostgreSQL real utilizando o docker da pasta db/postgres/infraestructure
+- **Objetivo**: Garantir que a paginação funcione corretamente com queries reais
 - **Arquivos**: `pagination_integration_test.go`
 - **Dependências**: `github.com/fsvxavier/nexs-lib/db/postgres`
 - **Escopo**:

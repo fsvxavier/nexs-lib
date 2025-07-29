@@ -1,10 +1,10 @@
-# Nexs Observability Infrastructure Makefile
+# Nexs Observability infraestructure Makefile
 
 .PHONY: help infra-up infra-down infra-logs infra-status infra-clean infra-reset test-integration
 
 # Default target
 help: ## Show this help message
-	@echo "Nexs Observability Infrastructure Commands:"
+	@echo "Nexs Observability infraestructure Commands:"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
@@ -14,38 +14,38 @@ help: ## Show this help message
 	@echo "  make infra-up GROUP=metrics    # Start only metrics services"
 	@echo "  make infra-up GROUP=databases  # Start only databases"
 
-# Infrastructure management
-infra-up: ## Start observability infrastructure
-	@echo "🚀 Starting Nexs Observability Infrastructure..."
-	@cd infrastructure && ./manage.sh up $(GROUP)
+# infraestructure management
+infra-up: ## Start observability infraestructure
+	@echo "🚀 Starting Nexs Observability infraestructure..."
+	@cd infraestructure && ./manage.sh up $(GROUP)
 
-infra-down: ## Stop observability infrastructure
-	@echo "🛑 Stopping Nexs Observability Infrastructure..."
-	@cd infrastructure && ./manage.sh down
+infra-down: ## Stop observability infraestructure
+	@echo "🛑 Stopping Nexs Observability infraestructure..."
+	@cd infraestructure && ./manage.sh down
 
-infra-restart: ## Restart observability infrastructure
-	@echo "🔄 Restarting Nexs Observability Infrastructure..."
-	@cd infrastructure && ./manage.sh restart
+infra-restart: ## Restart observability infraestructure
+	@echo "🔄 Restarting Nexs Observability infraestructure..."
+	@cd infraestructure && ./manage.sh restart
 
-infra-logs: ## Show infrastructure logs (SERVICE=service_name optional)
-	@cd infrastructure && ./manage.sh logs $(SERVICE)
+infra-logs: ## Show infraestructure logs (SERVICE=service_name optional)
+	@cd infraestructure && ./manage.sh logs $(SERVICE)
 
-infra-status: ## Show infrastructure status
-	@cd infrastructure && ./manage.sh status
+infra-status: ## Show infraestructure status
+	@cd infraestructure && ./manage.sh status
 
-infra-clean: ## Clean up infrastructure (removes volumes)
-	@echo "🧹 Cleaning up Nexs Observability Infrastructure..."
-	@cd infrastructure && ./manage.sh clean
+infra-clean: ## Clean up infraestructure (removes volumes)
+	@echo "🧹 Cleaning up Nexs Observability infraestructure..."
+	@cd infraestructure && ./manage.sh clean
 
-infra-reset: ## Reset infrastructure (clean + restart)
-	@echo "🔄 Resetting Nexs Observability Infrastructure..."
-	@cd infrastructure && ./manage.sh reset
+infra-reset: ## Reset infraestructure (clean + restart)
+	@echo "🔄 Resetting Nexs Observability infraestructure..."
+	@cd infraestructure && ./manage.sh reset
 
 infra-urls: ## Show service URLs
-	@cd infrastructure && ./manage.sh urls
+	@cd infraestructure && ./manage.sh urls
 
-infra-health: ## Check infrastructure health
-	@cd infrastructure && ./manage.sh health
+infra-health: ## Check infraestructure health
+	@cd infraestructure && ./manage.sh health
 
 # Development workflows
 dev-setup: infra-up ## Setup complete development environment
@@ -64,8 +64,8 @@ dev-logger: ## Start only logger development environment
 dev-metrics: ## Start only metrics development environment
 	@make infra-up GROUP=metrics
 
-# Testing with infrastructure
-test-integration: infra-up ## Run integration tests with infrastructure
+# Testing with infraestructure
+test-integration: infra-up ## Run integration tests with infraestructure
 	@echo "🧪 Running integration tests..."
 	@sleep 10  # Wait for services to be ready
 	@cd tracer && go test -tags=integration -v -timeout=60s ./...
@@ -86,8 +86,8 @@ test-integration-logger: ## Run logger integration tests
 	@cd logger && go test -tags=integration -v -timeout=60s ./...
 
 # Example testing
-test-examples: infra-up ## Test all examples against infrastructure
-	@echo "🧪 Testing examples against infrastructure..."
+test-examples: infra-up ## Test all examples against infraestructure
+	@echo "🧪 Testing examples against infraestructure..."
 	@sleep 15  # Wait for all services
 	@$(MAKE) test-tracer-examples
 	@$(MAKE) test-logger-examples
@@ -144,7 +144,7 @@ docker-prune: ## Prune Docker system (careful!)
 	@docker volume prune -f
 
 docker-logs: ## Show all Docker logs
-	@docker-compose -f infrastructure/docker-compose.yml logs
+	@docker-compose -f infraestructure/docker-compose.yml logs
 
 # Environment validation
 validate-env: ## Validate environment setup
@@ -156,7 +156,7 @@ validate-env: ## Validate environment setup
 	@echo "✅ Environment validation passed!"
 
 # Performance testing
-perf-test: infra-up ## Run performance tests against infrastructure
+perf-test: infra-up ## Run performance tests against infraestructure
 	@echo "⚡ Running performance tests..."
 	@sleep 15
 	@cd tracer && go test -bench=. -benchmem ./...

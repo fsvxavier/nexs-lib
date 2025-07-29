@@ -52,13 +52,13 @@ Este exemplo demonstra o uso e gerenciamento de pools de conexões PostgreSQL us
 ### Usando Docker (Recomendado)
 ```bash
 # Iniciar infraestrutura
-./infrastructure/manage.sh start
+./infraestructure/manage.sh start
 
 # Executar exemplo de pool
-./infrastructure/manage.sh example pool
+./infraestructure/manage.sh example pool
 
 # Parar infraestrutura
-./infrastructure/manage.sh stop
+./infraestructure/manage.sh stop
 ```
 
 ### Execução Direta

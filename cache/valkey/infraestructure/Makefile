@@ -1,10 +1,10 @@
-# Makefile for Valkey Infrastructure
+# Makefile for Valkey infraestructure
 
 .PHONY: help start stop status logs clean test integration-test cluster sentinel standalone
 
 # Default target
 help:
-	@echo "Valkey Infrastructure Commands:"
+	@echo "Valkey infraestructure Commands:"
 	@echo ""
 	@echo "Start Commands:"
 	@echo "  make start           - Start all Valkey configurations"

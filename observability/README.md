@@ -31,7 +31,7 @@ Sistema de distributed tracing com integração a plataformas populares.
 - **New Relic**: Full observability platform
 - **OpenTelemetry**: Vendor-neutral tracing
 
-### 🐳 Infrastructure
+### 🐳 infraestructure
 Stack completa Docker para desenvolvimento e testes com:
 - **Tracing**: Jaeger, Tempo, OpenTelemetry Collector
 - **Logging**: Elasticsearch, Logstash, Fluentd, Kibana
@@ -114,7 +114,7 @@ func main() {
 ```bash
 # Clonar repositório
 git clone <repository-url>
-cd nexs-lib/observability/infrastructure
+cd nexs-lib/observability/infraestructure
 
 # Iniciar stack completa
 make infra-up
@@ -140,10 +140,10 @@ make infra-status
 - [🔧 Tracer Providers](./tracer/providers/) - Configuração de providers  
 - [💡 Tracer Examples](./tracer/examples/) - 6 exemplos completos
 
-### Infrastructure
-- [📖 Infrastructure README](./infrastructure/README.md) - Setup completo
-- [🔧 Infrastructure Config](./infrastructure/configs/) - Configurações
-- [📋 Infrastructure Next Steps](./infrastructure/NEXT_STEPS.md) - Roadmap
+### infraestructure
+- [📖 infraestructure README](./infraestructure/README.md) - Setup completo
+- [🔧 infraestructure Config](./infraestructure/configs/) - Configurações
+- [📋 infraestructure Next Steps](./infraestructure/NEXT_STEPS.md) - Roadmap
 
 ## 🏗️ Arquitetura
 
@@ -453,9 +453,9 @@ Este projeto está licenciado sob a [MIT License](../LICENSE).
 
 - **Logger**: ✅ Production ready
 - **Tracer**: ✅ Production ready  
-- **Infrastructure**: ✅ Development ready
+- **infraestructure**: ✅ Development ready
 - **Documentation**: ✅ Complete
 - **Examples**: ✅ Complete
 - **Tests**: ✅ Complete
 
-**Current Status**: 🚀 **Ready for production use with comprehensive development infrastructure**
+**Current Status**: 🚀 **Ready for production use with comprehensive development infraestructure**

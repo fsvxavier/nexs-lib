@@ -73,19 +73,19 @@ Uma biblioteca PostgreSQL de alta performance com arquitetura hexagonal, otimiza
 
 ```bash
 # Iniciar infraestrutura completa
-./infrastructure/manage.sh start
+./infraestructure/manage.sh start
 
 # Executar exemplo básico
-./infrastructure/manage.sh example basic
+./infraestructure/manage.sh example basic
 
 # Executar exemplo com replicas
-./infrastructure/manage.sh example replicas
+./infraestructure/manage.sh example replicas
 
 # Executar testes
-./infrastructure/manage.sh test
+./infraestructure/manage.sh test
 
 # Parar infraestrutura
-./infrastructure/manage.sh stop
+./infraestructure/manage.sh stop
 ```
 
 ### Estrutura do Projeto
@@ -97,7 +97,7 @@ db/postgres/
 │   ├── replicas/                # Read replicas
 │   ├── advanced/                # Funcionalidades avançadas
 │   └── pool/                    # Pool de conexões
-├── infrastructure/              # Infraestrutura Docker
+├── infraestructure/              # Infraestrutura Docker
 │   ├── docker/                  # Configurações Docker
 │   ├── database/                # Scripts de banco
 │   └── manage.sh                # Script de gerenciamento
@@ -119,16 +119,16 @@ go get github.com/fsvxavier/nexs-lib/db/postgres
 
 ```bash
 # Básico - Conexões simples
-./infrastructure/manage.sh example basic
+./infraestructure/manage.sh example basic
 
 # Replicas - Read replicas com load balancing
-./infrastructure/manage.sh example replicas
+./infraestructure/manage.sh example replicas
 
 # Avançado - Funcionalidades complexas
-./infrastructure/manage.sh example advanced
+./infraestructure/manage.sh example advanced
 
 # Pool - Pool de conexões otimizado
-./infrastructure/manage.sh example pool
+./infraestructure/manage.sh example pool
 ```
 
 ### Configuração Manual
@@ -287,22 +287,22 @@ A infraestrutura Docker inclui:
 
 ```bash
 # Iniciar infraestrutura
-./infrastructure/manage.sh start
+./infraestructure/manage.sh start
 
 # Parar infraestrutura
-./infrastructure/manage.sh stop
+./infraestructure/manage.sh stop
 
 # Verificar status
-./infrastructure/manage.sh status
+./infraestructure/manage.sh status
 
 # Ver logs
-./infrastructure/manage.sh logs [serviço]
+./infraestructure/manage.sh logs [serviço]
 
 # Resetar banco (cuidado!)
-./infrastructure/manage.sh reset
+./infraestructure/manage.sh reset
 
 # Executar testes
-./infrastructure/manage.sh test
+./infraestructure/manage.sh test
 ```
 
 ### Informações de Conexão
@@ -342,7 +342,7 @@ Demonstra:
 - Prepared statements
 
 ```bash
-./infrastructure/manage.sh example basic
+./infraestructure/manage.sh example basic
 ```
 
 ### Replicas - Read Replicas
@@ -355,7 +355,7 @@ Demonstra:
 - Uso em cenários reais
 
 ```bash
-./infrastructure/manage.sh example replicas
+./infraestructure/manage.sh example replicas
 ```
 
 ### Advanced - Funcionalidades Avançadas
@@ -372,7 +372,7 @@ Demonstra:
 - Testes de performance
 
 ```bash
-./infrastructure/manage.sh example advanced
+./infraestructure/manage.sh example advanced
 ```
 
 ### Pool - Pool de Conexões
@@ -386,7 +386,7 @@ Demonstra:
 - Testes de carga
 
 ```bash
-./infrastructure/manage.sh example pool
+./infraestructure/manage.sh example pool
 ```
 
 ## 🔧 Configuração Avançada
@@ -441,7 +441,7 @@ export NEXS_DB_MAX_CONN_IDLE_TIME=10m
 
 ```bash
 # Executar todos os testes com infraestrutura Docker
-./infrastructure/manage.sh test
+./infraestructure/manage.sh test
 
 # Executar testes específicos
 cd db/postgres
@@ -455,17 +455,17 @@ go test -v -race -timeout 30s ./...
 go test -bench=. -benchmem ./...
 
 # Teste de carga com exemplo
-./infrastructure/manage.sh example advanced
+./infraestructure/manage.sh example advanced
 ```
 
 ### Validação de Failover
 
 ```bash
 # Testar failover automático
-./infrastructure/manage.sh example replicas
+./infraestructure/manage.sh example replicas
 
 # Parar replica e verificar failover
-docker-compose -f infrastructure/docker/docker-compose.yml -p nexs-lib stop postgres-replica1
+docker-compose -f infraestructure/docker/docker-compose.yml -p nexs-lib stop postgres-replica1
 ```
 
 ## 📊 Monitoramento e Métricas
@@ -500,11 +500,11 @@ fmt.Printf("Health Report: %+v\n", healthReport)
 
 ```bash
 # Ver logs em tempo real
-./infrastructure/manage.sh logs
+./infraestructure/manage.sh logs
 
 # Logs específicos
-./infrastructure/manage.sh logs postgres-primary
-./infrastructure/manage.sh logs postgres-replica1
+./infraestructure/manage.sh logs postgres-primary
+./infraestructure/manage.sh logs postgres-replica1
 ```
 
 ## 🚀 Performance
@@ -548,14 +548,14 @@ config := postgres.NewConfigWithOptions(
 
 1. **Erro de Conexão**
    ```bash
-   ./infrastructure/manage.sh status
-   ./infrastructure/manage.sh logs postgres-primary
+   ./infraestructure/manage.sh status
+   ./infraestructure/manage.sh logs postgres-primary
    ```
 
 2. **Performance Degradada**
    ```bash
    # Verificar métricas
-   ./infrastructure/manage.sh example pool
+   ./infraestructure/manage.sh example pool
    
    # Ajustar configurações de pool
    export NEXS_DB_MAX_CONNS=50
@@ -564,10 +564,10 @@ config := postgres.NewConfigWithOptions(
 3. **Failover não Funciona**
    ```bash
    # Verificar configuração de replicas
-   ./infrastructure/manage.sh logs postgres-replica1
+   ./infraestructure/manage.sh logs postgres-replica1
    
    # Testar manualmente
-   ./infrastructure/manage.sh example replicas
+   ./infraestructure/manage.sh example replicas
    ```
 
 ### Debugging
@@ -585,11 +585,11 @@ config := postgres.NewConfigWithOptions(
 
 ```bash
 # Reset completo (cuidado!)
-./infrastructure/manage.sh reset
+./infraestructure/manage.sh reset
 
 # Restart limpo
-./infrastructure/manage.sh stop
-./infrastructure/manage.sh start
+./infraestructure/manage.sh stop
+./infraestructure/manage.sh start
 ```
     conn, err := pool.Acquire(ctx)
     if err != nil {
@@ -606,7 +606,7 @@ config := postgres.NewConfigWithOptions(
 1. Fork o projeto
 2. Crie uma branch para sua feature (`git checkout -b feature/amazing-feature`)
 3. Desenvolva e teste sua feature
-4. Execute os testes: `./infrastructure/manage.sh test`
+4. Execute os testes: `./infraestructure/manage.sh test`
 5. Commit suas mudanças (`git commit -m 'Add amazing feature'`)
 6. Push para a branch (`git push origin feature/amazing-feature`)
 7. Abra um Pull Request
@@ -628,20 +628,20 @@ git clone https://github.com/fsvxavier/nexs-lib.git
 cd nexs-lib/db/postgres
 
 # Iniciar infraestrutura
-./infrastructure/manage.sh start
+./infraestructure/manage.sh start
 
 # Executar testes
-./infrastructure/manage.sh test
+./infraestructure/manage.sh test
 
 # Executar exemplos
-./infrastructure/manage.sh example basic
-./infrastructure/manage.sh example advanced
+./infraestructure/manage.sh example basic
+./infraestructure/manage.sh example advanced
 
 # Desenvolver nova funcionalidade
 # ... code ...
 
 # Validar mudanças
-./infrastructure/manage.sh test
+./infraestructure/manage.sh test
 go test -bench=. -benchmem ./...
 ```
 
@@ -652,8 +652,8 @@ Para adicionar um novo exemplo:
 1. Crie pasta em `examples/nome_exemplo/`
 2. Adicione `main.go` com o exemplo
 3. Crie `README.md` detalhado
-4. Atualize `infrastructure/manage.sh` para incluir o exemplo
-5. Teste com `./infrastructure/manage.sh example nome_exemplo`
+4. Atualize `infraestructure/manage.sh` para incluir o exemplo
+5. Teste com `./infraestructure/manage.sh example nome_exemplo`
 
 ## 📚 Recursos Adicionais
 
@@ -673,13 +673,13 @@ Para adicionar um novo exemplo:
 
 ```bash
 # Monitorar logs em tempo real
-./infrastructure/manage.sh logs
+./infraestructure/manage.sh logs
 
 # Monitorar métricas
-./infrastructure/manage.sh example pool
+./infraestructure/manage.sh example pool
 
 # Verificar saúde do sistema
-./infrastructure/manage.sh status
+./infraestructure/manage.sh status
 ```
 
 ### Performance Tuning
@@ -751,12 +751,12 @@ Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICE
 **Links Importantes**:
 - [Documentação Completa](./docs/)
 - [Exemplos Práticos](./examples/)
-- [Infraestrutura Docker](./infrastructure/)
+- [Infraestrutura Docker](./infraestructure/)
 - [Issues e Suporte](https://github.com/fsvxavier/nexs-lib/issues)
 
 ---
 
-🚀 **Pronto para começar?** Execute `./infrastructure/manage.sh start` e explore os exemplos!
+🚀 **Pronto para começar?** Execute `./infraestructure/manage.sh start` e explore os exemplos!
     _, err = tx.Exec(ctx, "INSERT INTO users (name) VALUES ($1)", "Jane Doe")
     if err != nil {
         return err
@@ -825,7 +825,7 @@ db/postgres/
 │       ├── resilience/        # Retry e failover
 │       ├── monitoring/        # Monitoramento de segurança
 │       └── replicas/          # Sistema de read replicas
-├── infrastructure/            # Infraestrutura Docker completa
+├── infraestructure/            # Infraestrutura Docker completa
 │   ├── docker/                # Docker Compose com PostgreSQL + Replicas
 │   ├── database/              # Scripts de setup
 │   └── manage.sh              # Scripts de gerenciamento

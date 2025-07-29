@@ -39,7 +39,7 @@ Este exemplo demonstra como usar todos os tipos específicos de erro disponívei
 - Erros de recursos esgotados
 - Informações de limites e quotas
 
-### 8. Infrastructure Errors
+### 8. infraestructure Errors
 - Erros de infraestrutura
 - Erros de dependências
 - Informações de componentes

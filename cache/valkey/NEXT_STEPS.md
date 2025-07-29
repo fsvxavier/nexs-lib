@@ -219,7 +219,7 @@ type ClusterFailover struct {
 - 📋 Chaos engineering tests
 - 📋 Load testing automatizado
 
-### Test Infrastructure
+### Test infraestructure
 ```go
 // Framework de testes melhorado
 type TestSuite struct {

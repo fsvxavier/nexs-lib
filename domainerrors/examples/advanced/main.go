@@ -76,8 +76,8 @@ func errorWrappingExample() {
 	// Create base error
 	originalErr := errors.New("network connection failed")
 
-	// Wrap with infrastructure error
-	infraErr := domainerrors.NewInfrastructureError("REDIS_CONNECTION_FAILED", "redis", "Cache operation failed", originalErr)
+	// Wrap with infraestructure error
+	infraErr := domainerrors.NewinfraestructureError("REDIS_CONNECTION_FAILED", "redis", "Cache operation failed", originalErr)
 	infraErr.WithAction("SET")
 
 	// Wrap with service error using context

@@ -1,4 +1,4 @@
-# Valkey Infrastructure for Testing
+# Valkey infraestructure for Testing
 
 Esta pasta contém a infraestrutura Docker para testes do Valkey em diferentes configurações:
 

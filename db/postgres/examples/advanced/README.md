@@ -55,13 +55,13 @@ Este exemplo demonstra funcionalidades avançadas do PostgreSQL usando a bibliot
 ### Usando Docker (Recomendado)
 ```bash
 # Iniciar infraestrutura
-./infrastructure/manage.sh start
+./infraestructure/manage.sh start
 
 # Executar exemplo avançado
-./infrastructure/manage.sh example advanced
+./infraestructure/manage.sh example advanced
 
 # Parar infraestrutura
-./infrastructure/manage.sh stop
+./infraestructure/manage.sh stop
 ```
 
 ### Execução Direta
@@ -91,7 +91,7 @@ cfg := postgres.NewConfigWithOptions(
 
 - PostgreSQL em execução
 - Schema `nexs_testdb` criado
-- Tabelas necessárias criadas (ver infrastructure/database/init/)
+- Tabelas necessárias criadas (ver infraestructure/database/init/)
 
 ## Saída Esperada
 

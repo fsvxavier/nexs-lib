@@ -1,4 +1,4 @@
-# NEXS-LIB Infrastructure
+# NEXS-LIB infraestructure
 
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
@@ -10,7 +10,7 @@ Infraestrutura Docker completa para desenvolvimento, testes e exemplos da biblio
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    NEXS-LIB Infrastructure                  │
+│                    NEXS-LIB infraestructure                  │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌─────────────────┐    ┌─────────────────┐                │
@@ -36,7 +36,7 @@ Infraestrutura Docker completa para desenvolvimento, testes e exemplos da biblio
 ## 📁 Estrutura da Infraestrutura
 
 ```
-infrastructure/
+infraestructure/
 ├── README.md                         # Este arquivo
 ├── manage.sh                         # Script de gerenciamento
 ├── docker/                           # Configurações Docker
@@ -226,10 +226,10 @@ go version
 cd /path/to/nexs-lib
 
 # Iniciar todos os serviços
-sudo ./infrastructure/manage.sh start
+sudo ./infraestructure/manage.sh start
 
 # Verificar status
-sudo ./infrastructure/manage.sh status
+sudo ./infraestructure/manage.sh status
 ```
 
 ## 📋 Comandos do Script de Gerenciamento
@@ -238,47 +238,47 @@ sudo ./infrastructure/manage.sh status
 
 ```bash
 # Iniciar infraestrutura
-sudo ./infrastructure/manage.sh start
+sudo ./infraestructure/manage.sh start
 
 # Parar infraestrutura
-sudo ./infrastructure/manage.sh stop
+sudo ./infraestructure/manage.sh stop
 
 # Reiniciar infraestrutura
-sudo ./infrastructure/manage.sh restart
+sudo ./infraestructure/manage.sh restart
 
 # Verificar status
-sudo ./infrastructure/manage.sh status
+sudo ./infraestructure/manage.sh status
 
 # Ajuda
-sudo ./infrastructure/manage.sh help
+sudo ./infraestructure/manage.sh help
 ```
 
 ### Comandos de Desenvolvimento
 
 ```bash
 # Executar testes
-sudo ./infrastructure/manage.sh test
+sudo ./infraestructure/manage.sh test
 
 # Executar exemplos
-sudo ./infrastructure/manage.sh example basic
-sudo ./infrastructure/manage.sh example replicas
-sudo ./infrastructure/manage.sh example advanced
-sudo ./infrastructure/manage.sh example pool
+sudo ./infraestructure/manage.sh example basic
+sudo ./infraestructure/manage.sh example replicas
+sudo ./infraestructure/manage.sh example advanced
+sudo ./infraestructure/manage.sh example pool
 
 # Ver logs
-sudo ./infrastructure/manage.sh logs
-sudo ./infrastructure/manage.sh logs postgres-primary
-sudo ./infrastructure/manage.sh logs postgres-replica1
+sudo ./infraestructure/manage.sh logs
+sudo ./infraestructure/manage.sh logs postgres-primary
+sudo ./infraestructure/manage.sh logs postgres-replica1
 ```
 
 ### Comandos de Manutenção
 
 ```bash
 # Resetar banco de dados (cuidado!)
-sudo ./infrastructure/manage.sh reset
+sudo ./infraestructure/manage.sh reset
 
 # Ver logs de um serviço específico
-sudo ./infrastructure/manage.sh logs [serviço]
+sudo ./infraestructure/manage.sh logs [serviço]
 ```
 
 ## 🔧 Configurações
@@ -448,7 +448,7 @@ CREATE TABLE performance_test (
 
 ```bash
 # Executar todos os testes
-sudo ./infrastructure/manage.sh test
+sudo ./infraestructure/manage.sh test
 
 # Executar testes específicos
 cd db/postgres
@@ -478,13 +478,13 @@ SELECT * FROM users WHERE email = 'test@example.com';
 
 ```bash
 # Parar primary
-sudo docker-compose -f infrastructure/docker/docker-compose.yml stop postgres-primary
+sudo docker-compose -f infraestructure/docker/docker-compose.yml stop postgres-primary
 
 # Executar exemplo de replica (deve funcionar)
-sudo ./infrastructure/manage.sh example replicas
+sudo ./infraestructure/manage.sh example replicas
 
 # Reiniciar primary
-sudo docker-compose -f infrastructure/docker/docker-compose.yml start postgres-primary
+sudo docker-compose -f infraestructure/docker/docker-compose.yml start postgres-primary
 ```
 
 ## 📊 Monitoramento
@@ -493,13 +493,13 @@ sudo docker-compose -f infrastructure/docker/docker-compose.yml start postgres-p
 
 ```bash
 # Todos os serviços
-sudo ./infrastructure/manage.sh logs
+sudo ./infraestructure/manage.sh logs
 
 # Serviço específico
-sudo ./infrastructure/manage.sh logs postgres-primary
-sudo ./infrastructure/manage.sh logs postgres-replica1
-sudo ./infrastructure/manage.sh logs redis
-sudo ./infrastructure/manage.sh logs pgadmin
+sudo ./infraestructure/manage.sh logs postgres-primary
+sudo ./infraestructure/manage.sh logs postgres-replica1
+sudo ./infraestructure/manage.sh logs redis
+sudo ./infraestructure/manage.sh logs pgadmin
 ```
 
 ### Métricas de Replicação
@@ -516,7 +516,7 @@ SELECT * FROM pg_stat_wal_receiver;
 
 ```bash
 # Verificar se todos os serviços estão saudáveis
-sudo docker-compose -f infrastructure/docker/docker-compose.yml ps
+sudo docker-compose -f infraestructure/docker/docker-compose.yml ps
 
 # Verificar conectividade do banco
 pg_isready -h localhost -p 5432 -U nexs_user -d nexs_testdb
@@ -560,11 +560,11 @@ sudo kill -9 <PID>
 # - Health checks aprimorados
 
 # Para verificar se as replicas estão funcionando:
-sudo ./infrastructure/manage.sh status
+sudo ./infraestructure/manage.sh status
 
 # Verificar logs se houver problemas
-sudo ./infrastructure/manage.sh logs postgres-replica1
-sudo ./infrastructure/manage.sh logs postgres-replica2
+sudo ./infraestructure/manage.sh logs postgres-replica1
+sudo ./infraestructure/manage.sh logs postgres-replica2
 
 # Verificar configuração de replicação
 psql -h localhost -p 5432 -U nexs_user -d nexs_testdb -c "SELECT * FROM pg_stat_replication;"
@@ -573,10 +573,10 @@ psql -h localhost -p 5432 -U nexs_user -d nexs_testdb -c "SELECT * FROM pg_stat_
 #### 4. Banco não inicializa
 ```bash
 # Verificar logs
-sudo ./infrastructure/manage.sh logs postgres-primary
+sudo ./infraestructure/manage.sh logs postgres-primary
 
 # Resetar banco
-sudo ./infrastructure/manage.sh reset
+sudo ./infraestructure/manage.sh reset
 ```
 
 ### Comandos de Debug
@@ -592,7 +592,7 @@ sudo docker network ls
 sudo docker volume ls
 
 # Logs detalhados
-sudo docker-compose -f infrastructure/docker/docker-compose.yml logs --tail=50 postgres-primary
+sudo docker-compose -f infraestructure/docker/docker-compose.yml logs --tail=50 postgres-primary
 
 # Conectar ao container
 sudo docker exec -it nexs-postgres-primary bash
@@ -602,10 +602,10 @@ sudo docker exec -it nexs-postgres-primary bash
 
 ```bash
 # Parar e remover tudo
-sudo ./infrastructure/manage.sh stop
+sudo ./infraestructure/manage.sh stop
 
 # Remover volumes (perde dados!)
-sudo docker-compose -f infrastructure/docker/docker-compose.yml down -v
+sudo docker-compose -f infraestructure/docker/docker-compose.yml down -v
 
 # Remover imagens
 sudo docker rmi postgres:15 redis:7-alpine dpage/pgadmin4:latest
@@ -786,4 +786,4 @@ sudo docker exec -i nexs-postgres-primary pg_restore -U nexs_user -d nexs_testdb
 - ✅ Health checks aprimorados
 - ✅ Documentação atualizada
 
-🚀 **Pronto para começar?** Execute `./infrastructure/manage.sh start` e explore a infraestrutura!
+🚀 **Pronto para começar?** Execute `./infraestructure/manage.sh start` e explore a infraestrutura!

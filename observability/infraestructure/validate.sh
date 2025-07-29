@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Nexs Infrastructure Validation Script
+# Nexs infraestructure Validation Script
 # Validates configuration files syntax and structure
 
 set -e
 
-echo "🔍 Validating Nexs Observability Infrastructure..."
+echo "🔍 Validating Nexs Observability infraestructure..."
 echo ""
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -142,7 +142,7 @@ grafana_files=(
     "grafana/provisioning/dashboards/dashboards.yaml:Grafana dashboard config"
     "grafana/dashboards/nexs-tracer-overview.json:Tracer dashboard"
     "grafana/dashboards/nexs-logger-overview.json:Logger dashboard"
-    "grafana/dashboards/infrastructure-health.json:Infrastructure dashboard"
+    "grafana/dashboards/infraestructure-health.json:infraestructure dashboard"
 )
 
 for item in "${grafana_files[@]}"; do

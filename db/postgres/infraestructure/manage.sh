@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# NEXS-LIB Infrastructure Management Script
-# This script helps manage the PostgreSQL infrastructure for testing and examples
+# NEXS-LIB infraestructure Management Script
+# This script helps manage the PostgreSQL infraestructure for testing and examples
 
 set -e
 
 # Configuration
-COMPOSE_FILE="infrastructure/docker/docker-compose.yml"
+COMPOSE_FILE="infraestructure/docker/docker-compose.yml"
 PROJECT_NAME="nexs-lib"
 
 # Check if script is run from correct directory
@@ -18,7 +18,7 @@ check_working_directory() {
         echo ""
         echo "Please run this script from the root of the nexs-lib project:"
         echo "  cd /path/to/nexs-lib"
-        echo "  ./infrastructure/manage.sh [command]"
+        echo "  ./infraestructure/manage.sh [command]"
         exit 1
     fi
     
@@ -70,7 +70,7 @@ check_docker() {
         echo "   - sudo systemctl status docker"
         echo ""
         echo "4. Try with sudo (not recommended for production):"
-        echo "   - sudo ./infrastructure/manage.sh [command]"
+        echo "   - sudo ./infraestructure/manage.sh [command]"
         echo ""
         exit 1
     fi
@@ -97,7 +97,7 @@ check_docker_compose() {
         echo "This might be a permission issue. Try:"
         echo "  - Add your user to docker group: sudo usermod -aG docker \$USER"
         echo "  - Log out and log back in"
-        echo "  - Or run with sudo: sudo ./infrastructure/manage.sh [command]"
+        echo "  - Or run with sudo: sudo ./infraestructure/manage.sh [command]"
         echo ""
         exit 1
     fi
@@ -113,8 +113,8 @@ check_compose_file() {
 }
 
 # Cleanup existing containers and networks
-cleanup_infrastructure() {
-    log "Cleaning up existing infrastructure..."
+cleanup_infraestructure() {
+    log "Cleaning up existing infraestructure..."
     
     # Stop and remove containers
     docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" down --remove-orphans 2>/dev/null || true
@@ -171,16 +171,16 @@ show_startup_logs() {
     echo ""
 }
 
-# Start infrastructure
-start_infrastructure() {
-    log "Starting NEXS-LIB infrastructure..."
+# Start infraestructure
+start_infraestructure() {
+    log "Starting NEXS-LIB infraestructure..."
     
     check_docker
     check_docker_compose
     check_compose_file
     
-    # Cleanup any existing infrastructure
-    cleanup_infrastructure
+    # Cleanup any existing infraestructure
+    cleanup_infraestructure
     
     # Create network
     log "Creating Docker network..."
@@ -265,7 +265,7 @@ start_infrastructure() {
         fi
     done
     
-    success "Infrastructure started successfully!"
+    success "infraestructure started successfully!"
     
     # Show connection information
     echo ""
@@ -296,9 +296,9 @@ start_infrastructure() {
     echo "Redis: localhost:6379"
 }
 
-# Stop infrastructure
-stop_infrastructure() {
-    log "Stopping NEXS-LIB infrastructure..."
+# Stop infraestructure
+stop_infraestructure() {
+    log "Stopping NEXS-LIB infraestructure..."
     
     check_docker_compose
     check_compose_file
@@ -309,15 +309,15 @@ stop_infrastructure() {
     # Remove network
     docker network rm nexs-network 2>/dev/null || true
     
-    success "Infrastructure stopped successfully!"
+    success "infraestructure stopped successfully!"
 }
 
-# Restart infrastructure
-restart_infrastructure() {
-    log "Restarting NEXS-LIB infrastructure..."
+# Restart infraestructure
+restart_infraestructure() {
+    log "Restarting NEXS-LIB infraestructure..."
     
-    stop_infrastructure
-    start_infrastructure
+    stop_infraestructure
+    start_infraestructure
 }
 
 # Show logs
@@ -335,22 +335,22 @@ show_logs() {
 
 # Show status
 show_status() {
-    log "NEXS-LIB Infrastructure Status:"
+    log "NEXS-LIB infraestructure Status:"
     echo ""
     
     check_docker_compose
     check_compose_file
     
-    # Check if infrastructure is running
+    # Check if infraestructure is running
     if docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" ps 2>/dev/null | grep -q "Up"; then
         docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" ps
         echo ""
-        success "Infrastructure is running"
+        success "infraestructure is running"
     else
-        warn "Infrastructure is not running"
+        warn "infraestructure is not running"
         echo ""
-        echo "To start the infrastructure:"
-        echo "  ./infrastructure/manage.sh start"
+        echo "To start the infraestructure:"
+        echo "  ./infraestructure/manage.sh start"
         echo ""
         echo "To see what containers exist:"
         docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" ps 2>/dev/null || echo "No containers found"
@@ -377,29 +377,29 @@ reset_database() {
     
     # Start services again
     log "Starting services again..."
-    start_infrastructure
+    start_infraestructure
     
     success "Database reset successfully!"
 }
 
 # Run tests
 run_tests() {
-    log "Running tests with Docker infrastructure..."
+    log "Running tests with Docker infraestructure..."
     
     check_docker_compose
     check_compose_file
     
-    # Start infrastructure if not running
+    # Start infraestructure if not running
     if ! docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" ps | grep -q "Up"; then
-        log "Infrastructure not running, starting it..."
-        start_infrastructure
+        log "infraestructure not running, starting it..."
+        start_infraestructure
     else
-        log "Infrastructure already running, verifying health..."
+        log "infraestructure already running, verifying health..."
         
         # Verify primary database is healthy
         if ! docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" exec -T postgres-primary pg_isready -U nexs_user -d nexs_testdb > /dev/null 2>&1; then
-            warn "Primary database not healthy, restarting infrastructure..."
-            start_infrastructure
+            warn "Primary database not healthy, restarting infraestructure..."
+            start_infraestructure
         fi
     fi
     
@@ -431,22 +431,22 @@ run_tests() {
 run_example() {
     local example=${1:-"basic"}
     
-    log "Running $example example with Docker infrastructure..."
+    log "Running $example example with Docker infraestructure..."
     
     check_docker_compose
     check_compose_file
     
-    # Start infrastructure if not running
+    # Start infraestructure if not running
     if ! docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" ps | grep -q "Up"; then
-        log "Infrastructure not running, starting it..."
-        start_infrastructure
+        log "infraestructure not running, starting it..."
+        start_infraestructure
     else
-        log "Infrastructure already running, verifying health..."
+        log "infraestructure already running, verifying health..."
         
         # Verify primary database is healthy
         if ! docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" exec -T postgres-primary pg_isready -U nexs_user -d nexs_testdb > /dev/null 2>&1; then
-            warn "Primary database not healthy, restarting infrastructure..."
-            start_infrastructure
+            warn "Primary database not healthy, restarting infraestructure..."
+            start_infraestructure
         fi
     fi
     
@@ -496,22 +496,22 @@ run_example() {
 
 # Show help
 show_help() {
-    echo "NEXS-LIB Infrastructure Management Script"
+    echo "NEXS-LIB infraestructure Management Script"
     echo "Usage: $0 [COMMAND]"
     echo ""
     echo "Commands:"
-    echo "  start              Start the infrastructure"
-    echo "  stop               Stop the infrastructure"
-    echo "  restart            Restart the infrastructure"
-    echo "  status             Show infrastructure status"
+    echo "  start              Start the infraestructure"
+    echo "  stop               Stop the infraestructure"
+    echo "  restart            Restart the infraestructure"
+    echo "  status             Show infraestructure status"
     echo "  logs [service]     Show logs (optionally for specific service)"
     echo "  reset              Reset database (WARNING: This will delete all data)"
-    echo "  test               Run tests with Docker infrastructure"
+    echo "  test               Run tests with Docker infraestructure"
     echo "  example [name]     Run specific example (basic, replicas, advanced, pool)"
     echo "  help               Show this help"
     echo ""
     echo "Examples:"
-    echo "  $0 start                    # Start infrastructure"
+    echo "  $0 start                    # Start infraestructure"
     echo "  $0 logs postgres-primary    # Show primary database logs"
     echo "  $0 test                     # Run tests"
     echo "  $0 example replicas         # Run replica example"
@@ -549,13 +549,13 @@ main() {
     
     case "${1:-help}" in
         start)
-            start_infrastructure
+            start_infraestructure
             ;;
         stop)
-            stop_infrastructure
+            stop_infraestructure
             ;;
         restart)
-            restart_infrastructure
+            restart_infraestructure
             ;;
         status)
             show_status

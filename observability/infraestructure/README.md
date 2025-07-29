@@ -1,4 +1,4 @@
-# Nexs Observability Infrastructure
+# Nexs Observability infraestructure
 
 Infraestrutura Docker completa para testes e desenvolvimento dos componentes de observabilidade (logger e tracer) da Nexs Library.
 
@@ -70,7 +70,7 @@ Esta infraestrutura fornece um ambiente completo de observabilidade para desenvo
 ```bash
 # Clone o repositório (se ainda não fez)
 git clone <repository-url>
-cd nexs-lib/observability/infrastructure
+cd nexs-lib/observability/infraestructure
 
 # Validar ambiente
 make validate-env
@@ -291,14 +291,14 @@ make infra-up
 
 1. **Nexs Tracer Overview**: Métricas gerais de tracing
 2. **Nexs Logger Overview**: Métricas de logging
-3. **Infrastructure Health**: Status da infraestrutura
+3. **infraestructure Health**: Status da infraestrutura
 4. **Performance Metrics**: Métricas de performance
 
 ### Kibana Index Patterns
 
 - `nexs-logs-*`: Logs da aplicação
 - `nexs-traces-*`: Traces convertidos para logs
-- `infrastructure-*`: Logs da infraestrutura
+- `infraestructure-*`: Logs da infraestrutura
 
 ## 🔄 CI/CD Integration
 
@@ -317,9 +317,9 @@ jobs:
         with:
           go-version: '1.23'
       
-      - name: Start Infrastructure
+      - name: Start infraestructure
         run: |
-          cd observability/infrastructure
+          cd observability/infraestructure
           make infra-up
           sleep 30
       
@@ -328,7 +328,7 @@ jobs:
       
       - name: Cleanup
         run: |
-          cd observability/infrastructure
+          cd observability/infraestructure
           make infra-down
 ```
 
@@ -345,7 +345,7 @@ jobs:
 ### Estrutura de Arquivos
 
 ```
-infrastructure/
+infraestructure/
 ├── docker-compose.yml         # Definição dos serviços
 ├── manage.sh                  # Script de gerenciamento
 ├── Makefile                   # Comandos de automação

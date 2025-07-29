@@ -1,4 +1,4 @@
-# Nexs Observability Infrastructure - Next Steps
+# Nexs Observability infraestructure - Next Steps
 
 ## 🎯 Status Atual
 
@@ -176,7 +176,7 @@
 - [ ] Time to productivity para novos devs
 - [ ] Debug session effectiveness
 - [ ] Issue resolution time
-- [ ] Infrastructure uptime
+- [ ] infraestructure uptime
 - [ ] Developer satisfaction survey
 ```
 

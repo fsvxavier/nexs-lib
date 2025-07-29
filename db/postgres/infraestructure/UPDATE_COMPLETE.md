@@ -1,4 +1,4 @@
-# NEXS-LIB Infrastructure Update - Complete! 🎉
+# NEXS-LIB infraestructure Update - Complete! 🎉
 
 ## ✅ Atualização Concluída
 
@@ -42,14 +42,14 @@ A infraestrutura da NEXS-LIB foi **completamente atualizada** com base nos exemp
 
 ### 1. **Iniciar a Infraestrutura**
 ```bash
-cd infrastructure
+cd infraestructure
 ./manage.sh start
 ```
 
 ### 2. **Testar a Infraestrutura**
 ```bash
-cd infrastructure
-./test_infrastructure.sh
+cd infraestructure
+./test_infraestructure.sh
 ```
 
 ### 3. **Executar os Exemplos**
@@ -63,7 +63,7 @@ go run multi_tenant.go
 
 ### 4. **Parar a Infraestrutura**
 ```bash
-cd infrastructure
+cd infraestructure
 ./manage.sh stop
 ```
 
@@ -106,15 +106,15 @@ A infraestrutura atualizada suporta **todos os 10 exemplos** da NEXS-LIB:
 
 ## 🛠️ Arquivos Modificados
 
-1. **`infrastructure/database/init/02_schema.sql`** - Schema completamente reescrito
-2. **`infrastructure/database/init/03_sample_data.sql`** - Dados atualizados
-3. **`infrastructure/database/init/04_examples_setup.sql`** - Novo arquivo com utilities
-4. **`infrastructure/README.md`** - Documentação atualizada
-5. **`infrastructure/test_infrastructure.sh`** - Script de teste criado
+1. **`infraestructure/database/init/02_schema.sql`** - Schema completamente reescrito
+2. **`infraestructure/database/init/03_sample_data.sql`** - Dados atualizados
+3. **`infraestructure/database/init/04_examples_setup.sql`** - Novo arquivo com utilities
+4. **`infraestructure/README.md`** - Documentação atualizada
+5. **`infraestructure/test_infraestructure.sh`** - Script de teste criado
 
 ## 🎉 Próximos Passos
 
-1. **Teste a infraestrutura** com `./test_infrastructure.sh`
+1. **Teste a infraestrutura** com `./test_infraestructure.sh`
 2. **Execute os exemplos** para verificar funcionamento
 3. **Desenvolva novos exemplos** usando as tabelas existentes
 4. **Utilize as funções utilitárias** para gerar dados de teste

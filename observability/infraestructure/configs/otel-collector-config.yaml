@@ -39,7 +39,7 @@ processors:
       - key: service.instance.id
         value: ${env:HOSTNAME}
         action: upsert
-      - key: nexs.infrastructure
+      - key: nexs.infraestructure
         value: "docker-compose"
         action: upsert
 
@@ -72,7 +72,7 @@ exporters:
   prometheus:
     endpoint: "0.0.0.0:8889"
     const_labels:
-      environment: "nexs-infrastructure"
+      environment: "nexs-infraestructure"
 
 extensions:
   health_check:

@@ -3,7 +3,7 @@
 # Script para testar a infraestrutura atualizada da NEXS-LIB
 # Este script verifica se todos os esquemas, tabelas e dados foram criados corretamente
 
-echo "=== NEXS-LIB Infrastructure Test ==="
+echo "=== NEXS-LIB infraestructure Test ==="
 echo "Testando a infraestrutura atualizada..."
 
 # Configurações de conexão

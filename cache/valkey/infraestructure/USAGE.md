@@ -14,7 +14,7 @@
 
 ### 1. Iniciando Todos os Serviços
 ```bash
-cd cache/valkey/infrastructure
+cd cache/valkey/infraestructure
 make start
 # ou
 ./scripts/start.sh all
@@ -62,7 +62,7 @@ make integration-test
 
 # Testes manuais
 docker-compose up -d
-go test -v -tags=integration ./infrastructure/...
+go test -v -tags=integration ./infraestructure/...
 ```
 
 ### 5. Parando Serviços

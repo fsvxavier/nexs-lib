@@ -171,10 +171,16 @@ func (s *Server) RegisterRoute(method, path string, handler interface{}) error {
 		return fmt.Errorf("handler cannot be nil")
 	}
 
-	// Convert handler to Atreugo handler
-	atreugoHandler, ok := handler.(atreugo.View)
-	if !ok {
-		return fmt.Errorf("handler must be an atreugo.View, got %T", handler)
+	// Convert handler to Atreugo handler - atreugo.View is func(*atreugo.RequestCtx) error
+	var atreugoHandler atreugo.View
+
+	// Try direct type assertion first
+	if h, ok := handler.(atreugo.View); ok {
+		atreugoHandler = h
+	} else if h, ok := handler.(func(*atreugo.RequestCtx) error); ok {
+		atreugoHandler = atreugo.View(h)
+	} else {
+		return fmt.Errorf("handler must be an atreugo.View (func(*atreugo.RequestCtx) error), got %T", handler)
 	}
 
 	s.mutex.Lock()
@@ -223,9 +229,16 @@ func (s *Server) RegisterMiddleware(middleware interface{}) error {
 		return fmt.Errorf("middleware cannot be nil")
 	}
 
-	atreugoMiddleware, ok := middleware.(atreugo.Middleware)
-	if !ok {
-		return fmt.Errorf("middleware must be an atreugo.Middleware, got %T", middleware)
+	// Convert middleware to Atreugo middleware - atreugo.Middleware is also func(*atreugo.RequestCtx) error
+	var atreugoMiddleware atreugo.Middleware
+
+	// Try direct type assertion first
+	if mw, ok := middleware.(atreugo.Middleware); ok {
+		atreugoMiddleware = mw
+	} else if mw, ok := middleware.(func(*atreugo.RequestCtx) error); ok {
+		atreugoMiddleware = atreugo.Middleware(mw)
+	} else {
+		return fmt.Errorf("middleware must be an atreugo.Middleware (func(*atreugo.RequestCtx) error), got %T", middleware)
 	}
 
 	s.mutex.Lock()

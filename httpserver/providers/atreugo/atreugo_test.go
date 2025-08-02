@@ -3,7 +3,6 @@ package atreugo
 import (
 	"context"
 	"net/http"
-	"sync"
 	"testing"
 	"time"
 
@@ -12,40 +11,68 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/fsvxavier/nexs-lib/httpserver/config"
-	"github.com/fsvxavier/nexs-lib/httpserver/interfaces"
 )
 
 // Mock Observer for testing
 type mockObserver struct {
-	events []interfaces.ServerEvent
-	mutex  sync.RWMutex
+	startCalled      bool
+	stopCalled       bool
+	errorCalled      bool
+	requestCalled    bool
+	responseCalled   bool
+	routeEnterCalled bool
+	routeExitCalled  bool
 }
 
-func (m *mockObserver) OnServerEvent(event interfaces.ServerEvent, ctx context.Context, data interface{}) error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	m.events = append(m.events, event)
+func (m *mockObserver) OnStart(ctx context.Context, addr string) error {
+	m.startCalled = true
 	return nil
 }
 
-func (m *mockObserver) GetEvents() []interfaces.ServerEvent {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	return append([]interfaces.ServerEvent{}, m.events...)
+func (m *mockObserver) OnStop(ctx context.Context) error {
+	m.stopCalled = true
+	return nil
 }
 
-func (m *mockObserver) ClearEvents() {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	m.events = nil
+func (m *mockObserver) OnError(ctx context.Context, err error) error {
+	m.errorCalled = true
+	return nil
+}
+
+func (m *mockObserver) OnRequest(ctx context.Context, req interface{}) error {
+	m.requestCalled = true
+	return nil
+}
+
+func (m *mockObserver) OnResponse(ctx context.Context, req interface{}, resp interface{}, duration time.Duration) error {
+	m.responseCalled = true
+	return nil
+}
+
+func (m *mockObserver) OnRouteEnter(ctx context.Context, method, path string, req interface{}) error {
+	m.routeEnterCalled = true
+	return nil
+}
+
+func (m *mockObserver) OnRouteExit(ctx context.Context, method, path string, req interface{}, duration time.Duration) error {
+	m.routeExitCalled = true
+	return nil
+}
+
+func (m *mockObserver) reset() {
+	m.startCalled = false
+	m.stopCalled = false
+	m.errorCalled = false
+	m.requestCalled = false
+	m.responseCalled = false
+	m.routeEnterCalled = false
+	m.routeExitCalled = false
 }
 
 func TestFactory_Create(t *testing.T) {
 	factory := &Factory{}
 
 	cfg := config.NewBaseConfig()
-	cfg.SetAddr("localhost")
-	cfg.SetPort(8080)
 
 	server, err := factory.Create(cfg)
 	require.NoError(t, err)
@@ -65,12 +92,8 @@ func TestFactory_CreateInvalidConfig(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid config type")
 
 	// Test with invalid config values
-	cfg := config.NewBaseConfig()
-	cfg.SetPort(-1) // Invalid port
-
-	_, err = factory.Create(cfg)
+	_, err = config.NewBuilder().Apply(config.WithPort(-1)).Build() // Invalid port
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid config")
 }
 
 func TestFactory_GetName(t *testing.T) {
@@ -104,8 +127,8 @@ func TestFactory_ValidateConfig(t *testing.T) {
 
 func TestServer_StartStop(t *testing.T) {
 	factory := &Factory{}
-	cfg := config.NewBaseConfig()
-	cfg.SetPort(9999) // Use a different port to avoid conflicts
+	cfg, err := config.NewBuilder().Apply(config.WithPort(9999)).Build()
+	require.NoError(t, err)
 
 	server, err := factory.Create(cfg)
 	require.NoError(t, err)
@@ -234,9 +257,11 @@ func TestServer_ObserverManagement(t *testing.T) {
 
 func TestServer_GetAddr(t *testing.T) {
 	factory := &Factory{}
-	cfg := config.NewBaseConfig()
-	cfg.SetAddr("192.168.1.1")
-	cfg.SetPort(3000)
+	cfg, err := config.NewBuilder().Apply(
+		config.WithAddr("192.168.1.1"),
+		config.WithPort(3000),
+	).Build()
+	require.NoError(t, err)
 
 	server, err := factory.Create(cfg)
 	require.NoError(t, err)
@@ -259,9 +284,11 @@ func TestServer_GetStats(t *testing.T) {
 
 func TestServer_WithObservers(t *testing.T) {
 	observer := &mockObserver{}
-	cfg := config.NewBaseConfig()
-	cfg.AddObserver(observer)
-	cfg.SetPort(8081) // Use different port
+	cfg, err := config.NewBuilder().Apply(
+		config.WithObserver(observer),
+		config.WithPort(8081),
+	).Build()
+	require.NoError(t, err)
 
 	factory := &Factory{}
 	server, err := factory.Create(cfg)
@@ -280,9 +307,8 @@ func TestServer_WithObservers(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Check that events were triggered
-	events := observer.GetEvents()
-	assert.Contains(t, events, interfaces.EventStart)
-	assert.Contains(t, events, interfaces.EventStop)
+	assert.True(t, observer.startCalled)
+	assert.True(t, observer.stopCalled)
 }
 
 func TestNewFactory(t *testing.T) {

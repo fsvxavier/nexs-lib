@@ -4,6 +4,7 @@ package httpserver
 import (
 	"github.com/fsvxavier/nexs-lib/httpserver/config"
 	"github.com/fsvxavier/nexs-lib/httpserver/interfaces"
+	"github.com/fsvxavier/nexs-lib/httpserver/providers/fasthttp"
 	"github.com/fsvxavier/nexs-lib/httpserver/providers/fiber"
 	"github.com/fsvxavier/nexs-lib/httpserver/providers/nethttp"
 )
@@ -13,6 +14,11 @@ func init() {
 	// Register Fiber as default provider (highest priority)
 	if err := RegisterProvider("fiber", fiber.NewFactory()); err != nil {
 		panic("Failed to register fiber provider: " + err.Error())
+	}
+
+	// Register FastHTTP provider for high performance
+	if err := RegisterProvider("fasthttp", fasthttp.NewFactory()); err != nil {
+		panic("Failed to register fasthttp provider: " + err.Error())
 	}
 
 	// Register net/http provider as fallback

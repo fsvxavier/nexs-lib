@@ -32,7 +32,7 @@ echo -e "==============================${NC}"
 
 # Executando exemplos básicos
 echo -e "\n${BLUE}Executando exemplos autocontidos:${NC}"
-for example in "basic" "formats" "hooks" "http"; do
+for example in "basic" "factory" "cached" "advanced" "formats" "hooks" "http"; do
     run_example "$example"
 done
 

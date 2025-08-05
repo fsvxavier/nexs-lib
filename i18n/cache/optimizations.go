@@ -1,10 +1,8 @@
 package cache
 
 import (
-	"math"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 // CacheStats mantém estatísticas do cache
@@ -74,62 +72,6 @@ func (p *ObjectPool) Put(m map[string]interface{}) {
 		delete(m, k)
 	}
 	p.pool.Put(m)
-}
-
-// LRUCache implementa um cache LRU thread-safe
-type LRUCache struct {
-	capacity int
-	items    sync.Map
-	lru      *sync.Map
-	size     int64
-}
-
-func NewLRUCache(capacity int) *LRUCache {
-	return &LRUCache{
-		capacity: capacity,
-		items:    sync.Map{},
-		lru:      &sync.Map{},
-		size:     0,
-	}
-}
-
-func (c *LRUCache) Set(key, value interface{}) {
-	// Incrementa o tamanho atomicamente
-	if atomic.LoadInt64(&c.size) >= int64(c.capacity) {
-		c.evict()
-	}
-
-	c.items.Store(key, value)
-	c.lru.Store(key, time.Now().UnixNano())
-	atomic.AddInt64(&c.size, 1)
-}
-
-func (c *LRUCache) Get(key interface{}) (interface{}, bool) {
-	value, ok := c.items.Load(key)
-	if ok {
-		c.lru.Store(key, time.Now().UnixNano())
-	}
-	return value, ok
-}
-
-func (c *LRUCache) evict() {
-	var oldestKey interface{}
-	var oldestTime int64 = math.MaxInt64
-
-	c.lru.Range(func(key, value interface{}) bool {
-		timestamp := value.(int64)
-		if timestamp < oldestTime {
-			oldestTime = timestamp
-			oldestKey = key
-		}
-		return true
-	})
-
-	if oldestKey != nil {
-		c.items.Delete(oldestKey)
-		c.lru.Delete(oldestKey)
-		atomic.AddInt64(&c.size, -1)
-	}
 }
 
 // KeyGenerator gera chaves otimizadas para o cache

@@ -1,10 +1,10 @@
 package cache
 
 import (
-	"sync"
 	"time"
 
 	"github.com/fsvxavier/nexs-lib/i18n/interfaces"
+	"golang.org/x/text/language"
 )
 
 type cacheEntry struct {
@@ -15,20 +15,21 @@ type cacheEntry struct {
 }
 
 type CachedProvider struct {
-	provider    interfaces.Provider
-	cache       sync.Map
-	ttl         time.Duration
-	maxEntries  int
-	entriesLock sync.RWMutex
-	entries     int
+	provider   interfaces.Provider
+	cache      *LRUCache
+	ttl        time.Duration
+	maxEntries int
+	metrics    *MetricsCollector
 }
 
 // NewCachedProvider creates a new cached provider decorator
 func NewCachedProvider(provider interfaces.Provider, ttl time.Duration, maxEntries int) *CachedProvider {
 	return &CachedProvider{
 		provider:   provider,
+		cache:      NewLRUCache(maxEntries),
 		ttl:        ttl,
 		maxEntries: maxEntries,
+		metrics:    NewMetricsCollector(),
 	}
 }
 
@@ -43,22 +44,24 @@ func (c *CachedProvider) Translate(key string, data map[string]interface{}) (str
 	cacheKey := c.getCacheKey(key, data)
 
 	// Try to get from cache
-	if entry, ok := c.cache.Load(cacheKey); ok {
-		if e := entry.(cacheEntry); !e.isPlural && time.Now().Before(e.expiresAt) {
+	if entry, ok := c.cache.Get(cacheKey); ok {
+		e := entry.(cacheEntry)
+		if !e.isPlural && time.Now().Before(e.expiresAt) {
+			c.metrics.RecordHit()
 			return e.value, nil
 		}
-		c.cache.Delete(cacheKey)
-		c.decrementEntries()
+		c.cache.Remove(cacheKey)
 	}
 
 	// Get from provider
+	c.metrics.RecordMiss()
 	result, err := c.provider.Translate(key, data)
 	if err != nil {
 		return "", err
 	}
 
 	// Store in cache
-	c.storeInCache(cacheKey, cacheEntry{
+	c.cache.Set(cacheKey, cacheEntry{
 		value:     result,
 		expiresAt: time.Now().Add(c.ttl),
 	})
@@ -66,32 +69,35 @@ func (c *CachedProvider) Translate(key string, data map[string]interface{}) (str
 	return result, nil
 }
 
-func (c *CachedProvider) TranslatePlural(key string, count int, data map[string]interface{}) (string, error) {
+func (c *CachedProvider) TranslatePlural(key string, count interface{}, data map[string]interface{}) (string, error) {
 	cacheKey := c.getCacheKey(key, data)
+	countInt, _ := count.(int)
 
 	// Try to get from cache
-	if entry, ok := c.cache.Load(cacheKey); ok {
-		if e := entry.(cacheEntry); e.isPlural && time.Now().Before(e.expiresAt) {
-			if result, ok := e.pluralData[getPluralKey(count)]; ok {
+	if entry, ok := c.cache.Get(cacheKey); ok {
+		e := entry.(cacheEntry)
+		if e.isPlural && time.Now().Before(e.expiresAt) {
+			if result, ok := e.pluralData[getPluralKey(countInt)]; ok {
+				c.metrics.RecordHit()
 				return result, nil
 			}
 		}
-		c.cache.Delete(cacheKey)
-		c.decrementEntries()
+		c.cache.Remove(cacheKey)
 	}
 
 	// Get from provider
+	c.metrics.RecordMiss()
 	result, err := c.provider.TranslatePlural(key, count, data)
 	if err != nil {
 		return "", err
 	}
 
 	// Store in cache
-	c.storeInCache(cacheKey, cacheEntry{
+	c.cache.Set(cacheKey, cacheEntry{
 		value:      result,
 		expiresAt:  time.Now().Add(c.ttl),
 		isPlural:   true,
-		pluralData: map[string]string{getPluralKey(count): result},
+		pluralData: map[string]string{getPluralKey(countInt): result},
 	})
 
 	return result, nil
@@ -102,55 +108,14 @@ func (c *CachedProvider) LoadTranslations(path string, format string) error {
 }
 
 func (c *CachedProvider) ClearCache() {
-	c.cache.Range(func(key, _ interface{}) bool {
-		c.cache.Delete(key)
-		return true
-	})
-	c.entriesLock.Lock()
-	c.entries = 0
-	c.entriesLock.Unlock()
+	c.cache.Clear()
+	c.metrics.ResetStats()
 }
 
-func (c *CachedProvider) storeInCache(key string, entry cacheEntry) {
-	// Check if we need to evict entries
-	if c.maxEntries > 0 {
-		c.entriesLock.Lock()
-		if c.entries >= c.maxEntries {
-			c.evictOldest()
-		}
-		c.entries++
-		c.entriesLock.Unlock()
-	}
-
-	c.cache.Store(key, entry)
+func (c *CachedProvider) GetLanguages() []language.Tag {
+	return c.provider.GetLanguages()
 }
 
-func (c *CachedProvider) decrementEntries() {
-	c.entriesLock.Lock()
-	c.entries--
-	if c.entries < 0 {
-		c.entries = 0
-	}
-	c.entriesLock.Unlock()
-}
-
-func (c *CachedProvider) evictOldest() {
-	var oldestKey interface{}
-	var oldestTime time.Time
-	first := true
-
-	c.cache.Range(func(key, value interface{}) bool {
-		entry := value.(cacheEntry)
-		if first || entry.expiresAt.Before(oldestTime) {
-			oldestKey = key
-			oldestTime = entry.expiresAt
-			first = false
-		}
-		return true
-	})
-
-	if oldestKey != nil {
-		c.cache.Delete(oldestKey)
-		c.entries--
-	}
+func (c *CachedProvider) SetLanguages(languages ...string) error {
+	return c.provider.SetLanguages(languages...)
 }

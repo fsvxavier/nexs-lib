@@ -1,24 +1,23 @@
-# I18n Module
+# Pacote i18n
 
-This module provides internationalization (i18n) support for Go applications with the following features:
+Este pacote fornece suporte a internacionalização (i18n) para aplicações Go com as seguintes funcionalidades:
 
-- Multiple translation file formats support (JSON, YAML, PO, MO)
-- Template variables support using Go's text/template syntax
-- Plural forms support
-- Language fallback support
-- HTTP middleware for automatic language detection
-- Hooks system for logging and metrics
-- Thread-safe operations
+- Suporte a múltiplos formatos de arquivo de tradução (JSON, YAML)
+- Suporte a variáveis em templates usando a sintaxe do pacote `text/template`
+- Suporte a pluralização
+- Middleware HTTP para detecção automática de idioma
+- Sistema de hooks para logging e métricas
+- Operações thread-safe
 
-## Installation
+## Instalação
 
 ```bash
 go get github.com/fsvxavier/nexs-lib/i18n
 ```
 
-## Usage
+## Uso
 
-### Basic Usage
+### Uso Básico
 
 ```go
 package main
@@ -29,38 +28,32 @@ import (
 )
 
 func main() {
-    // Create configuration
+    // Criar configuração
     cfg := config.DefaultConfig().
         WithTranslationsPath("./translations").
         WithTranslationsFormat("json")
 
-    // Create provider
+    // Criar provider
     provider, err := providers.CreateProvider(cfg.TranslationsFormat)
     if err != nil {
         panic(err)
     }
 
-    // Load translations
+    // Carregar traduções
     err = provider.LoadTranslations(cfg.GetTranslationFilePath("pt-BR"), cfg.TranslationsFormat)
     if err != nil {
         panic(err)
     }
 
-    // Set languages
-    err = provider.SetLanguages("pt-BR", "en")
-    if err != nil {
-        panic(err)
-    }
-
-    // Translate
-    result, err := provider.Translate("hello_world", nil)
+    // Traduzir texto simples
+    result, err := provider.Translate("welcome", nil)
     if err != nil {
         panic(err)
     }
     println(result)
 
-    // Translate with variables
-    result, err = provider.Translate("hello_name", map[string]interface{}{
+    // Traduzir com variáveis
+    result, err = provider.Translate("greeting", map[string]interface{}{
         "Name": "John",
     })
     if err != nil {
@@ -68,8 +61,8 @@ func main() {
     }
     println(result)
 
-    // Translate plural
-    result, err = provider.TranslatePlural("users_count", 2, map[string]interface{}{
+    // Traduzir com pluralização
+    result, err = provider.TranslatePlural("items", 2, map[string]interface{}{
         "Count": 2,
     })
     if err != nil {
@@ -79,96 +72,124 @@ func main() {
 }
 ```
 
-### HTTP Middleware Usage
+### Uso com Middleware HTTP
 
 ```go
 package main
 
 import (
     "net/http"
+    "log"
 
     "github.com/fsvxavier/nexs-lib/i18n/config"
     "github.com/fsvxavier/nexs-lib/i18n/middleware"
     "github.com/fsvxavier/nexs-lib/i18n/providers"
+    "golang.org/x/text/language"
 )
 
 func main() {
-    // Create provider
-    provider, _ := providers.CreateProvider("json")
+    // Criar configuração
+    cfg := config.DefaultConfig().
+        WithTranslationsPath("./translations").
+        WithTranslationsFormat("json")
 
-    // Configure middleware
+    // Criar provider
+    provider, err := providers.CreateProvider(cfg.TranslationsFormat)
+    if err != nil {
+        panic(err)
+    }
+
+    // Carregar traduções
+    err = provider.LoadTranslations("translations.pt-BR.json", cfg.TranslationsFormat)
+    if err != nil {
+        panic(err)
+    }
+
+    // Configurar middleware
     i18nMiddleware := middleware.New(middleware.Config{
         Provider:        provider,
         QueryParam:      "lang",
         DefaultLanguage: language.MustParse("pt-BR"),
     })
 
-    // Use middleware
-    http.Handle("/", i18nMiddleware(http.HandlerFunc(handler)))
-    http.ListenAndServe(":8080", nil)
+    // Criar handlers
+    mux := http.NewServeMux()
+    mux.Handle("/", i18nMiddleware(http.HandlerFunc(handler)))
+
+    // Iniciar servidor
+    log.Println("Servidor rodando em http://localhost:8080")
+    http.ListenAndServe(":8080", mux)
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-    // Get provider from context
-    provider, _ := middleware.GetProvider(r.Context())
+    // Obter provider do contexto
+    provider, ok := middleware.GetProvider(r.Context())
+    if !ok {
+        http.Error(w, "i18n provider not found", http.StatusInternalServerError)
+        return
+    }
 
-    // Use provider
-    result, _ := provider.Translate("hello_world", nil)
-    w.Write([]byte(result))
+    // Usar o provider
+    result, err := provider.Translate("welcome", nil)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    w.Write([]byte(`{"message": "` + result + `"}`))
 }
 ```
 
-### Translation File Formats
+### Formatos de Arquivo de Tradução
 
 #### JSON
 ```json
 {
-    "hello_world": "Olá mundo!",
-    "hello_name": "Olá {{.Name}}!",
-    "users_count": {
-        "one": "{{.Count}} usuário",
-        "other": "{{.Count}} usuários"
+    "welcome": "Bem-vindo!",
+    "greeting": "Olá, {{.Name}}!",
+    "items": {
+        "one": "{{.Count}} item",
+        "other": "{{.Count}} itens"
     }
 }
 ```
 
 #### YAML
 ```yaml
-hello_world: "Olá mundo!"
-hello_name: "Olá {{.Name}}!"
-users_count:
-  one: "{{.Count}} usuário"
-  other: "{{.Count}} usuários"
+welcome: "Bem-vindo!"
+greeting: "Olá, {{.Name}}!"
+items:
+  one: "{{.Count}} item"
+  other: "{{.Count}} itens"
 ```
 
-#### PO
-```po
-msgid "hello_world"
-msgstr "Olá mundo!"
+## Funcionalidades
 
-msgid "hello_name"
-msgstr "Olá {{.Name}}!"
+- [x] Múltiplos formatos de arquivo de tradução (JSON, YAML)
+- [x] Variáveis em templates
+- [x] Pluralização
+- [x] Middleware HTTP
+- [x] Sistema de hooks
+- [x] Operações thread-safe
 
-msgid "users_count"
-msgid_plural "users_count_plural"
-msgstr[0] "{{.Count}} usuário"
-msgstr[1] "{{.Count}} usuários"
-```
+## Exemplos
 
-## Features
+O pacote inclui diversos exemplos na pasta `examples/`:
 
-- [x] Multiple translation file formats
-- [x] Template variables
-- [x] Plural forms
-- [x] Language fallback
-- [x] HTTP middleware
-- [x] Hooks system
-- [x] Thread-safe operations
+- `basic/`: Exemplo básico de uso do pacote
+- `formats/`: Demonstração de diferentes formatos de arquivo
+- `hooks/`: Uso do sistema de hooks
+- `http/`: Integração com servidor HTTP usando middleware
 
-## Contributing
+Para mais detalhes, consulte o README.md em cada pasta de exemplo.
 
-1. Fork it
-2. Create your feature branch (`git checkout -b my-new-feature`)
-3. Commit your changes (`git commit -am 'Add some feature'`)
-4. Push to the branch (`git push origin my-new-feature`)
-5. Create new Pull Request
+## Contribuindo
+
+1. Fork do repositório
+2. Crie sua branch de feature (`git checkout -b feature/nova-funcionalidade`)
+3. Faça commit das suas alterações (`git commit -am 'Adiciona nova funcionalidade'`)
+4. Push para a branch (`git push origin feature/nova-funcionalidade`)
+5. Crie um novo Pull Request
+
+Para mais informações sobre as próximas funcionalidades planejadas, consulte o arquivo [NEXT_STEPS.md](./NEXT_STEPS.md).

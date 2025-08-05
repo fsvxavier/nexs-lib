@@ -827,3 +827,615 @@ func (l *TestLogger) Error(msg string, args ...interface{}) {
 func (l *TestLogger) Reset() {
 	l.Messages = nil
 }
+
+// ===== TESTES AVANÇADOS PARA EXPANSÃO DE COBERTURA =====
+
+// TestMemoryCache_ConcurrentAccess - Testes de concorrência para cache
+func TestMemoryCache_ConcurrentAccess(t *testing.T) {
+	cache := NewMemoryCache(1000)
+	ttl := 1 * time.Hour
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Teste de operações concorrentes
+	const numGoroutines = 50
+	const operationsPerGoroutine = 100
+
+	done := make(chan bool, numGoroutines)
+
+	// Goroutines de escrita
+	for i := 0; i < numGoroutines/2; i++ {
+		go func(id int) {
+			defer func() { done <- true }()
+			for j := 0; j < operationsPerGoroutine; j++ {
+				key := fmt.Sprintf("key_%d_%d", id, j)
+				value := fmt.Sprintf("value_%d_%d", id, j)
+				cache.Set(key, value, ttl)
+			}
+		}(i)
+	}
+
+	// Goroutines de leitura
+	for i := numGoroutines / 2; i < numGoroutines; i++ {
+		go func(id int) {
+			defer func() { done <- true }()
+			for j := 0; j < operationsPerGoroutine; j++ {
+				key := fmt.Sprintf("key_%d_%d", id-numGoroutines/2, j)
+				cache.Get(key)
+			}
+		}(i)
+	}
+
+	// Aguardar conclusão
+	completedGoroutines := 0
+	for completedGoroutines < numGoroutines {
+		select {
+		case <-done:
+			completedGoroutines++
+		case <-ctx.Done():
+			t.Fatal("Timeout waiting for concurrent operations to complete")
+		}
+	}
+
+	// Verificar que o cache ainda funciona
+	cache.Set("test_key", "test_value", ttl)
+	value, found := cache.Get("test_key")
+	if !found || value != "test_value" {
+		t.Error("Cache integrity compromised after concurrent access")
+	}
+}
+
+// TestMemoryCache_EdgeCases - Casos extremos do cache
+func TestMemoryCache_EdgeCases(t *testing.T) {
+	t.Run("zero_capacity", func(t *testing.T) {
+		cache := NewMemoryCache(0)
+		err := cache.Set("key", "value", time.Hour)
+		if err == nil {
+			t.Error("Expected error when setting in zero-capacity cache")
+		}
+	})
+
+	t.Run("negative_ttl", func(t *testing.T) {
+		cache := NewMemoryCache(10)
+		err := cache.Set("key", "value", -time.Hour)
+		if err != nil {
+			t.Errorf("Unexpected error with negative TTL: %v", err)
+		}
+
+		// Item deve expirar imediatamente
+		_, found := cache.Get("key")
+		if found {
+			t.Error("Item with negative TTL should not be found")
+		}
+	})
+
+	t.Run("zero_ttl", func(t *testing.T) {
+		cache := NewMemoryCache(10)
+		err := cache.Set("key", "value", 0)
+		if err != nil {
+			t.Errorf("Unexpected error with zero TTL: %v", err)
+		}
+
+		// Item deve expirar imediatamente
+		_, found := cache.Get("key")
+		if found {
+			t.Error("Item with zero TTL should not be found")
+		}
+	})
+
+	t.Run("very_large_value", func(t *testing.T) {
+		cache := NewMemoryCache(10)
+		largeValue := strings.Repeat("x", 1000000) // 1MB string
+
+		err := cache.Set("large_key", largeValue, time.Hour)
+		if err != nil {
+			t.Errorf("Unexpected error with large value: %v", err)
+		}
+
+		value, found := cache.Get("large_key")
+		if !found {
+			t.Error("Large value not found in cache")
+		}
+
+		if value != largeValue {
+			t.Error("Large value was corrupted in cache")
+		}
+	})
+
+	t.Run("nil_value", func(t *testing.T) {
+		cache := NewMemoryCache(10)
+		err := cache.Set("nil_key", nil, time.Hour)
+		if err != nil {
+			t.Errorf("Unexpected error with nil value: %v", err)
+		}
+
+		value, found := cache.Get("nil_key")
+		if !found {
+			t.Error("Nil value not found in cache")
+		}
+
+		if value != nil {
+			t.Errorf("Expected nil value, got %v", value)
+		}
+	})
+
+	t.Run("empty_key", func(t *testing.T) {
+		cache := NewMemoryCache(10)
+		err := cache.Set("", "value", time.Hour)
+		if err != nil {
+			t.Errorf("Unexpected error with empty key: %v", err)
+		}
+
+		value, found := cache.Get("")
+		if !found {
+			t.Error("Empty key not found in cache")
+		}
+
+		if value != "value" {
+			t.Errorf("Expected 'value', got %v", value)
+		}
+	})
+}
+
+// TestCachingMiddleware_EdgeCases - Casos extremos do middleware de cache
+func TestCachingMiddleware_EdgeCases(t *testing.T) {
+	cache := NewMemoryCache(100)
+	middleware := NewCachingMiddleware(CachingConfig{
+		Name:    "test-cache",
+		Cache:   cache,
+		TTL:     time.Hour,
+		Enabled: true,
+	})
+
+	t.Run("nil_params", func(t *testing.T) {
+		called := false
+		translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+			called = true
+			return "result", nil
+		}
+
+		wrapped := middleware.WrapTranslate(translateFunc)
+		result, err := wrapped(context.Background(), "key", "en", nil)
+
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if result != "result" {
+			t.Errorf("Expected 'result', got %s", result)
+		}
+		if !called {
+			t.Error("Original function should have been called")
+		}
+
+		// Segunda chamada deve usar cache
+		called = false
+		result2, err := wrapped(context.Background(), "key", "en", nil)
+		if err != nil {
+			t.Errorf("Unexpected error on cached call: %v", err)
+		}
+		if result2 != "result" {
+			t.Errorf("Expected cached 'result', got %s", result2)
+		}
+		if called {
+			t.Error("Original function should not have been called for cached result")
+		}
+	})
+
+	t.Run("context_with_timeout", func(t *testing.T) {
+		translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+			time.Sleep(100 * time.Millisecond)
+			return "slow_result", nil
+		}
+
+		wrapped := middleware.WrapTranslate(translateFunc)
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		_, err := wrapped(ctx, "slow_key", "en", nil)
+		if err == nil {
+			t.Error("Expected timeout error")
+		}
+	})
+
+	t.Run("disabled_cache", func(t *testing.T) {
+		disabledMiddleware := NewCachingMiddleware(CachingConfig{
+			Name:    "disabled-cache",
+			Cache:   cache,
+			TTL:     time.Hour,
+			Enabled: false,
+		})
+
+		callCount := 0
+		translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+			callCount++
+			return "no_cache_result", nil
+		}
+
+		wrapped := disabledMiddleware.WrapTranslate(translateFunc)
+
+		// Primeira chamada
+		wrapped(context.Background(), "no_cache_key", "en", nil)
+		if callCount != 1 {
+			t.Errorf("Expected 1 call, got %d", callCount)
+		}
+
+		// Segunda chamada deve chamar novamente (sem cache)
+		wrapped(context.Background(), "no_cache_key", "en", nil)
+		if callCount != 2 {
+			t.Errorf("Expected 2 calls (no caching), got %d", callCount)
+		}
+	})
+}
+
+// TestRateLimiter_EdgeCases - Casos extremos do rate limiter
+func TestRateLimiter_EdgeCases(t *testing.T) {
+	t.Run("zero_rate", func(t *testing.T) {
+		limiter := NewSimpleRateLimiter(0, 1)
+
+		// Primeira tentativa deve ser permitida pelo burst
+		if !limiter.Allow() {
+			t.Error("First request should be allowed due to burst capacity")
+		}
+
+		// Segunda tentativa deve ser negada
+		if limiter.Allow() {
+			t.Error("Second request should be denied due to zero rate")
+		}
+	})
+
+	t.Run("zero_burst", func(t *testing.T) {
+		limiter := NewSimpleRateLimiter(1, 0)
+
+		// Nenhuma tentativa deve ser permitida
+		if limiter.Allow() {
+			t.Error("No requests should be allowed with zero burst")
+		}
+	})
+
+	t.Run("high_frequency_requests", func(t *testing.T) {
+		limiter := NewSimpleRateLimiter(10, 5) // 10 requests/sec, burst of 5
+
+		// Primeiros 5 devem passar
+		allowed := 0
+		for i := 0; i < 5; i++ {
+			if limiter.Allow() {
+				allowed++
+			}
+		}
+		if allowed != 5 {
+			t.Errorf("Expected 5 allowed requests, got %d", allowed)
+		}
+
+		// Próximos devem ser negados
+		denied := 0
+		for i := 0; i < 10; i++ {
+			if !limiter.Allow() {
+				denied++
+			}
+		}
+		if denied == 0 {
+			t.Error("Expected some requests to be denied")
+		}
+	})
+}
+
+// TestRateLimitingMiddleware_EdgeCases - Casos extremos do middleware de rate limiting
+func TestRateLimitingMiddleware_EdgeCases(t *testing.T) {
+	limiter := NewSimpleRateLimiter(1, 1)
+	middleware := NewRateLimitingMiddleware(RateLimitingConfig{
+		Name:        "test-limiter",
+		RateLimiter: limiter,
+		Enabled:     true,
+	})
+
+	t.Run("rate_limit_exceeded", func(t *testing.T) {
+		translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+			return "result", nil
+		}
+
+		wrapped := middleware.WrapTranslate(translateFunc)
+
+		// Primeira chamada deve passar
+		result, err := wrapped(context.Background(), "key", "en", nil)
+		if err != nil {
+			t.Errorf("First call should succeed: %v", err)
+		}
+		if result != "result" {
+			t.Errorf("Expected 'result', got %s", result)
+		}
+
+		// Segunda chamada deve ser limitada
+		_, err = wrapped(context.Background(), "key", "en", nil)
+		if err == nil {
+			t.Error("Second call should be rate limited")
+		}
+		if !strings.Contains(err.Error(), "rate limit exceeded") {
+			t.Errorf("Expected rate limit error, got: %v", err)
+		}
+	})
+
+	t.Run("disabled_rate_limiting", func(t *testing.T) {
+		disabledMiddleware := NewRateLimitingMiddleware(RateLimitingConfig{
+			Name:        "disabled-limiter",
+			RateLimiter: NewSimpleRateLimiter(1, 1),
+			Enabled:     false,
+		})
+
+		callCount := 0
+		translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+			callCount++
+			return "unlimited_result", nil
+		}
+
+		wrapped := disabledMiddleware.WrapTranslate(translateFunc)
+
+		// Múltiplas chamadas devem passar
+		for i := 0; i < 10; i++ {
+			result, err := wrapped(context.Background(), "key", "en", nil)
+			if err != nil {
+				t.Errorf("Call %d should succeed when rate limiting is disabled: %v", i, err)
+			}
+			if result != "unlimited_result" {
+				t.Errorf("Expected 'unlimited_result', got %s", result)
+			}
+		}
+
+		if callCount != 10 {
+			t.Errorf("Expected 10 calls, got %d", callCount)
+		}
+	})
+}
+
+// TestLoggingMiddleware_EdgeCases - Casos extremos do middleware de logging
+func TestLoggingMiddleware_EdgeCases(t *testing.T) {
+	logger := &TestLogger{}
+	middleware := NewLoggingMiddleware(LoggingConfig{
+		Name:            "test-logger",
+		Logger:          logger,
+		LogRequests:     true,
+		LogResponses:    true,
+		LogErrors:       true,
+		LogDuration:     true,
+		MaxResultLength: 50,
+		Enabled:         true,
+	})
+
+	t.Run("function_panics", func(t *testing.T) {
+		translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+			panic("test panic")
+		}
+
+		wrapped := middleware.WrapTranslate(translateFunc)
+
+		// Função deve recuperar do panic e logar erro
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic to be recovered")
+			}
+		}()
+
+		wrapped(context.Background(), "panic_key", "en", nil)
+	})
+
+	t.Run("very_long_result", func(t *testing.T) {
+		longResult := strings.Repeat("x", 1000)
+		translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+			return longResult, nil
+		}
+
+		wrapped := middleware.WrapTranslate(translateFunc)
+		result, err := wrapped(context.Background(), "long_key", "en", nil)
+
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if result != longResult {
+			t.Error("Long result was modified")
+		}
+
+		// Verificar se foi truncado no log
+		found := false
+		for _, msg := range logger.Messages {
+			if msg.Level == "info" && strings.Contains(msg.Message, "Response") {
+				// Resultado deve estar truncado no log
+				if len(fmt.Sprintf("%v", msg.Args[4])) <= 53 { // 50 + "..."
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			t.Error("Long result should have been truncated in logs")
+		}
+	})
+
+	t.Run("nil_logger", func(t *testing.T) {
+		nilLoggerMiddleware := NewLoggingMiddleware(LoggingConfig{
+			Name:    "nil-logger",
+			Logger:  nil,
+			Enabled: true,
+		})
+
+		translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+			return "result", nil
+		}
+
+		wrapped := nilLoggerMiddleware.WrapTranslate(translateFunc)
+
+		// Não deve dar panic com logger nil
+		result, err := wrapped(context.Background(), "key", "en", nil)
+		if err != nil {
+			t.Errorf("Unexpected error with nil logger: %v", err)
+		}
+		if result != "result" {
+			t.Errorf("Expected 'result', got %s", result)
+		}
+	})
+
+	t.Run("disabled_logging", func(t *testing.T) {
+		logger.Reset()
+		disabledMiddleware := NewLoggingMiddleware(LoggingConfig{
+			Name:    "disabled-logger",
+			Logger:  logger,
+			Enabled: false,
+		})
+
+		translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+			return "no_log_result", nil
+		}
+
+		wrapped := disabledMiddleware.WrapTranslate(translateFunc)
+		wrapped(context.Background(), "no_log_key", "en", nil)
+
+		// Não deve ter mensagens de log
+		if len(logger.Messages) > 0 {
+			t.Errorf("Expected no log messages when logging is disabled, got %d", len(logger.Messages))
+		}
+	})
+}
+
+// TestMiddleware_Integration - Testes de integração com múltiplos middlewares
+func TestMiddleware_Integration(t *testing.T) {
+	// Setup
+	cache := NewMemoryCache(100)
+	limiter := NewSimpleRateLimiter(10, 5)
+	logger := &TestLogger{}
+
+	cachingMiddleware := NewCachingMiddleware(CachingConfig{
+		Name:    "integration-cache",
+		Cache:   cache,
+		TTL:     time.Hour,
+		Enabled: true,
+	})
+
+	rateLimitingMiddleware := NewRateLimitingMiddleware(RateLimitingConfig{
+		Name:        "integration-limiter",
+		RateLimiter: limiter,
+		Enabled:     true,
+	})
+
+	loggingMiddleware := NewLoggingMiddleware(LoggingConfig{
+		Name:        "integration-logger",
+		Logger:      logger,
+		LogRequests: true,
+		Enabled:     true,
+	})
+
+	callCount := 0
+	translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+		callCount++
+		return fmt.Sprintf("result_%d", callCount), nil
+	}
+
+	// Aplicar middlewares em ordem: logging -> rate limiting -> caching -> função original
+	wrapped := loggingMiddleware.WrapTranslate(
+		rateLimitingMiddleware.WrapTranslate(
+			cachingMiddleware.WrapTranslate(translateFunc),
+		),
+	)
+
+	// Primeira chamada - deve passar por todos os middlewares
+	result1, err := wrapped(context.Background(), "integration_key", "en", nil)
+	if err != nil {
+		t.Errorf("First call failed: %v", err)
+	}
+	if result1 != "result_1" {
+		t.Errorf("Expected 'result_1', got %s", result1)
+	}
+	if callCount != 1 {
+		t.Errorf("Expected 1 call to original function, got %d", callCount)
+	}
+
+	// Segunda chamada - deve usar cache (não chamar função original)
+	result2, err := wrapped(context.Background(), "integration_key", "en", nil)
+	if err != nil {
+		t.Errorf("Second call failed: %v", err)
+	}
+	if result2 != "result_1" {
+		t.Errorf("Expected cached 'result_1', got %s", result2)
+	}
+	if callCount != 1 {
+		t.Errorf("Expected still 1 call to original function (cached), got %d", callCount)
+	}
+
+	// Verificar logs
+	if len(logger.Messages) < 2 {
+		t.Errorf("Expected at least 2 log messages, got %d", len(logger.Messages))
+	}
+}
+
+// Benchmarks para middlewares
+func BenchmarkCachingMiddleware(b *testing.B) {
+	cache := NewMemoryCache(1000)
+	middleware := NewCachingMiddleware(CachingConfig{
+		Name:    "bench-cache",
+		Cache:   cache,
+		TTL:     time.Hour,
+		Enabled: true,
+	})
+
+	translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+		return "benchmark_result", nil
+	}
+
+	wrapped := middleware.WrapTranslate(translateFunc)
+
+	b.ResetTimer()
+
+	b.Run("cache_miss", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			wrapped(context.Background(), fmt.Sprintf("key_%d", i), "en", nil)
+		}
+	})
+
+	b.Run("cache_hit", func(b *testing.B) {
+		// Pre-populate cache
+		wrapped(context.Background(), "static_key", "en", nil)
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			wrapped(context.Background(), "static_key", "en", nil)
+		}
+	})
+}
+
+func BenchmarkRateLimitingMiddleware(b *testing.B) {
+	limiter := NewSimpleRateLimiter(1000000, 1000) // High limits para benchmark
+	middleware := NewRateLimitingMiddleware(RateLimitingConfig{
+		Name:        "bench-limiter",
+		RateLimiter: limiter,
+		Enabled:     true,
+	})
+
+	translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+		return "benchmark_result", nil
+	}
+
+	wrapped := middleware.WrapTranslate(translateFunc)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		wrapped(context.Background(), "key", "en", nil)
+	}
+}
+
+func BenchmarkLoggingMiddleware(b *testing.B) {
+	logger := &TestLogger{}
+	middleware := NewLoggingMiddleware(LoggingConfig{
+		Name:        "bench-logger",
+		Logger:      logger,
+		LogRequests: true,
+		Enabled:     true,
+	})
+
+	translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+		return "benchmark_result", nil
+	}
+
+	wrapped := middleware.WrapTranslate(translateFunc)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		wrapped(context.Background(), "key", "en", nil)
+	}
+}

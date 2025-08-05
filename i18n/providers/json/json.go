@@ -458,3 +458,15 @@ func (p *Provider) GetTranslationCountByLanguage(lang string) int {
 func (p *Provider) ReloadTranslations(ctx context.Context) error {
 	return p.LoadTranslations(ctx)
 }
+
+// GetLoadedLanguages returns the list of languages that have been loaded.
+func (p *Provider) GetLoadedLanguages() []string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	languages := make([]string, 0, len(p.translations))
+	for lang := range p.translations {
+		languages = append(languages, lang)
+	}
+	return languages
+}

@@ -37,6 +37,15 @@ type I18n interface {
 
 	// Health returns the health status of the translation provider
 	Health(ctx context.Context) error
+
+	// GetTranslation retrieves a translation by key and language
+	GetTranslationCount() int
+
+	// GetTranslationCountByLanguage returns the count of translations for a specific language
+	GetTranslationCountByLanguage(lang string) int
+
+	// GetLoadedLanguages returns a list of languages for which translations are loaded
+	GetLoadedLanguages() []string
 }
 
 // I18nObserver defines the interface for observing i18n events.

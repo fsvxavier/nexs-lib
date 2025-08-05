@@ -127,6 +127,41 @@ func (p *MockProvider) Health(ctx context.Context) error {
 	return nil
 }
 
+func (p *MockProvider) GetLoadedLanguages() []string {
+	if p.translations == nil {
+		return []string{}
+	}
+
+	languages := make([]string, 0, len(p.translations))
+	for lang := range p.translations {
+		languages = append(languages, lang)
+	}
+	return languages
+}
+
+func (p *MockProvider) GetTranslationCount() int {
+	if p.translations == nil {
+		return 0
+	}
+
+	count := 0
+	for _, langTrans := range p.translations {
+		count += len(langTrans)
+	}
+	return count
+}
+
+func (p *MockProvider) GetTranslationCountByLanguage(lang string) int {
+	if p.translations == nil {
+		return 0
+	}
+
+	if langTrans, exists := p.translations[lang]; exists {
+		return len(langTrans)
+	}
+	return 0
+}
+
 // MockHook is a mock implementation of Hook for testing.
 type MockHook struct {
 	name     string

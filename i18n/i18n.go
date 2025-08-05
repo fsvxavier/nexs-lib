@@ -314,6 +314,30 @@ type wrappedProvider struct {
 	middlewares  []interfaces.Middleware
 }
 
+// GetTranslationCount returns the total number of translations in the provider.
+func (wp *wrappedProvider) GetTranslationCount() int {
+	if wp.provider == nil {
+		return 0
+	}
+	return wp.provider.GetTranslationCount()
+}
+
+// GetTranslationCountByLanguage returns the count of translations for a specific language.
+func (wp *wrappedProvider) GetTranslationCountByLanguage(lang string) int {
+	if wp.provider == nil {
+		return 0
+	}
+	return wp.provider.GetTranslationCountByLanguage(lang)
+}
+
+// GetLoadedLanguages returns a list of languages for which translations are loaded.
+func (wp *wrappedProvider) GetLoadedLanguages() []string {
+	if wp.provider == nil {
+		return nil
+	}
+	return wp.provider.GetLoadedLanguages()
+}
+
 // Translate performs translation with middleware and hook support.
 func (wp *wrappedProvider) Translate(ctx context.Context, key string, lang string, params map[string]interface{}) (string, error) {
 	// Create the base translation function

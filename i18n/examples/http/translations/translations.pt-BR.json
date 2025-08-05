@@ -1,8 +1,0 @@
-{
-    "welcome": "Bem-vindo ao exemplo HTTP!",
-    "greeting": "Olá, {{.Name}}!",
-    "items": {
-        "one": "{{.Count}} item",
-        "other": "{{.Count}} itens"
-    }
-}

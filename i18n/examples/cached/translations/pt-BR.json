@@ -1,8 +1,0 @@
-{
-    "hello_world": "Olá mundo!",
-    "hello_name": "Olá {{.Name}}!",
-    "welcome_message": "Bom dia {{.Name}}!",
-    "items_count.zero": "Nenhum item",
-    "items_count.one": "{{.Count}} item",
-    "items_count.other": "{{.Count}} itens"
-}

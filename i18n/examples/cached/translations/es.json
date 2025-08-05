@@ -1,8 +1,0 @@
-{
-    "hello_world": "¡Hola, Mundo!",
-    "hello_name": "¡Hola, {{.Name}}!",
-    "welcome_message": "¡Buenos {{.Time}}, {{.Name}}!",
-    "items_count.zero": "Sin elementos",
-    "items_count.one": "{{.Count}} elemento",
-    "items_count.other": "{{.Count}} elementos"
-}

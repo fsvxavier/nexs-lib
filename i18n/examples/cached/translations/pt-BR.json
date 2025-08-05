@@ -1,10 +1,8 @@
 {
-    "hello_world": "Olá, Mundo!",
-    "hello_name": "Olá, {{.Name}}!",
-    "welcome_message": "Bom {{.Time}}, {{.Name}}!",
-    "items_count": {
-        "zero": "Nenhum item",
-        "one": "{{.Count}} item",
-        "other": "{{.Count}} items"
-    }
+    "hello_world": "Olá mundo!",
+    "hello_name": "Olá {{.Name}}!",
+    "welcome_message": "Bom dia {{.Name}}!",
+    "items_count.zero": "Nenhum item",
+    "items_count.one": "{{.Count}} item",
+    "items_count.other": "{{.Count}} itens"
 }

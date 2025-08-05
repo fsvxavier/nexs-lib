@@ -3,34 +3,25 @@ package main
 import (
 	"fmt"
 
-	"github.com/fsvxavier/nexs-lib/i18n"
+	"github.com/fsvxavier/nexs-lib/i18n/providers"
 )
 
 func main() {
-	// Create advanced configuration
-	cfg := i18n.ProviderConfig{
-		Type:               i18n.ProviderTypeBasic,
-		TranslationsPath:   "./translations",
-		TranslationsFormat: "json",
-	}
-
-	// Create provider using factory
-	provider, err := i18n.NewProvider(cfg)
-	if err != nil {
-		panic(err)
-	}
+	// Create JSON provider directly for advanced features
+	provider := providers.NewJSONProvider()
 
 	// Load translations for multiple languages
 	languages := []string{"pt-BR", "en", "es"}
 	for _, lang := range languages {
-		err = provider.LoadTranslations(cfg.TranslationsPath+"/"+lang, cfg.TranslationsFormat)
+		filename := fmt.Sprintf("./translations/translations.%s.json", lang)
+		err := provider.LoadTranslations(filename, "json")
 		if err != nil {
-			panic(err)
+			panic(fmt.Errorf("failed to load translations: %w", err))
 		}
 	}
 
 	// Set supported languages
-	err = provider.SetLanguages("pt-BR", "en", "es")
+	err := provider.SetLanguages("pt-BR", "en", "es")
 	if err != nil {
 		panic(err)
 	}
@@ -81,7 +72,7 @@ func main() {
 	// Demonstrate plural translations
 	counts := []int{0, 1, 2, 5}
 	for _, count := range counts {
-		result, err := provider.Translate("items_count", map[string]interface{}{
+		result, err := provider.TranslatePlural("items_count", count, map[string]interface{}{
 			"Count": count,
 		})
 		if err != nil {

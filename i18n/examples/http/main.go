@@ -69,7 +69,7 @@ func main() {
 
 	// Create configuration
 	cfg := config.DefaultConfig().
-		WithTranslationsPath("/home/fabricioxavier/go/src/github.com/fsvxavier/nexs-lib/i18n/examples/http/translations").
+		WithTranslationsPath("./translations").
 		WithTranslationsFormat("json")
 
 	// Create provider
@@ -79,7 +79,7 @@ func main() {
 	}
 
 	// Load translations
-	err = provider.LoadTranslations("/home/fabricioxavier/go/src/github.com/fsvxavier/nexs-lib/i18n/examples/http/translations/translations.pt-BR.json", cfg.TranslationsFormat)
+	err = provider.LoadTranslations("./translations/translations.pt-BR.json", cfg.TranslationsFormat)
 	if err != nil {
 		panic(err)
 	}

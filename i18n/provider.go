@@ -31,12 +31,19 @@ func (p *BasicProvider) replaceVariables(translation string, data map[string]int
 
 	result := translation
 	for key, value := range data {
-		placeholder := "{{" + key + "}}"
+		// Support both {{Key}} and {{.Key}} formats
+		placeholder1 := "{{" + key + "}}"
+		placeholder2 := "{{." + key + "}}"
+
+		valueStr := ""
 		if str, ok := value.(string); ok {
-			result = strings.ReplaceAll(result, placeholder, str)
+			valueStr = str
 		} else {
-			result = strings.ReplaceAll(result, placeholder, fmt.Sprint(value))
+			valueStr = fmt.Sprint(value)
 		}
+
+		result = strings.ReplaceAll(result, placeholder1, valueStr)
+		result = strings.ReplaceAll(result, placeholder2, valueStr)
 	}
 	return result
 }

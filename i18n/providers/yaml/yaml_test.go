@@ -1355,8 +1355,7 @@ func TestProvider_CountingEdgeCases(t *testing.T) {
 
 	t.Run("MixedDataTypes", func(t *testing.T) {
 		// Criar arquivo YAML com tipos mistos
-		mixedContent := `
-string_value: "This is a string"
+		mixedContent := `string_value: "This is a string"
 number_value: 42
 boolean_value: true
 array_value:
@@ -1368,10 +1367,10 @@ nested_with_mixed:
   string_in_nested: "Nested string"
   number_in_nested: 123
   array_in_nested:
-	- "nested_array_item"
+    - "nested_array_item"
   deeply_nested:
-	final_string: "Deep string"
-	final_number: 456
+    final_string: "Deep string"
+    final_number: 456
 `
 		mixedFile := filepath.Join(tempDir, "mixed.yaml")
 		err := os.WriteFile(mixedFile, []byte(mixedContent), 0644)
@@ -1410,20 +1409,19 @@ nested_with_mixed:
 
 	t.Run("DeeplyNestedStructure", func(t *testing.T) {
 		// Criar estrutura profundamente aninhada
-		deepContent := `
-level1:
+		deepContent := `level1:
   level2:
-	level3:
-	  level4:
-		level5:
-		  translation1: "Deep translation 1"
-		  translation2: "Deep translation 2"
-		  level6:
-			translation3: "Very deep translation"
-			level7:
-			  translation4: "Extremely deep translation"
-	another_branch:
-	  translation5: "Branch translation"
+    level3:
+      level4:
+        level5:
+          translation1: "Deep translation 1"
+          translation2: "Deep translation 2"
+          level6:
+            translation3: "Very deep translation"
+            level7:
+              translation4: "Extremely deep translation"
+    another_branch:
+      translation5: "Branch translation"
 root_translation: "Root level translation"
 `
 		deepFile := filepath.Join(tempDir, "deep.yaml")
@@ -1657,16 +1655,15 @@ hello: "Hola"
 	})
 
 	t.Run("NestedTranslations", func(t *testing.T) {
-		content := `
-simple: "Simple value"
+		content := `simple: "Simple value"
 level1:
   nested1: "Nested value 1"
   nested2: "Nested value 2"
   level2:
-	deep1: "Deep value 1"
-	deep2: "Deep value 2"
-	level3:
-	  verydeep: "Very deep value"
+    deep1: "Deep value 1"
+    deep2: "Deep value 2"
+    level3:
+      verydeep: "Very deep value"
 `
 		yamlFile := filepath.Join(tempDir, "nested.yaml")
 		err := os.WriteFile(yamlFile, []byte(content), 0644)
@@ -1698,8 +1695,7 @@ level1:
 	})
 
 	t.Run("MixedDataTypes", func(t *testing.T) {
-		content := `
-string_value: "This is a string"
+		content := `string_value: "This is a string"
 number_value: 42
 boolean_value: true
 array_value:
@@ -1712,11 +1708,11 @@ nested_mixed:
   number_in_nested: 123
   boolean_in_nested: false
   array_in_nested:
-	- "nested array item"
+    - "nested array item"
   deeply_nested:
-	final_string: "Final string"
-	final_number: 456
-	final_boolean: true
+    final_string: "Final string"
+    final_number: 456
+    final_boolean: true
 `
 		yamlFile := filepath.Join(tempDir, "mixed.yaml")
 		err := os.WriteFile(yamlFile, []byte(content), 0644)

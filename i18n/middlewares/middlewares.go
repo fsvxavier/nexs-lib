@@ -83,8 +83,8 @@ func NewMemoryCache(maxSize int) *MemoryCache {
 
 // Get retrieves a value from the cache.
 func (c *MemoryCache) Get(key string) (interface{}, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	item, exists := c.data[key]
 	if !exists {
@@ -109,8 +109,13 @@ func (c *MemoryCache) Set(key string, value interface{}, ttl time.Duration) erro
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Check if cache has zero capacity
+	if c.maxSize <= 0 {
+		return fmt.Errorf("cannot set value in cache with zero or negative capacity")
+	}
+
 	// Check if we need to make room
-	if len(c.data) >= c.maxSize && c.maxSize > 0 {
+	if len(c.data) >= c.maxSize {
 		// Simple eviction: remove the first item (not optimal, but sufficient for this example)
 		for k := range c.data {
 			delete(c.data, k)

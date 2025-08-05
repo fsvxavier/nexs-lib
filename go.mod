@@ -13,7 +13,6 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/kaptinlin/jsonschema v0.4.6
 	github.com/labstack/echo/v4 v4.13.4
-	github.com/leonelquinteros/gotext v1.7.2
 	github.com/lib/pq v1.10.7
 	github.com/newrelic/go-agent/v3 v3.40.1
 	github.com/oklog/ulid/v2 v2.1.1

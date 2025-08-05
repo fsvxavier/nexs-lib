@@ -65,23 +65,3 @@ func New(cfg Config) func(next http.Handler) http.Handler {
 		})
 	}
 }
-
-// GetProvider retrieves the i18n provider from the request context
-func GetProvider(ctx context.Context) (interfaces.Provider, bool) {
-	v := ctx.Value(LocalizerKey)
-	if v == nil {
-		return nil, false
-	}
-	provider, ok := v.(interfaces.Provider)
-	return provider, ok
-}
-
-// MustGetProvider retrieves the i18n provider from the request context
-// and panics if not found
-func MustGetProvider(ctx context.Context) interfaces.Provider {
-	provider, ok := GetProvider(ctx)
-	if !ok {
-		panic("i18n provider not found in context")
-	}
-	return provider
-}

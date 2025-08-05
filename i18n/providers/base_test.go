@@ -55,7 +55,7 @@ func TestBaseProviderLanguages(t *testing.T) {
 					for i, langStr := range tt.langs {
 						if !tt.expectError {
 							expected, _ := language.Parse(langStr)
-							if !langs[i].Equal(expected) {
+							if langs[i] != expected {
 								t.Errorf("Language at index %d: expected %v, got %v", i, expected, langs[i])
 							}
 						}

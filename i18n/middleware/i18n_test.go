@@ -1,4 +1,4 @@
-package middleware_test
+package middleware
 
 import (
 	"net/http"
@@ -6,9 +6,6 @@ import (
 	"testing"
 
 	"golang.org/x/text/language"
-
-	"github.com/fsvxavier/nexs-lib/i18n/interfaces"
-	"github.com/fsvxavier/nexs-lib/i18n/middleware"
 )
 
 // mockProvider implements a minimal Provider interface for testing
@@ -40,14 +37,14 @@ func TestMiddleware(t *testing.T) {
 	provider := &mockProvider{}
 	defaultLang := language.MustParse("pt-BR")
 
-	config := middleware.Config{
+	config := Config{
 		Provider:        provider,
 		HeaderName:      "Accept-Language",
 		QueryParam:      "lang",
 		DefaultLanguage: defaultLang,
 	}
 
-	middleware := middleware.New(config)
+	mw := New(config)
 
 	tests := []struct {
 		name           string
@@ -112,7 +109,7 @@ func TestMiddleware(t *testing.T) {
 			// Create a test handler that checks the context
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Get provider from context directly
-				v := r.Context().Value(middleware.LocalizerKey)
+				v := r.Context().Value(LocalizerKey)
 				if v == nil && tt.expectProvider {
 					t.Error("Expected provider in context but got none")
 					return
@@ -122,7 +119,7 @@ func TestMiddleware(t *testing.T) {
 					return
 				}
 				if v != nil {
-					provider := v.(interfaces.Provider)
+					provider := v.(*mockProvider)
 					langs := provider.GetLanguages()
 					if len(langs) != len(tt.expectedLangs) {
 						t.Errorf("Expected %d languages, got %d", len(tt.expectedLangs), len(langs))
@@ -138,7 +135,7 @@ func TestMiddleware(t *testing.T) {
 			})
 
 			// Run the middleware
-			middleware(handler).ServeHTTP(w, r)
+			mw(handler).ServeHTTP(w, r)
 
 			// Check response status
 			if w.Code != http.StatusOK {
@@ -157,6 +154,6 @@ func TestMustGetProvider(t *testing.T) {
 		}()
 
 		r := httptest.NewRequest("GET", "/", nil)
-		middleware.MustGetProvider(r.Context())
+		MustGetProvider(r.Context())
 	})
 }

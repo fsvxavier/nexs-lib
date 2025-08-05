@@ -11,7 +11,7 @@ func main() {
 	// JSON Example
 	jsonExample()
 
-	fmt.Println("\n---\n")
+	fmt.Print("\n---\n")
 
 	// YAML Example
 	yamlExample()

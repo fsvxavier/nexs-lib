@@ -85,19 +85,54 @@ func (p *JSONProvider) Translate(key string, templateData map[string]interface{}
 
 // TranslatePlural implements Provider.TranslatePlural
 func (p *JSONProvider) TranslatePlural(key string, count interface{}, templateData map[string]interface{}) (string, error) {
-	// For JSON we expect plural forms to be defined as separate keys
-	// e.g., "users_one": "{{.Count}} user", "users_other": "{{.Count}} users"
+	// Get the translation object that contains plural forms
+	val, ok := p.getTranslation(key)
+	if !ok {
+		return key, nil // Return key as fallback
+	}
+
+	// Check if the value is a map containing plural forms
+	pluralForms, ok := val.(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("translation for key %q is not a plural form object", key)
+	}
 
 	// Determine plural form
 	pluralForm := getPluralForm(count)
-	pluralKey := fmt.Sprintf("%s_%s", key, pluralForm)
+
+	// Get the correct plural form
+	formVal, ok := pluralForms[pluralForm]
+	if !ok {
+		// Try "other" as fallback
+		formVal, ok = pluralForms["other"]
+		if !ok {
+			return "", fmt.Errorf("no plural form found for key %q", key)
+		}
+	}
+
+	// Convert to string
+	str, ok := formVal.(string)
+	if !ok {
+		return "", fmt.Errorf("plural form for key %q is not a string", key)
+	}
 
 	if templateData == nil {
 		templateData = make(map[string]interface{})
 	}
 	templateData["Count"] = count
 
-	return p.Translate(pluralKey, templateData)
+	// Process template
+	tmpl, err := template.New("translation").Parse(str)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse plural template for key %q: %w", key, err)
+	}
+
+	var result strings.Builder
+	if err := tmpl.Execute(&result, templateData); err != nil {
+		return "", fmt.Errorf("failed to execute plural template for key %q: %w", key, err)
+	}
+
+	return result.String(), nil
 }
 
 // getPluralForm returns the plural form based on count

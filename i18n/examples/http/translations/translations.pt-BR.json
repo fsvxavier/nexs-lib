@@ -1,8 +1,8 @@
 {
-    "hello_world": "Olá mundo!",
-    "hello_name": "Olá {{.Name}}!",
-    "users_count": {
-        "one": "{{.Count}} usuário",
-        "other": "{{.Count}} usuários"
+    "welcome": "Bem-vindo ao exemplo HTTP!",
+    "greeting": "Olá, {{.Name}}!",
+    "items": {
+        "one": "{{.Count}} item",
+        "other": "{{.Count}} itens"
     }
 }

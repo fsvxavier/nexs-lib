@@ -1,0 +1,5 @@
+{
+    "hello_world": "Olá mundo!",
+    "hello_name": "Olá, {{.Name}}!",
+    "welcome": "Bem-vindo ao exemplo de hooks!"
+}

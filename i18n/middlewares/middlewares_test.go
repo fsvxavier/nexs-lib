@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -1013,7 +1014,7 @@ func TestCachingMiddleware_EdgeCases_Fixed(t *testing.T) {
 		}
 	})
 
-	t.Run("disabled_cache", func(t *testing.T) {
+	t.Run("cache_stats_disabled", func(t *testing.T) {
 		cache := NewMemoryCache(100)
 		config := CachingMiddlewareConfig{
 			TTL:              time.Hour,
@@ -1022,32 +1023,40 @@ func TestCachingMiddleware_EdgeCases_Fixed(t *testing.T) {
 			EnableStats:      false,
 			CacheNullResults: false,
 		}
-		disabledMiddleware, err := NewCachingMiddleware("disabled-cache", config, cache)
+		middleware, err := NewCachingMiddleware("stats-disabled-cache", config, cache)
 		if err != nil {
-			t.Fatalf("failed to create disabled middleware: %v", err)
+			t.Fatalf("failed to create middleware: %v", err)
 		}
 
 		callCount := 0
 		translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
 			callCount++
-			return "no_cache_result", nil
+			return "cached_result", nil
 		}
 
-		wrapped := disabledMiddleware.WrapTranslate(translateFunc)
+		wrapped := middleware.WrapTranslate(translateFunc)
 
-		// Múltiplas chamadas sempre devem chamar a função original
-		for i := 0; i < 3; i++ {
-			result, err := wrapped(context.Background(), "key", "en", nil)
-			if err != nil {
-				t.Errorf("Call %d failed: %v", i, err)
-			}
-			if result != "no_cache_result" {
-				t.Errorf("Expected 'no_cache_result', got %s", result)
-			}
+		// First call should go to function and be cached
+		result, err := wrapped(context.Background(), "key", "en", nil)
+		if err != nil {
+			t.Errorf("First call failed: %v", err)
+		}
+		if result != "cached_result" {
+			t.Errorf("Expected 'cached_result', got %s", result)
 		}
 
-		if callCount != 3 {
-			t.Errorf("Expected 3 calls, got %d", callCount)
+		// Second call should use cache
+		result, err = wrapped(context.Background(), "key", "en", nil)
+		if err != nil {
+			t.Errorf("Second call failed: %v", err)
+		}
+		if result != "cached_result" {
+			t.Errorf("Expected 'cached_result', got %s", result)
+		}
+
+		// Should only have been called once (second was cached)
+		if callCount != 1 {
+			t.Errorf("Expected 1 call, got %d", callCount)
 		}
 	})
 }
@@ -1145,18 +1154,18 @@ func TestRateLimitingMiddleware_EdgeCases_Fixed(t *testing.T) {
 		}
 	})
 
-	t.Run("disabled_rate_limiting", func(t *testing.T) {
-		limiter := NewSimpleRateLimiter(1, 1)
+	t.Run("high_rate_limiting", func(t *testing.T) {
+		limiter := NewSimpleRateLimiter(100, 200) // High limits
 		config := RateLimitingMiddlewareConfig{
-			RequestsPerSecond: 1,
-			BurstSize:         1,
+			RequestsPerSecond: 100,
+			BurstSize:         200,
 			PerKey:            false,
 			PerLanguage:       false,
 			ErrorMessage:      "rate limit exceeded",
 		}
-		disabledMiddleware, err := NewRateLimitingMiddleware("disabled-limiter", config, limiter)
+		highLimitMiddleware, err := NewRateLimitingMiddleware("high-limit-limiter", config, limiter)
 		if err != nil {
-			t.Fatalf("failed to create disabled middleware: %v", err)
+			t.Fatalf("failed to create high limit middleware: %v", err)
 		}
 
 		callCount := 0
@@ -1165,13 +1174,13 @@ func TestRateLimitingMiddleware_EdgeCases_Fixed(t *testing.T) {
 			return "unlimited_result", nil
 		}
 
-		wrapped := disabledMiddleware.WrapTranslate(translateFunc)
+		wrapped := highLimitMiddleware.WrapTranslate(translateFunc)
 
-		// Múltiplas chamadas devem passar
+		// Multiple calls should pass with high limits
 		for i := 0; i < 10; i++ {
 			result, err := wrapped(context.Background(), "key", "en", nil)
 			if err != nil {
-				t.Errorf("Call %d should succeed when rate limiting is enabled: %v", i, err)
+				t.Errorf("Call %d should succeed with high rate limits: %v", i, err)
 			}
 			if result != "unlimited_result" {
 				t.Errorf("Expected 'unlimited_result', got %s", result)
@@ -1382,5 +1391,734 @@ func TestCachingMiddleware_Performance_Fixed(t *testing.T) {
 	// Cache deve ser significativamente mais rápido
 	if duration2 >= duration1 {
 		t.Logf("Warning: Cache call (%v) not faster than original call (%v)", duration2, duration1)
+	}
+}
+
+// Additional tests to reach 98%+ coverage on remaining functions
+
+func TestCachingMiddleware_WrapTranslate_EdgeCases(t *testing.T) {
+	cache := NewMemoryCache(100)
+	config := CachingMiddlewareConfig{
+		TTL:              1 * time.Hour,
+		MaxSize:          100,
+		CacheKeyPrefix:   "test:",
+		EnableStats:      true,
+		CacheNullResults: true, // Enable caching null results
+	}
+
+	middleware, err := NewCachingMiddleware("test-cache", config, cache)
+	if err != nil {
+		t.Fatalf("failed to create middleware: %v", err)
+	}
+
+	// Test caching empty result when CacheNullResults is true
+	translateFunc := func(ctx context.Context, key, lang string, params map[string]interface{}) (string, error) {
+		return "", nil // Return empty string
+	}
+
+	wrapped := middleware.WrapTranslate(translateFunc)
+
+	result, err := wrapped(context.Background(), "empty.key", "en", nil)
+	if err != nil {
+		t.Errorf("translation should succeed, got error: %v", err)
+	}
+	if result != "" {
+		t.Errorf("expected empty result, got: %s", result)
+	}
+
+	// Second call should use cache (verify that empty results are cached)
+	result2, err := wrapped(context.Background(), "empty.key", "en", nil)
+	if err != nil {
+		t.Errorf("cached translation should succeed, got error: %v", err)
+	}
+	if result2 != "" {
+		t.Errorf("expected cached empty result, got: %s", result2)
+	}
+
+	// Test with invalid cached value (non-string)
+	cache.Set("test:en:invalid.key", 123, 1*time.Hour) // Store non-string value
+
+	result3, err := wrapped(context.Background(), "invalid.key", "en", nil)
+	if err != nil {
+		t.Errorf("translation with invalid cached value should succeed, got error: %v", err)
+	}
+	if result3 != "" {
+		t.Errorf("expected empty result when cached value is invalid, got: %s", result3)
+	}
+}
+
+func TestSimpleRateLimiter_Allow_EdgeCases(t *testing.T) {
+	// Test time-based token refill edge cases
+	limiter := NewSimpleRateLimiter(2, 3) // 2 requests/sec, burst of 3
+
+	// Use up all tokens
+	for i := 0; i < 3; i++ {
+		if !limiter.Allow("test-key") {
+			t.Errorf("request %d should be allowed (burst capacity)", i+1)
+		}
+	}
+
+	// Next request should be denied
+	if limiter.Allow("test-key") {
+		t.Error("request should be denied after burst capacity exhausted")
+	}
+
+	// Wait for partial token refill (less than 1 second)
+	time.Sleep(300 * time.Millisecond)
+
+	// Still should be denied (less than 1 second passed)
+	if limiter.Allow("test-key") {
+		t.Error("request should still be denied before full second passes")
+	}
+
+	// Wait for more than 1 second to allow token refill
+	time.Sleep(800 * time.Millisecond) // Total > 1 second now
+
+	// Now should be allowed (tokens refilled)
+	if !limiter.Allow("test-key") {
+		t.Error("request should be allowed after token refill")
+	}
+
+	// Test with multiple keys to ensure isolation
+	if !limiter.Allow("different-key") {
+		t.Error("request with different key should be allowed (separate bucket)")
+	}
+
+	// Test token cap (tokens shouldn't exceed burst size)
+	limiter2 := NewSimpleRateLimiter(10, 5) // High rate, low burst
+
+	// Wait to ensure full refill
+	time.Sleep(1100 * time.Millisecond)
+
+	// Should only allow burst size number of requests
+	allowed := 0
+	for i := 0; i < 10; i++ {
+		if limiter2.Allow("capped-key") {
+			allowed++
+		}
+	}
+
+	if allowed != 5 {
+		t.Errorf("expected %d allowed requests (burst size), got %d", 5, allowed)
+	}
+}
+
+func TestSimpleRateLimiter_TokenRefill_Precision(t *testing.T) {
+	// Test precise token refill calculation
+	limiter := NewSimpleRateLimiter(1, 2) // 1 request/sec, burst of 2
+
+	// Use all tokens
+	limiter.Allow("precision-key")
+	limiter.Allow("precision-key")
+
+	// Should be denied
+	if limiter.Allow("precision-key") {
+		t.Error("third request should be denied")
+	}
+
+	// Wait exactly 2 seconds
+	time.Sleep(2100 * time.Millisecond)
+
+	// Should be allowed (2 tokens refilled, but capped at burst size)
+	if !limiter.Allow("precision-key") {
+		t.Error("request should be allowed after 2 seconds")
+	}
+	if !limiter.Allow("precision-key") {
+		t.Error("second request should be allowed (burst capacity)")
+	}
+
+	// Third should be denied again
+	if limiter.Allow("precision-key") {
+		t.Error("third request should be denied again")
+	}
+}
+
+// Mock logger implementation for testing
+type mockLogger struct {
+	logs []string
+	mu   sync.RWMutex
+}
+
+func newMockLogger() *mockLogger {
+	return &mockLogger{
+		logs: make([]string, 0),
+	}
+}
+
+func (m *mockLogger) Debug(msg string, args ...interface{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.logs = append(m.logs, fmt.Sprintf("DEBUG: "+msg, args...))
+}
+
+func (m *mockLogger) Info(msg string, args ...interface{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.logs = append(m.logs, fmt.Sprintf("INFO: "+msg, args...))
+}
+
+func (m *mockLogger) Warn(msg string, args ...interface{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.logs = append(m.logs, fmt.Sprintf("WARN: "+msg, args...))
+}
+
+func (m *mockLogger) Error(msg string, args ...interface{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.logs = append(m.logs, fmt.Sprintf("ERROR: "+msg, args...))
+}
+
+func (m *mockLogger) getLogs() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	result := make([]string, len(m.logs))
+	copy(result, m.logs)
+	return result
+}
+
+func (m *mockLogger) clear() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.logs = m.logs[:0]
+}
+
+// Test hook functions for CachingMiddleware
+func TestCachingMiddleware_HookFunctions(t *testing.T) {
+	cache := NewMemoryCache(100)
+	config := CachingMiddlewareConfig{
+		TTL:              1 * time.Hour,
+		MaxSize:          100,
+		CacheKeyPrefix:   "test:",
+		EnableStats:      true,
+		CacheNullResults: false,
+	}
+
+	middleware, err := NewCachingMiddleware("test-cache", config, cache)
+	if err != nil {
+		t.Fatalf("failed to create middleware: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Test OnStart
+	err = middleware.OnStart(ctx, "test-provider")
+	if err != nil {
+		t.Errorf("OnStart should not return error, got: %v", err)
+	}
+
+	// Test OnStop
+	err = middleware.OnStop(ctx, "test-provider")
+	if err != nil {
+		t.Errorf("OnStop should not return error, got: %v", err)
+	}
+
+	// Test OnError
+	testErr := fmt.Errorf("test error")
+	err = middleware.OnError(ctx, "test-provider", testErr)
+	if err != nil {
+		t.Errorf("OnError should not return error, got: %v", err)
+	}
+
+	// Test OnTranslate
+	err = middleware.OnTranslate(ctx, "test-provider", "test.key", "en", "result")
+	if err != nil {
+		t.Errorf("OnTranslate should not return error, got: %v", err)
+	}
+}
+
+// Test GetStats and ClearCache functions for CachingMiddleware
+func TestCachingMiddleware_StatsAndClear(t *testing.T) {
+	cache := NewMemoryCache(100)
+	config := CachingMiddlewareConfig{
+		TTL:              1 * time.Hour,
+		MaxSize:          100,
+		CacheKeyPrefix:   "test:",
+		EnableStats:      true,
+		CacheNullResults: false,
+	}
+
+	middleware, err := NewCachingMiddleware("test-cache", config, cache)
+	if err != nil {
+		t.Fatalf("failed to create middleware: %v", err)
+	}
+
+	// Test GetStats with stats enabled
+	stats := middleware.GetStats()
+	if stats.MaxSize != 100 {
+		t.Errorf("expected max size 100, got %d", stats.MaxSize)
+	}
+
+	// Test ClearCache
+	cache.Set("test-key", "test-value", 1*time.Hour)
+	if cache.Size() != 1 {
+		t.Errorf("expected cache size 1, got %d", cache.Size())
+	}
+
+	err = middleware.ClearCache()
+	if err != nil {
+		t.Errorf("ClearCache should not return error, got: %v", err)
+	}
+
+	if cache.Size() != 0 {
+		t.Errorf("expected cache size 0 after clear, got %d", cache.Size())
+	}
+
+	// Test GetStats with stats disabled
+	config.EnableStats = false
+	middleware2, err := NewCachingMiddleware("test-cache-2", config, cache)
+	if err != nil {
+		t.Fatalf("failed to create middleware: %v", err)
+	}
+
+	stats = middleware2.GetStats()
+	// Should return empty stats when disabled
+	if stats.MaxSize != 0 || stats.HitCount != 0 || stats.MissCount != 0 {
+		t.Errorf("expected empty stats when disabled, got: %+v", stats)
+	}
+}
+
+// Test buildCacheKey function thoroughly
+func TestCachingMiddleware_BuildCacheKey(t *testing.T) {
+	cache := NewMemoryCache(100)
+	config := CachingMiddlewareConfig{
+		TTL:              1 * time.Hour,
+		MaxSize:          100,
+		CacheKeyPrefix:   "test:",
+		EnableStats:      true,
+		CacheNullResults: false,
+	}
+
+	middleware, err := NewCachingMiddleware("test-cache", config, cache)
+	if err != nil {
+		t.Fatalf("failed to create middleware: %v", err)
+	}
+
+	// Test with no parameters
+	key := middleware.buildCacheKey("hello.world", "en", nil)
+	expected := "test:en:hello.world"
+	if key != expected {
+		t.Errorf("expected key %s, got %s", expected, key)
+	}
+
+	// Test with empty parameters
+	key = middleware.buildCacheKey("hello.world", "en", map[string]interface{}{})
+	expected = "test:en:hello.world"
+	if key != expected {
+		t.Errorf("expected key %s, got %s", expected, key)
+	}
+
+	// Test with parameters
+	params := map[string]interface{}{
+		"name": "John",
+		"age":  30,
+	}
+	key = middleware.buildCacheKey("hello.world", "en", params)
+	expected = "test:en:hello.world:2" // 2 is the parameter count
+	if key != expected {
+		t.Errorf("expected key %s, got %s", expected, key)
+	}
+}
+
+// Test hook functions for RateLimitingMiddleware
+func TestRateLimitingMiddleware_HookFunctions(t *testing.T) {
+	config := RateLimitingMiddlewareConfig{
+		RequestsPerSecond: 10,
+		BurstSize:         20,
+		PerKey:            false,
+		PerLanguage:       false,
+		ErrorMessage:      "rate limit exceeded",
+	}
+
+	limiter := NewSimpleRateLimiter(10, 20)
+	middleware, err := NewRateLimitingMiddleware("test-rate-limit", config, limiter)
+	if err != nil {
+		t.Fatalf("failed to create middleware: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Test OnStart
+	err = middleware.OnStart(ctx, "test-provider")
+	if err != nil {
+		t.Errorf("OnStart should not return error, got: %v", err)
+	}
+
+	// Test OnStop
+	err = middleware.OnStop(ctx, "test-provider")
+	if err != nil {
+		t.Errorf("OnStop should not return error, got: %v", err)
+	}
+
+	// Test OnError
+	testErr := fmt.Errorf("test error")
+	err = middleware.OnError(ctx, "test-provider", testErr)
+	if err != nil {
+		t.Errorf("OnError should not return error, got: %v", err)
+	}
+
+	// Test OnTranslate
+	err = middleware.OnTranslate(ctx, "test-provider", "test.key", "en", "result")
+	if err != nil {
+		t.Errorf("OnTranslate should not return error, got: %v", err)
+	}
+}
+
+// Test buildRateLimitKey function thoroughly
+func TestRateLimitingMiddleware_BuildRateLimitKey(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      RateLimitingMiddlewareConfig
+		key         string
+		lang        string
+		expectedKey string
+	}{
+		{
+			name: "Global rate limiting",
+			config: RateLimitingMiddlewareConfig{
+				PerKey:      false,
+				PerLanguage: false,
+			},
+			key:         "hello.world",
+			lang:        "en",
+			expectedKey: "global",
+		},
+		{
+			name: "Per language rate limiting",
+			config: RateLimitingMiddlewareConfig{
+				PerKey:      false,
+				PerLanguage: true,
+			},
+			key:         "hello.world",
+			lang:        "en",
+			expectedKey: "en",
+		},
+		{
+			name: "Per key rate limiting",
+			config: RateLimitingMiddlewareConfig{
+				PerKey:      true,
+				PerLanguage: false,
+			},
+			key:         "hello.world",
+			lang:        "en",
+			expectedKey: "hello.world",
+		},
+		{
+			name: "Per language and key (language takes precedence)",
+			config: RateLimitingMiddlewareConfig{
+				PerKey:      true,
+				PerLanguage: true,
+			},
+			key:         "hello.world",
+			lang:        "en",
+			expectedKey: "en",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			limiter := NewSimpleRateLimiter(10, 20)
+			middleware, err := NewRateLimitingMiddleware("test", tt.config, limiter)
+			if err != nil {
+				t.Fatalf("failed to create middleware: %v", err)
+			}
+
+			result := middleware.buildRateLimitKey(tt.key, tt.lang)
+			if result != tt.expectedKey {
+				t.Errorf("expected key %s, got %s", tt.expectedKey, result)
+			}
+		})
+	}
+}
+
+// Test GetStats function for RateLimitingMiddleware
+func TestRateLimitingMiddleware_GetStats(t *testing.T) {
+	config := RateLimitingMiddlewareConfig{
+		RequestsPerSecond: 10,
+		BurstSize:         20,
+		PerKey:            false,
+		PerLanguage:       false,
+		ErrorMessage:      "rate limit exceeded",
+	}
+
+	limiter := NewSimpleRateLimiter(10, 20)
+	middleware, err := NewRateLimitingMiddleware("test-rate-limit", config, limiter)
+	if err != nil {
+		t.Fatalf("failed to create middleware: %v", err)
+	}
+
+	// Test with empty key (should use "global")
+	stats := middleware.GetStats("")
+	if stats.RequestCount < 0 {
+		t.Errorf("request count should not be negative, got %d", stats.RequestCount)
+	}
+
+	// Test with specific key
+	stats = middleware.GetStats("test-key")
+	if stats.RequestCount < 0 {
+		t.Errorf("request count should not be negative, got %d", stats.RequestCount)
+	}
+
+	// Actually use the rate limiter to generate some stats
+	limiter.Allow("test-key")
+	stats = middleware.GetStats("test-key")
+	if stats.RequestCount != 1 {
+		t.Errorf("expected request count 1, got %d", stats.RequestCount)
+	}
+}
+
+// Test hook functions for LoggingMiddleware
+func TestLoggingMiddleware_HookFunctions(t *testing.T) {
+	logger := newMockLogger()
+	config := LoggingMiddlewareConfig{
+		LogRequests:       true,
+		LogResults:        true,
+		LogLevel:          "info",
+		IncludeParameters: true,
+		MaxResultLength:   1000,
+	}
+
+	middleware, err := NewLoggingMiddleware("test-logging", config, logger)
+	if err != nil {
+		t.Fatalf("failed to create middleware: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Test OnStart
+	err = middleware.OnStart(ctx, "test-provider")
+	if err != nil {
+		t.Errorf("OnStart should not return error, got: %v", err)
+	}
+
+	logs := logger.getLogs()
+	if len(logs) != 1 || !strings.Contains(logs[0], "Translation provider started") {
+		t.Errorf("expected OnStart log, got: %v", logs)
+	}
+
+	logger.clear()
+
+	// Test OnStop
+	err = middleware.OnStop(ctx, "test-provider")
+	if err != nil {
+		t.Errorf("OnStop should not return error, got: %v", err)
+	}
+
+	logs = logger.getLogs()
+	if len(logs) != 1 || !strings.Contains(logs[0], "Translation provider stopped") {
+		t.Errorf("expected OnStop log, got: %v", logs)
+	}
+
+	logger.clear()
+
+	// Test OnError
+	testErr := fmt.Errorf("test error")
+	err = middleware.OnError(ctx, "test-provider", testErr)
+	if err != nil {
+		t.Errorf("OnError should not return error, got: %v", err)
+	}
+
+	logs = logger.getLogs()
+	if len(logs) != 1 || !strings.Contains(logs[0], "Translation provider error") {
+		t.Errorf("expected OnError log, got: %v", logs)
+	}
+
+	logger.clear()
+
+	// Test OnTranslate
+	err = middleware.OnTranslate(ctx, "test-provider", "test.key", "en", "result")
+	if err != nil {
+		t.Errorf("OnTranslate should not return error, got: %v", err)
+	}
+
+	// OnTranslate should not log anything (handled in WrapTranslate)
+	logs = logger.getLogs()
+	if len(logs) != 0 {
+		t.Errorf("OnTranslate should not log anything, got: %v", logs)
+	}
+}
+
+// Test logAtLevel function thoroughly
+func TestLoggingMiddleware_LogAtLevel(t *testing.T) {
+	logger := newMockLogger()
+	config := LoggingMiddlewareConfig{
+		LogRequests:       true,
+		LogResults:        true,
+		LogLevel:          "info",
+		IncludeParameters: true,
+		MaxResultLength:   1000,
+	}
+
+	middleware, err := NewLoggingMiddleware("test-logging", config, logger)
+	if err != nil {
+		t.Fatalf("failed to create middleware: %v", err)
+	}
+
+	tests := []struct {
+		level    string
+		message  string
+		expected string
+	}{
+		{"debug", "debug message", "DEBUG: debug message"},
+		{"info", "info message", "INFO: info message"},
+		{"warn", "warn message", "WARN: warn message"},
+		{"error", "error message", "ERROR: error message"},
+		{"unknown", "unknown message", "INFO: unknown message"}, // defaults to info
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.level, func(t *testing.T) {
+			logger.clear()
+			middleware.logAtLevel(tt.level, tt.message)
+			logs := logger.getLogs()
+			if len(logs) != 1 || logs[0] != tt.expected {
+				t.Errorf("expected log %s, got: %v", tt.expected, logs)
+			}
+		})
+	}
+}
+
+// Test MemoryCache zero capacity edge case
+func TestMemoryCache_ZeroCapacity(t *testing.T) {
+	cache := NewMemoryCache(0)
+
+	err := cache.Set("key", "value", 1*time.Hour)
+	if err == nil {
+		t.Error("expected error when setting value in zero capacity cache")
+	}
+
+	if !strings.Contains(err.Error(), "zero or negative capacity") {
+		t.Errorf("expected zero capacity error, got: %v", err)
+	}
+}
+
+// Test MemoryCache negative capacity edge case
+func TestMemoryCache_NegativeCapacity(t *testing.T) {
+	cache := NewMemoryCache(-5)
+
+	err := cache.Set("key", "value", 1*time.Hour)
+	if err == nil {
+		t.Error("expected error when setting value in negative capacity cache")
+	}
+
+	if !strings.Contains(err.Error(), "zero or negative capacity") {
+		t.Errorf("expected negative capacity error, got: %v", err)
+	}
+}
+
+// Test SimpleRateLimiter GetStats edge cases
+func TestSimpleRateLimiter_GetStats_EdgeCases(t *testing.T) {
+	limiter := NewSimpleRateLimiter(10, 20)
+
+	// Test getting stats for non-existent key
+	stats := limiter.GetStats("nonexistent")
+	if stats.RequestCount != 0 || stats.AllowedCount != 0 || stats.BlockedCount != 0 {
+		t.Errorf("expected zero stats for nonexistent key, got: %+v", stats)
+	}
+
+	// Test stats after some requests
+	limiter.Allow("test-key")
+	limiter.Allow("test-key")
+	stats = limiter.GetStats("test-key")
+
+	if stats.RequestCount != 2 {
+		t.Errorf("expected request count 2, got %d", stats.RequestCount)
+	}
+	if stats.AllowedCount != 2 {
+		t.Errorf("expected allowed count 2, got %d", stats.AllowedCount)
+	}
+	if stats.BlockedCount != 0 {
+		t.Errorf("expected blocked count 0, got %d", stats.BlockedCount)
+	}
+}
+
+// Test comprehensive integration scenario
+func TestMiddleware_IntegrationScenario(t *testing.T) {
+	// Create components
+	cache := NewMemoryCache(100)
+	logger := newMockLogger()
+
+	// Create middlewares
+	cachingMiddleware, err := NewCachingMiddleware("cache", CachingMiddlewareConfig{
+		TTL:              1 * time.Hour,
+		MaxSize:          100,
+		CacheKeyPrefix:   "i18n:",
+		EnableStats:      true,
+		CacheNullResults: false,
+	}, cache)
+	if err != nil {
+		t.Fatalf("failed to create caching middleware: %v", err)
+	}
+
+	rateLimitMiddleware, err := NewRateLimitingMiddleware("ratelimit", RateLimitingMiddlewareConfig{
+		RequestsPerSecond: 100,
+		BurstSize:         200,
+		PerKey:            false,
+		PerLanguage:       false,
+		ErrorMessage:      "rate limit exceeded",
+	}, nil)
+	if err != nil {
+		t.Fatalf("failed to create rate limiting middleware: %v", err)
+	}
+
+	loggingMiddleware, err := NewLoggingMiddleware("logging", LoggingMiddlewareConfig{
+		LogRequests:       true,
+		LogResults:        true,
+		LogLevel:          "info",
+		IncludeParameters: true,
+		MaxResultLength:   1000,
+	}, logger)
+	if err != nil {
+		t.Fatalf("failed to create logging middleware: %v", err)
+	}
+
+	// Create a mock translate function
+	translateFunc := func(ctx context.Context, key string, lang string, params map[string]interface{}) (string, error) {
+		return fmt.Sprintf("translated: %s [%s]", key, lang), nil
+	}
+
+	// Chain the middlewares
+	wrappedFunc := loggingMiddleware.WrapTranslate(
+		rateLimitMiddleware.WrapTranslate(
+			cachingMiddleware.WrapTranslate(translateFunc),
+		),
+	)
+
+	ctx := context.Background()
+
+	// Test successful translation
+	result, err := wrappedFunc(ctx, "hello.world", "en", map[string]interface{}{"name": "John"})
+	if err != nil {
+		t.Errorf("translation should succeed, got error: %v", err)
+	}
+
+	expected := "translated: hello.world [en]"
+	if result != expected {
+		t.Errorf("expected result %s, got %s", expected, result)
+	}
+
+	// Test caching (second call should be cached)
+	result2, err := wrappedFunc(ctx, "hello.world", "en", map[string]interface{}{"name": "John"})
+	if err != nil {
+		t.Errorf("cached translation should succeed, got error: %v", err)
+	}
+
+	if result2 != expected {
+		t.Errorf("expected cached result %s, got %s", expected, result2)
+	}
+
+	// Verify cache stats
+	stats := cachingMiddleware.GetStats()
+	if stats.HitCount != 1 {
+		t.Errorf("expected 1 cache hit, got %d", stats.HitCount)
+	}
+	if stats.MissCount != 1 {
+		t.Errorf("expected 1 cache miss, got %d", stats.MissCount)
+	}
+
+	// Verify logs were created
+	logs := logger.getLogs()
+	if len(logs) < 2 {
+		t.Errorf("expected at least 2 log entries, got %d", len(logs))
 	}
 }

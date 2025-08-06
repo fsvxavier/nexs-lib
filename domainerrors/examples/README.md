@@ -54,8 +54,19 @@ This directory contains comprehensive examples demonstrating how to use the Doma
 
 **Best For**: Microservices, distributed systems, resilient applications
 
-### 6. Serialization (`serialization/`)
-**Purpose**: Error serialization and deserialization
+### 7. **Hooks and Middleware (`hooks-middleware/`)**
+**Purpose**: Advanced error processing with hooks and middleware systems
+**Key Features**:
+- Event-driven error processing with hooks
+- Chain of responsibility pattern with middleware
+- Real-world logging and audit scenarios
+- Error enrichment pipelines
+- Circuit breaker, rate limiting, and security patterns
+
+**Best For**: Production applications requiring sophisticated error processing, monitoring, and transformation
+
+### 8. Serialization (`serialization/`)
+**Purpose**: Cross-system error communication
 **Key Features**:
 - JSON and XML serialization
 - Error reconstruction

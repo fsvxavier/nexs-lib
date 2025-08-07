@@ -1,63 +1,78 @@
-# Basic Domain Errors Examples
+# Exemplo Básico de Domain Errors
 
-Este exemplo demonstra o uso básico da biblioteca de erros de domínio.
+Este exemplo demonstra o uso básico do módulo `domainerrors`, incluindo:
 
-## Executar o Exemplo
+## Funcionalidades Demonstradas
+
+### 1. Criação de Erros Básicos
+- Erro de validação (`ValidationError`)
+- Erro de não encontrado (`NotFoundError`)  
+- Erro de negócio (`BusinessError`)
+
+### 2. Metadados
+- Adição de metadados contextuais aos erros
+- Recuperação e manipulação de metadados
+
+### 3. Encapsulamento de Erros
+- Wrapping de erros existentes
+- Preservação da causa raiz
+
+### 4. Verificação de Tipos
+- Verificação de tipos de erro usando `IsType`
+- Compatibilidade com interface padrão Go
+
+### 5. Análise de Cadeia de Erros
+- Formatação de cadeia de erros
+- Recuperação da causa raiz
+- Navegação em hierarquia de erros
+
+### 6. Serialização JSON
+- Conversão de erros para JSON
+- Preservação de metadados na serialização
+
+### 7. Context Integration
+- Integração com `context.Context`
+- Preservação de informações contextuais
+
+### 8. Factory Personalizada
+- Uso de factory para criação de erros
+- Personalização de comportamento
+
+## Como Executar
 
 ```bash
 cd examples/basic
 go run main.go
 ```
 
-## Exemplos Incluídos
+## Saída Esperada
 
-### 1. Criação Básica de Erro
-- Como criar um erro de domínio simples
-- Propriedades básicas do erro (code, message, type)
+O exemplo produzirá uma saída detalhada mostrando:
+- Criação e manipulação de diferentes tipos de erro
+- Códigos HTTP correspondentes
+- Formatação de cadeias de erro
+- Serialização JSON com metadados
+- Timestamps e informações contextuais
 
-### 2. Erro com Causa
-- Criando erro com uma causa subjacente
-- Uso do método `Unwrap()` para acessar a causa raiz
+## Principais Conceitos
 
-### 3. Erro com Metadados
-- Adicionando metadados personalizados aos erros
-- Útil para informações de contexto (request_id, user_id, etc.)
+### Tipos de Erro Suportados
+- `ValidationError` → HTTP 400
+- `NotFoundError` → HTTP 404  
+- `BusinessError` → HTTP 422
+- `DatabaseError` → HTTP 500
+- E muitos outros...
 
-### 4. Encadeamento de Erros
-- Criando uma cadeia de erros com contexto
-- Empilhamento de erros através de diferentes camadas
-- Visualização do stack trace
+### Metadados Contextuais
+Os erros podem carregar informações adicionais como:
+- Campo que falhou na validação
+- Valor que causou o erro
+- Regra de negócio violada
+- IDs de request/usuário
 
-### 5. Mapeamento de Status HTTP
-- Como diferentes tipos de erro mapeiam para códigos HTTP
-- Uso prático em APIs REST
+### Encapsulamento Seguro
+- Preserva a causa original
+- Adiciona contexto de domínio
+- Mantém rastreabilidade
 
-### 6. Verificação de Tipos
-- Verificando se um erro é de um tipo específico
-- Usando `IsType()` para lógica condicional
-
-### 7. Compatibilidade com Interface Padrão
-- Demonstrando compatibilidade com `errors.Is` e `errors.As`
-- Integração com o pacote `errors` padrão do Go
-
-## Conceitos Importantes
-
-### Tipos de Erro
-- **Validation**: Erros de validação → HTTP 400
-- **NotFound**: Recurso não encontrado → HTTP 404
-- **Authentication**: Falha de autenticação → HTTP 401
-- **Authorization**: Falha de autorização → HTTP 403
-- **RateLimit**: Limite de taxa excedido → HTTP 429
-- **Server**: Erro interno do servidor → HTTP 500
-
-### Stack Trace
-O stack trace é capturado automaticamente quando um erro é criado, fornecendo informações detalhadas sobre onde o erro ocorreu.
-
-### Metadados
-Use metadados para adicionar informações contextuais que podem ser úteis para debugging e logging.
-
-## Próximos Passos
-
-- Veja os exemplos avançados em `../advanced/`
-- Explore os diferentes tipos de erro em `../types/`
-- Aprenda sobre integração com APIs em `../api/`
+Este exemplo serve como ponto de partida para entender as capacidades básicas do módulo de tratamento de erros de domínio.

@@ -1,0 +1,2548 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>domainerrors: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/fsvxavier/nexs-lib/domainerrors/domainerrors.go (53.7%)</option>
+				
+				<option value="file1">github.com/fsvxavier/nexs-lib/domainerrors/examples/basic/main.go (0.0%)</option>
+				
+				<option value="file2">github.com/fsvxavier/nexs-lib/domainerrors/hooks/error.go (50.0%)</option>
+				
+				<option value="file3">github.com/fsvxavier/nexs-lib/domainerrors/hooks/hooks.go (76.1%)</option>
+				
+				<option value="file4">github.com/fsvxavier/nexs-lib/domainerrors/hooks/i18n.go (8.9%)</option>
+				
+				<option value="file5">github.com/fsvxavier/nexs-lib/domainerrors/hooks/start.go (81.8%)</option>
+				
+				<option value="file6">github.com/fsvxavier/nexs-lib/domainerrors/hooks/stop.go (59.1%)</option>
+				
+				<option value="file7">github.com/fsvxavier/nexs-lib/domainerrors/internal/stack.go (0.0%)</option>
+				
+				<option value="file8">github.com/fsvxavier/nexs-lib/domainerrors/middlewares/i18n.go (0.0%)</option>
+				
+				<option value="file9">github.com/fsvxavier/nexs-lib/domainerrors/middlewares/middlewares.go (90.2%)</option>
+				
+				<option value="file10">github.com/fsvxavier/nexs-lib/domainerrors/mocks/mocks.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package domainerrors
+
+import (
+        "context"
+        "encoding/json"
+        "errors"
+        "fmt"
+        "net/http"
+        "strings"
+        "sync"
+        "time"
+
+        "github.com/google/uuid"
+
+        "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+        "github.com/fsvxavier/nexs-lib/domainerrors/internal"
+)
+
+// DomainError implementa a interface DomainErrorInterface
+type DomainError struct {
+        id           string
+        code         string
+        message      string
+        errorType    interfaces.ErrorType
+        metadata     map[string]interface{}
+        cause        error
+        stack        []interfaces.StackFrame
+        timestamp    time.Time
+        context      context.Context
+        stackCapture interfaces.StackTraceCapture
+}
+
+// ErrorFactory implementa a interface ErrorFactory
+type ErrorFactory struct {
+        stackCapture interfaces.StackTraceCapture
+        mu           sync.RWMutex
+}
+
+// ErrorTypeChecker implementa verificação de tipos de erro
+type ErrorTypeChecker struct{}
+
+// Manager gerencia hooks, middlewares e observadores
+type Manager struct {
+        hookManager       *HookManager
+        middlewareManager *MiddlewareManager
+        observers         []interfaces.Observer
+        mu                sync.RWMutex
+}
+
+// RegisterObserver registra um observador
+func (m *Manager) RegisterObserver(observer interfaces.Observer) <span class="cov5" title="52">{
+        if observer == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov5" title="52">m.mu.Lock()
+        defer m.mu.Unlock()
+        m.observers = append(m.observers, observer)</span>
+}
+
+// UnregisterObserver remove um observador
+func (m *Manager) UnregisterObserver(observer interfaces.Observer) <span class="cov1" title="1">{
+        if observer == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov1" title="1">m.mu.Lock()
+        defer m.mu.Unlock()
+        for i, obs := range m.observers </span><span class="cov1" title="1">{
+                if obs == observer </span><span class="cov1" title="1">{
+                        m.observers = append(m.observers[:i], m.observers[i+1:]...)
+                        break</span>
+                }
+        }
+}
+
+// NotifyObservers notifica todos os observadores
+func (m *Manager) NotifyObservers(ctx context.Context, err interfaces.DomainErrorInterface) error <span class="cov5" title="52">{
+        if err == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov5" title="52">m.mu.RLock()
+        defer m.mu.RUnlock()
+        for _, observer := range m.observers </span><span class="cov10" title="1584">{
+                if observerErr := observer.OnError(ctx, err); observerErr != nil </span><span class="cov0" title="0">{
+                        return observerErr
+                }</span>
+        }
+        <span class="cov5" title="52">return nil</span>
+}
+
+// HookManager gerencia hooks do sistema
+type HookManager struct {
+        startHooks []interfaces.StartHookFunc
+        stopHooks  []interfaces.StopHookFunc
+        errorHooks []interfaces.ErrorHookFunc
+        i18nHooks  []interfaces.I18nHookFunc
+        mu         sync.RWMutex
+}
+
+// MiddlewareManager gerencia middlewares do sistema
+type MiddlewareManager struct {
+        middlewares     []interfaces.MiddlewareFunc
+        i18nMiddlewares []interfaces.I18nMiddlewareFunc
+        mu              sync.RWMutex
+}
+
+// RegisterStartHook registra um hook de start
+func (m *HookManager) RegisterStartHook(hook interfaces.StartHookFunc) <span class="cov0" title="0">{
+        if hook == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">m.mu.Lock()
+        defer m.mu.Unlock()
+        m.startHooks = append(m.startHooks, hook)</span>
+}
+
+// RegisterStopHook registra um hook de stop
+func (m *HookManager) RegisterStopHook(hook interfaces.StopHookFunc) <span class="cov0" title="0">{
+        if hook == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">m.mu.Lock()
+        defer m.mu.Unlock()
+        m.stopHooks = append(m.stopHooks, hook)</span>
+}
+
+// RegisterErrorHook registra um hook de erro
+func (m *HookManager) RegisterErrorHook(hook interfaces.ErrorHookFunc) <span class="cov0" title="0">{
+        if hook == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">m.mu.Lock()
+        defer m.mu.Unlock()
+        m.errorHooks = append(m.errorHooks, hook)</span>
+}
+
+// RegisterI18nHook registra um hook de i18n
+func (m *HookManager) RegisterI18nHook(hook interfaces.I18nHookFunc) <span class="cov0" title="0">{
+        if hook == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">m.mu.Lock()
+        defer m.mu.Unlock()
+        m.i18nHooks = append(m.i18nHooks, hook)</span>
+}
+
+// ExecuteStartHooks executa todos os hooks de start
+func (m *HookManager) ExecuteStartHooks(ctx context.Context) error <span class="cov0" title="0">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+        for _, hook := range m.startHooks </span><span class="cov0" title="0">{
+                if err := hook(ctx); err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+        }
+        <span class="cov0" title="0">return nil</span>
+}
+
+// ExecuteStopHooks executa todos os hooks de stop
+func (m *HookManager) ExecuteStopHooks(ctx context.Context) error <span class="cov0" title="0">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+        for _, hook := range m.stopHooks </span><span class="cov0" title="0">{
+                if err := hook(ctx); err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+        }
+        <span class="cov0" title="0">return nil</span>
+}
+
+// ExecuteErrorHooks executa todos os hooks de erro
+func (m *HookManager) ExecuteErrorHooks(ctx context.Context, err interfaces.DomainErrorInterface) error <span class="cov0" title="0">{
+        if err == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov0" title="0">m.mu.RLock()
+        defer m.mu.RUnlock()
+        for _, hook := range m.errorHooks </span><span class="cov0" title="0">{
+                if hookErr := hook(ctx, err); hookErr != nil </span><span class="cov0" title="0">{
+                        return hookErr
+                }</span>
+        }
+        <span class="cov0" title="0">return nil</span>
+}
+
+// ExecuteI18nHooks executa todos os hooks de i18n
+func (m *HookManager) ExecuteI18nHooks(ctx context.Context, err interfaces.DomainErrorInterface, locale string) error <span class="cov0" title="0">{
+        if err == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov0" title="0">m.mu.RLock()
+        defer m.mu.RUnlock()
+        for _, hook := range m.i18nHooks </span><span class="cov0" title="0">{
+                if hookErr := hook(ctx, err, locale); hookErr != nil </span><span class="cov0" title="0">{
+                        return hookErr
+                }</span>
+        }
+        <span class="cov0" title="0">return nil</span>
+}
+
+// RegisterMiddleware registra um middleware
+func (m *MiddlewareManager) RegisterMiddleware(middleware interfaces.MiddlewareFunc) <span class="cov0" title="0">{
+        if middleware == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">m.mu.Lock()
+        defer m.mu.Unlock()
+        m.middlewares = append(m.middlewares, middleware)</span>
+}
+
+// RegisterI18nMiddleware registra um middleware de i18n
+func (m *MiddlewareManager) RegisterI18nMiddleware(middleware interfaces.I18nMiddlewareFunc) <span class="cov0" title="0">{
+        if middleware == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">m.mu.Lock()
+        defer m.mu.Unlock()
+        m.i18nMiddlewares = append(m.i18nMiddlewares, middleware)</span>
+}
+
+// ExecuteMiddlewares executa todos os middlewares
+func (m *MiddlewareManager) ExecuteMiddlewares(ctx context.Context, err interfaces.DomainErrorInterface) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if err == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov0" title="0">m.mu.RLock()
+        defer m.mu.RUnlock()
+        result := err
+        for _, middleware := range m.middlewares </span><span class="cov0" title="0">{
+                result = middleware(ctx, result, func(e interfaces.DomainErrorInterface) interfaces.DomainErrorInterface </span><span class="cov0" title="0">{
+                        return e
+                }</span>)
+        }
+        <span class="cov0" title="0">return result</span>
+}
+
+// ExecuteI18nMiddlewares executa todos os middlewares de i18n
+func (m *MiddlewareManager) ExecuteI18nMiddlewares(ctx context.Context, err interfaces.DomainErrorInterface, locale string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if err == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov0" title="0">m.mu.RLock()
+        defer m.mu.RUnlock()
+        result := err
+        for _, middleware := range m.i18nMiddlewares </span><span class="cov0" title="0">{
+                result = middleware(ctx, result, locale, func(e interfaces.DomainErrorInterface) interfaces.DomainErrorInterface </span><span class="cov0" title="0">{
+                        return e
+                }</span>)
+        }
+        <span class="cov0" title="0">return result</span>
+}
+
+// Instâncias globais
+var (
+        defaultFactory *ErrorFactory
+        defaultManager *Manager
+        defaultChecker *ErrorTypeChecker
+        initOnce       sync.Once
+)
+
+func init() <span class="cov1" title="1">{
+        initOnce.Do(func() </span><span class="cov1" title="1">{
+                defaultFactory = NewErrorFactory(internal.DefaultStackTraceCapture())
+                defaultManager = NewManager()
+                defaultChecker = &amp;ErrorTypeChecker{}
+        }</span>)
+}
+
+// NewErrorFactory cria uma nova fábrica de erros
+func NewErrorFactory(stackCapture interfaces.StackTraceCapture) *ErrorFactory <span class="cov3" title="6">{
+        return &amp;ErrorFactory{
+                stackCapture: stackCapture,
+        }
+}</span>
+
+// NewManager cria um novo gerenciador
+func NewManager() *Manager <span class="cov2" title="3">{
+        return &amp;Manager{
+                hookManager:       &amp;HookManager{},
+                middlewareManager: &amp;MiddlewareManager{},
+                observers:         make([]interfaces.Observer, 0),
+        }
+}</span>
+
+// Error implementa a interface error
+func (e *DomainError) Error() string <span class="cov6" title="113">{
+        return e.message
+}</span>
+
+// Unwrap retorna a causa raiz do erro
+func (e *DomainError) Unwrap() error <span class="cov2" title="3">{
+        return e.cause
+}</span>
+
+// Type retorna o tipo do erro
+func (e *DomainError) Type() interfaces.ErrorType <span class="cov6" title="116">{
+        return e.errorType
+}</span>
+
+// Metadata retorna os metadados do erro
+func (e *DomainError) Metadata() map[string]interface{} <span class="cov3" title="7">{
+        if e.metadata == nil </span><span class="cov1" title="1">{
+                return make(map[string]interface{})
+        }</span>
+        // Retorna uma cópia para evitar modificações externas
+        <span class="cov3" title="6">result := make(map[string]interface{})
+        for k, v := range e.metadata </span><span class="cov3" title="7">{
+                result[k] = v
+        }</span>
+        <span class="cov3" title="6">return result</span>
+}
+
+// HTTPStatus retorna o código HTTP correspondente ao tipo de erro
+func (e *DomainError) HTTPStatus() int <span class="cov2" title="5">{
+        return MapHTTPStatus(e.errorType)
+}</span>
+
+// StackTrace retorna o stack trace formatado
+func (e *DomainError) StackTrace() string <span class="cov1" title="2">{
+        if e.stackCapture == nil || len(e.stack) == 0 </span><span class="cov1" title="1">{
+                return ""
+        }</span>
+        <span class="cov1" title="1">return e.stackCapture.FormatStackTrace(e.stack)</span>
+}
+
+// WithContext adiciona contexto ao erro
+func (e *DomainError) WithContext(ctx context.Context) interfaces.DomainErrorInterface <span class="cov1" title="1">{
+        newError := e.clone()
+        newError.context = ctx
+        return newError
+}</span>
+
+// Wrap encapsula outro erro mantendo o contexto
+func (e *DomainError) Wrap(err error) interfaces.DomainErrorInterface <span class="cov1" title="1">{
+        newError := e.clone()
+        newError.cause = err
+        return newError
+}</span>
+
+// WithMetadata adiciona metadados ao erro
+func (e *DomainError) WithMetadata(key string, value interface{}) interfaces.DomainErrorInterface <span class="cov1" title="1">{
+        newError := e.clone()
+        if newError.metadata == nil </span><span class="cov0" title="0">{
+                newError.metadata = make(map[string]interface{})
+        }</span>
+        <span class="cov1" title="1">newError.metadata[key] = value
+        return newError</span>
+}
+
+// Code retorna o código único do erro
+func (e *DomainError) Code() string <span class="cov6" title="108">{
+        return e.code
+}</span>
+
+// Timestamp retorna o momento da criação do erro
+func (e *DomainError) Timestamp() time.Time <span class="cov0" title="0">{
+        return e.timestamp
+}</span>
+
+// ToJSON serializa o erro para JSON
+func (e *DomainError) ToJSON() ([]byte, error) <span class="cov1" title="1">{
+        type errorJSON struct {
+                ID        string                  `json:"id"`
+                Code      string                  `json:"code"`
+                Message   string                  `json:"message"`
+                Type      interfaces.ErrorType    `json:"type"`
+                Metadata  map[string]interface{}  `json:"metadata,omitempty"`
+                Stack     []interfaces.StackFrame `json:"stack,omitempty"`
+                Timestamp time.Time               `json:"timestamp"`
+                Cause     string                  `json:"cause,omitempty"`
+        }
+
+        jsonErr := errorJSON{
+                ID:        e.id,
+                Code:      e.code,
+                Message:   e.message,
+                Type:      e.errorType,
+                Metadata:  e.metadata,
+                Stack:     e.stack,
+                Timestamp: e.timestamp,
+        }
+
+        if e.cause != nil </span><span class="cov1" title="1">{
+                jsonErr.Cause = e.cause.Error()
+        }</span>
+
+        <span class="cov1" title="1">return json.Marshal(jsonErr)</span>
+}
+
+// clone cria uma cópia profunda do erro
+func (e *DomainError) clone() *DomainError <span class="cov2" title="3">{
+        newError := &amp;DomainError{
+                id:           e.id,
+                code:         e.code,
+                message:      e.message,
+                errorType:    e.errorType,
+                cause:        e.cause,
+                stack:        e.stack,
+                timestamp:    e.timestamp,
+                context:      e.context,
+                stackCapture: e.stackCapture,
+        }
+
+        // Clone metadata
+        if e.metadata != nil </span><span class="cov1" title="1">{
+                newError.metadata = make(map[string]interface{})
+                for k, v := range e.metadata </span><span class="cov1" title="1">{
+                        newError.metadata[k] = v
+                }</span>
+        }
+
+        <span class="cov2" title="3">return newError</span>
+}
+
+// New cria um novo erro de domínio
+func (f *ErrorFactory) New(errorType interfaces.ErrorType, code, message string) interfaces.DomainErrorInterface <span class="cov6" title="112">{
+        f.mu.RLock()
+        defer f.mu.RUnlock()
+
+        return &amp;DomainError{
+                id:           uuid.New().String(),
+                code:         code,
+                message:      message,
+                errorType:    errorType,
+                metadata:     make(map[string]interface{}),
+                timestamp:    time.Now(),
+                stack:        f.stackCapture.CaptureStackTrace(1),
+                stackCapture: f.stackCapture,
+        }
+}</span>
+
+// NewWithMetadata cria um novo erro com metadados
+func (f *ErrorFactory) NewWithMetadata(errorType interfaces.ErrorType, code, message string, metadata map[string]interface{}) interfaces.DomainErrorInterface <span class="cov1" title="1">{
+        f.mu.RLock()
+        defer f.mu.RUnlock()
+
+        return &amp;DomainError{
+                id:           uuid.New().String(),
+                code:         code,
+                message:      message,
+                errorType:    errorType,
+                metadata:     metadata,
+                timestamp:    time.Now(),
+                stack:        f.stackCapture.CaptureStackTrace(1),
+                stackCapture: f.stackCapture,
+        }
+}</span>
+
+// Wrap encapsula um erro existente
+func (f *ErrorFactory) Wrap(err error, errorType interfaces.ErrorType, code, message string) interfaces.DomainErrorInterface <span class="cov1" title="1">{
+        f.mu.RLock()
+        defer f.mu.RUnlock()
+
+        return &amp;DomainError{
+                id:           uuid.New().String(),
+                code:         code,
+                message:      message,
+                errorType:    errorType,
+                metadata:     make(map[string]interface{}),
+                cause:        err,
+                timestamp:    time.Now(),
+                stack:        f.stackCapture.CaptureStackTrace(1),
+                stackCapture: f.stackCapture,
+        }
+}</span>
+
+// IsType verifica se um erro é de um tipo específico
+func (c *ErrorTypeChecker) IsType(err error, errorType interfaces.ErrorType) bool <span class="cov3" title="7">{
+        if err == nil </span><span class="cov1" title="1">{
+                return false
+        }</span>
+
+        // Verifica se é um DomainError
+        <span class="cov3" title="6">if domainErr, ok := err.(*DomainError); ok </span><span class="cov2" title="5">{
+                return domainErr.Type() == errorType
+        }</span>
+
+        // Verifica se implementa a interface
+        <span class="cov1" title="1">if domainErr, ok := err.(interfaces.DomainErrorInterface); ok </span><span class="cov0" title="0">{
+                return domainErr.Type() == errorType
+        }</span>
+
+        // Tenta fazer unwrap recursivamente
+        <span class="cov1" title="1">if unwrapped := errors.Unwrap(err); unwrapped != nil </span><span class="cov1" title="1">{
+                return c.IsType(unwrapped, errorType)
+        }</span>
+
+        <span class="cov0" title="0">return false</span>
+}
+
+// MapHTTPStatus mapeia tipos de erro para códigos HTTP
+func MapHTTPStatus(errorType interfaces.ErrorType) int <span class="cov4" title="17">{
+        statusMap := map[interfaces.ErrorType]int{
+                interfaces.ValidationError:           http.StatusBadRequest,           // 400
+                interfaces.BadRequestError:           http.StatusBadRequest,           // 400
+                interfaces.AuthenticationError:       http.StatusUnauthorized,         // 401
+                interfaces.AuthorizationError:        http.StatusForbidden,            // 403
+                interfaces.NotFoundError:             http.StatusNotFound,             // 404
+                interfaces.ConflictError:             http.StatusConflict,             // 409
+                interfaces.UnprocessableEntityError:  http.StatusUnprocessableEntity,  // 422
+                interfaces.UnsupportedMediaTypeError: http.StatusUnsupportedMediaType, // 415
+                interfaces.RateLimitError:            http.StatusTooManyRequests,      // 429
+                interfaces.BusinessError:             http.StatusUnprocessableEntity,  // 422
+                interfaces.WorkflowError:             http.StatusUnprocessableEntity,  // 422
+                interfaces.DatabaseError:             http.StatusInternalServerError,  // 500
+                interfaces.ExternalServiceError:      http.StatusBadGateway,           // 502
+                interfaces.ServiceUnavailableError:   http.StatusServiceUnavailable,   // 503
+                interfaces.TimeoutError:              http.StatusGatewayTimeout,       // 504
+                interfaces.InfrastructureError:       http.StatusInternalServerError,  // 500
+                interfaces.DependencyError:           http.StatusInternalServerError,  // 500
+                interfaces.SecurityError:             http.StatusInternalServerError,  // 500
+                interfaces.ResourceExhaustedError:    http.StatusInternalServerError,  // 500
+                interfaces.CircuitBreakerError:       http.StatusServiceUnavailable,   // 503
+                interfaces.SerializationError:        http.StatusInternalServerError,  // 500
+                interfaces.CacheError:                http.StatusInternalServerError,  // 500
+                interfaces.MigrationError:            http.StatusInternalServerError,  // 500
+                interfaces.ConfigurationError:        http.StatusInternalServerError,  // 500
+                interfaces.UnsupportedOperationError: http.StatusNotImplemented,       // 501
+                interfaces.InvalidSchemaError:        http.StatusBadRequest,           // 400
+                interfaces.ServerError:               http.StatusInternalServerError,  // 500
+        }
+
+        if status, exists := statusMap[errorType]; exists </span><span class="cov4" title="16">{
+                return status
+        }</span>
+
+        <span class="cov1" title="1">return http.StatusInternalServerError</span> // Default 500
+}
+
+// Funções de conveniência globais
+
+// New cria um novo erro usando a fábrica padrão
+func New(errorType interfaces.ErrorType, code, message string) interfaces.DomainErrorInterface <span class="cov3" title="9">{
+        return defaultFactory.New(errorType, code, message)
+}</span>
+
+// NewWithMetadata cria um novo erro com metadados usando a fábrica padrão
+func NewWithMetadata(errorType interfaces.ErrorType, code, message string, metadata map[string]interface{}) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        return defaultFactory.NewWithMetadata(errorType, code, message, metadata)
+}</span>
+
+// Wrap encapsula um erro existente usando a fábrica padrão
+func Wrap(err error, errorType interfaces.ErrorType, code, message string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        return defaultFactory.Wrap(err, errorType, code, message)
+}</span>
+
+// IsType verifica se um erro é de um tipo específico usando o verificador padrão
+func IsType(err error, errorType interfaces.ErrorType) bool <span class="cov1" title="2">{
+        return defaultChecker.IsType(err, errorType)
+}</span>
+
+// GetManager retorna o gerenciador padrão
+func GetManager() *Manager <span class="cov0" title="0">{
+        return defaultManager
+}</span>
+
+// GetFactory retorna a fábrica padrão
+func GetFactory() *ErrorFactory <span class="cov1" title="1">{
+        return defaultFactory
+}</span>
+
+// GetChecker retorna o verificador padrão
+func GetChecker() *ErrorTypeChecker <span class="cov0" title="0">{
+        return defaultChecker
+}</span>
+
+// Funções de conveniência para tipos específicos
+
+// NewValidationError cria um erro de validação
+func NewValidationError(code, message string) interfaces.DomainErrorInterface <span class="cov1" title="1">{
+        return New(interfaces.ValidationError, code, message)
+}</span>
+
+// NewNotFoundError cria um erro de não encontrado
+func NewNotFoundError(code, message string) interfaces.DomainErrorInterface <span class="cov1" title="1">{
+        return New(interfaces.NotFoundError, code, message)
+}</span>
+
+// NewBusinessError cria um erro de negócio
+func NewBusinessError(code, message string) interfaces.DomainErrorInterface <span class="cov1" title="1">{
+        return New(interfaces.BusinessError, code, message)
+}</span>
+
+// NewDatabaseError cria um erro de banco de dados
+func NewDatabaseError(code, message string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        return New(interfaces.DatabaseError, code, message)
+}</span>
+
+// NewAuthenticationError cria um erro de autenticação
+func NewAuthenticationError(code, message string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        return New(interfaces.AuthenticationError, code, message)
+}</span>
+
+// NewAuthorizationError cria um erro de autorização
+func NewAuthorizationError(code, message string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        return New(interfaces.AuthorizationError, code, message)
+}</span>
+
+// NewTimeoutError cria um erro de timeout
+func NewTimeoutError(code, message string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        return New(interfaces.TimeoutError, code, message)
+}</span>
+
+// NewRateLimitError cria um erro de rate limit
+func NewRateLimitError(code, message string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        return New(interfaces.RateLimitError, code, message)
+}</span>
+
+// Funções de utilitário para análise de erros
+
+// GetRootCause retorna a causa raiz de uma cadeia de erros
+func GetRootCause(err error) error <span class="cov1" title="2">{
+        for </span><span class="cov2" title="4">{
+                unwrapped := errors.Unwrap(err)
+                if unwrapped == nil </span><span class="cov1" title="2">{
+                        return err
+                }</span>
+                <span class="cov1" title="2">err = unwrapped</span>
+        }
+}
+
+// GetErrorChain retorna toda a cadeia de erros
+func GetErrorChain(err error) []error <span class="cov2" title="4">{
+        var chain []error
+        current := err
+
+        for current != nil </span><span class="cov3" title="6">{
+                chain = append(chain, current)
+                if unwrapped := errors.Unwrap(current); unwrapped != nil </span><span class="cov2" title="3">{
+                        current = unwrapped
+                }</span> else<span class="cov2" title="3"> {
+                        break</span>
+                }
+        }
+
+        <span class="cov2" title="4">return chain</span>
+}
+
+// FormatErrorChain formata uma cadeia de erros para exibição
+func FormatErrorChain(err error) string <span class="cov1" title="2">{
+        chain := GetErrorChain(err)
+        if len(chain) == 0 </span><span class="cov1" title="1">{
+                return ""
+        }</span>
+
+        <span class="cov1" title="1">var builder strings.Builder
+        builder.WriteString("Error chain:\n")
+
+        for i, e := range chain </span><span class="cov1" title="2">{
+                builder.WriteString(fmt.Sprintf("  %d. %s", i+1, e.Error()))
+                if domainErr, ok := e.(interfaces.DomainErrorInterface); ok </span><span class="cov1" title="1">{
+                        builder.WriteString(fmt.Sprintf(" [%s:%s]", domainErr.Type(), domainErr.Code()))
+                }</span>
+                <span class="cov1" title="2">builder.WriteString("\n")</span>
+        }
+
+        <span class="cov1" title="1">return builder.String()</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package main
+
+import (
+        "context"
+        "fmt"
+
+        "github.com/fsvxavier/nexs-lib/domainerrors"
+        "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+)
+
+func main() <span class="cov0" title="0">{
+        fmt.Println("=== Exemplo Básico de Domain Errors ===")
+        fmt.Println()
+
+        // 1. Criando erros básicos
+        fmt.Println("1. Criando erros básicos:")
+
+        // Erro de validação
+        validationErr := domainerrors.NewValidationError("VAL001", "Campo 'email' é obrigatório")
+        fmt.Printf("   Validation Error: %s [%s] - HTTP Status: %d\n", validationErr.Error(), validationErr.Code(), validationErr.HTTPStatus())
+
+        // Erro de não encontrado
+        notFoundErr := domainerrors.NewNotFoundError("NF001", "Usuário não encontrado")
+        fmt.Printf("   NotFound Error: %s [%s] - HTTP Status: %d\n", notFoundErr.Error(), notFoundErr.Code(), notFoundErr.HTTPStatus())
+
+        // Erro de negócio
+        businessErr := domainerrors.NewBusinessError("BIZ001", "Saldo insuficiente para a operação")
+        fmt.Printf("   Business Error: %s [%s] - HTTP Status: %d\n\n", businessErr.Error(), businessErr.Code(), businessErr.HTTPStatus())
+
+        // 2. Adicionando metadados
+        fmt.Println("2. Adicionando metadados:")
+
+        enrichedErr := validationErr.WithMetadata("field", "email").
+                WithMetadata("value", "invalid-email").
+                WithMetadata("rule", "required")
+
+        fmt.Printf("   Error with metadata: %s\n", enrichedErr.Error())
+        metadata := enrichedErr.Metadata()
+        for key, value := range metadata </span><span class="cov0" title="0">{
+                fmt.Printf("     %s: %v\n", key, value)
+        }</span>
+        <span class="cov0" title="0">fmt.Println()
+
+        // 3. Encapsulando erros
+        fmt.Println("3. Encapsulando erros:")
+
+        originalErr := fmt.Errorf("conexão com banco de dados falhou")
+        wrappedErr := domainerrors.Wrap(originalErr, interfaces.DatabaseError, "DB001", "Falha ao acessar dados do usuário")
+
+        fmt.Printf("   Wrapped Error: %s\n", wrappedErr.Error())
+        fmt.Printf("   Root Cause: %s\n\n", wrappedErr.Unwrap().Error())
+
+        // 4. Verificação de tipos
+        fmt.Println("4. Verificação de tipos:")
+
+        isValidation := domainerrors.IsType(validationErr, interfaces.ValidationError)
+        isDatabase := domainerrors.IsType(validationErr, interfaces.DatabaseError)
+
+        fmt.Printf("   validationErr é ValidationError? %t\n", isValidation)
+        fmt.Printf("   validationErr é DatabaseError? %t\n\n", isDatabase)
+
+        // 5. Análise de cadeia de erros
+        fmt.Println("5. Análise de cadeia de erros:")
+
+        // Criando uma cadeia de erros
+        layer1 := fmt.Errorf("erro na camada de persistência")
+        layer2 := domainerrors.Wrap(layer1, interfaces.DatabaseError, "DB002", "erro na camada de serviço")
+        layer3 := fmt.Errorf("erro na camada de apresentação: %w", layer2)
+
+        fmt.Println("   Cadeia de erros:")
+        fmt.Println(domainerrors.FormatErrorChain(layer3))
+
+        fmt.Printf("   Causa raiz: %s\n\n", domainerrors.GetRootCause(layer3).Error())
+
+        // 6. Serialização JSON
+        fmt.Println("6. Serialização JSON:")
+
+        jsonErr := domainerrors.NewWithMetadata(
+                interfaces.ValidationError,
+                "VAL002",
+                "Dados inválidos fornecidos",
+                map[string]interface{}{
+                        "field": "age",
+                        "value": -5,
+                        "min":   0,
+                        "max":   120,
+                },
+        )
+
+        // Test serialization
+        jsonData, err := jsonErr.ToJSON()
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Printf("Failed to serialize error: %v\n", err)
+        }</span> else<span class="cov0" title="0"> {
+                fmt.Printf("Error JSON: %s\n", string(jsonData))
+        }</span>
+
+        // 7. Uso com context
+        <span class="cov0" title="0">fmt.Println("7. Uso com context:")
+
+        ctx := context.WithValue(context.Background(), "request_id", "req-12345")
+        ctx = context.WithValue(ctx, "user_id", "user-67890")
+
+        contextErr := businessErr.WithContext(ctx)
+        fmt.Printf("   Error com context: %s [%s]\n\n", contextErr.Error(), contextErr.Code())
+
+        // 8. Factory personalizada
+        fmt.Println("8. Factory personalizada:")
+
+        factory := domainerrors.GetFactory()
+        customErr := factory.New(interfaces.TimeoutError, "TO001", "Operação expirou após 30 segundos")
+
+        fmt.Printf("   Custom Error: %s [%s] - HTTP Status: %d\n", customErr.Error(), customErr.Code(), customErr.HTTPStatus())
+        fmt.Printf("   Timestamp: %s\n", customErr.Timestamp().Format("2006-01-02 15:04:05"))
+
+        fmt.Println("\n=== Fim do Exemplo Básico ===")</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package hooks
+
+import (
+        "context"
+        "sync"
+
+        "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+)
+
+// ErrorHookManager gerencia hooks de erro
+type ErrorHookManager struct {
+        hooks []interfaces.ErrorHookFunc
+        mu    sync.RWMutex
+}
+
+// NewErrorHookManager cria um novo gerenciador de hooks de erro
+func NewErrorHookManager() *ErrorHookManager <span class="cov10" title="3">{
+        return &amp;ErrorHookManager{
+                hooks: make([]interfaces.ErrorHookFunc, 0),
+        }
+}</span>
+
+// Register registra um hook de erro
+func (m *ErrorHookManager) Register(hook interfaces.ErrorHookFunc) <span class="cov6" title="2">{
+        if hook == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov6" title="2">m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.hooks = append(m.hooks, hook)</span>
+}
+
+// Execute executa todos os hooks de erro registrados
+func (m *ErrorHookManager) Execute(ctx context.Context, err interfaces.DomainErrorInterface) error <span class="cov6" title="2">{
+        if err == nil </span><span class="cov1" title="1">{
+                return nil
+        }</span>
+
+        <span class="cov1" title="1">m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        for _, hook := range m.hooks </span><span class="cov6" title="2">{
+                if hookErr := hook(ctx, err); hookErr != nil </span><span class="cov0" title="0">{
+                        return hookErr
+                }</span>
+        }
+
+        <span class="cov1" title="1">return nil</span>
+}
+
+// Count retorna o número de hooks registrados
+func (m *ErrorHookManager) Count() int <span class="cov0" title="0">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        return len(m.hooks)
+}</span>
+
+// Clear remove todos os hooks registrados
+func (m *ErrorHookManager) Clear() <span class="cov0" title="0">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.hooks = make([]interfaces.ErrorHookFunc, 0)
+}</span>
+
+// Instância global para uso em toda a aplicação
+var GlobalErrorHookManager = NewErrorHookManager()
+
+// RegisterErrorHook registra um hook de erro globalmente
+func RegisterErrorHook(hook interfaces.ErrorHookFunc) <span class="cov0" title="0">{
+        GlobalErrorHookManager.Register(hook)
+}</span>
+
+// ExecuteErrorHooks executa todos os hooks de erro globais
+func ExecuteErrorHooks(ctx context.Context, err interfaces.DomainErrorInterface) error <span class="cov0" title="0">{
+        return GlobalErrorHookManager.Execute(ctx, err)
+}</span>
+
+// GetErrorHookCount retorna o número de hooks de erro globais
+func GetErrorHookCount() int <span class="cov0" title="0">{
+        return GlobalErrorHookManager.Count()
+}</span>
+
+// ClearErrorHooks limpa todos os hooks de erro globais
+func ClearErrorHooks() <span class="cov0" title="0">{
+        GlobalErrorHookManager.Clear()
+}</span>
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package hooks
+
+import (
+        "context"
+        "sync"
+
+        "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+)
+
+// HookManager implementa a interface interfaces.HookManager
+type HookManager struct {
+        startHooks []interfaces.StartHookFunc
+        stopHooks  []interfaces.StopHookFunc
+        errorHooks []interfaces.ErrorHookFunc
+        i18nHooks  []interfaces.I18nHookFunc
+        mu         sync.RWMutex
+}
+
+// NewHookManager cria um novo gerenciador de hooks completo
+func NewHookManager() *HookManager <span class="cov10" title="8">{
+        return &amp;HookManager{
+                startHooks: make([]interfaces.StartHookFunc, 0),
+                stopHooks:  make([]interfaces.StopHookFunc, 0),
+                errorHooks: make([]interfaces.ErrorHookFunc, 0),
+                i18nHooks:  make([]interfaces.I18nHookFunc, 0),
+        }
+}</span>
+
+// RegisterStartHook registra um hook de start
+func (m *HookManager) RegisterStartHook(hook interfaces.StartHookFunc) <span class="cov7" title="5">{
+        if hook == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov7" title="5">m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.startHooks = append(m.startHooks, hook)</span>
+}
+
+// RegisterStopHook registra um hook de stop
+func (m *HookManager) RegisterStopHook(hook interfaces.StopHookFunc) <span class="cov5" title="3">{
+        if hook == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov5" title="3">m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.stopHooks = append(m.stopHooks, hook)</span>
+}
+
+// RegisterErrorHook registra um hook de erro
+func (m *HookManager) RegisterErrorHook(hook interfaces.ErrorHookFunc) <span class="cov5" title="3">{
+        if hook == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov5" title="3">m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.errorHooks = append(m.errorHooks, hook)</span>
+}
+
+// RegisterI18nHook registra um hook de i18n
+func (m *HookManager) RegisterI18nHook(hook interfaces.I18nHookFunc) <span class="cov5" title="3">{
+        if hook == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov5" title="3">m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.i18nHooks = append(m.i18nHooks, hook)</span>
+}
+
+// ExecuteStartHooks executa todos os hooks de start registrados
+func (m *HookManager) ExecuteStartHooks(ctx context.Context) error <span class="cov4" title="2">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        for _, hook := range m.startHooks </span><span class="cov4" title="2">{
+                if err := hook(ctx); err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+        }
+
+        <span class="cov4" title="2">return nil</span>
+}
+
+// ExecuteStopHooks executa todos os hooks de stop registrados
+func (m *HookManager) ExecuteStopHooks(ctx context.Context) error <span class="cov1" title="1">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        for _, hook := range m.stopHooks </span><span class="cov1" title="1">{
+                if err := hook(ctx); err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+        }
+
+        <span class="cov1" title="1">return nil</span>
+}
+
+// ExecuteErrorHooks executa todos os hooks de erro registrados
+func (m *HookManager) ExecuteErrorHooks(ctx context.Context, err interfaces.DomainErrorInterface) error <span class="cov1" title="1">{
+        if err == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov1" title="1">m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        for _, hook := range m.errorHooks </span><span class="cov1" title="1">{
+                if hookErr := hook(ctx, err); hookErr != nil </span><span class="cov0" title="0">{
+                        return hookErr
+                }</span>
+        }
+
+        <span class="cov1" title="1">return nil</span>
+}
+
+// ExecuteI18nHooks executa todos os hooks de i18n registrados
+func (m *HookManager) ExecuteI18nHooks(ctx context.Context, err interfaces.DomainErrorInterface, locale string) error <span class="cov1" title="1">{
+        if err == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov1" title="1">m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        for _, hook := range m.i18nHooks </span><span class="cov1" title="1">{
+                if hookErr := hook(ctx, err, locale); hookErr != nil </span><span class="cov0" title="0">{
+                        return hookErr
+                }</span>
+        }
+
+        <span class="cov1" title="1">return nil</span>
+}
+
+// Clear limpa todos os hooks registrados
+func (m *HookManager) Clear() <span class="cov7" title="5">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.startHooks = make([]interfaces.StartHookFunc, 0)
+        m.stopHooks = make([]interfaces.StopHookFunc, 0)
+        m.errorHooks = make([]interfaces.ErrorHookFunc, 0)
+        m.i18nHooks = make([]interfaces.I18nHookFunc, 0)
+}</span>
+
+// GetCounts retorna o número de hooks registrados por tipo
+func (m *HookManager) GetCounts() (start, stop, error, i18n int) <span class="cov7" title="5">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        return len(m.startHooks), len(m.stopHooks), len(m.errorHooks), len(m.i18nHooks)
+}</span>
+
+// Instância global do HookManager
+var GlobalHookManager = NewHookManager()
+
+// Funções globais de conveniência
+func RegisterGlobalStartHook(hook interfaces.StartHookFunc) <span class="cov4" title="2">{
+        GlobalHookManager.RegisterStartHook(hook)
+}</span>
+
+func RegisterGlobalStopHook(hook interfaces.StopHookFunc) <span class="cov0" title="0">{
+        GlobalHookManager.RegisterStopHook(hook)
+}</span>
+
+func RegisterGlobalErrorHook(hook interfaces.ErrorHookFunc) <span class="cov0" title="0">{
+        GlobalHookManager.RegisterErrorHook(hook)
+}</span>
+
+func RegisterGlobalI18nHook(hook interfaces.I18nHookFunc) <span class="cov0" title="0">{
+        GlobalHookManager.RegisterI18nHook(hook)
+}</span>
+
+func ExecuteGlobalStartHooks(ctx context.Context) error <span class="cov1" title="1">{
+        return GlobalHookManager.ExecuteStartHooks(ctx)
+}</span>
+
+func ExecuteGlobalStopHooks(ctx context.Context) error <span class="cov0" title="0">{
+        return GlobalHookManager.ExecuteStopHooks(ctx)
+}</span>
+
+func ExecuteGlobalErrorHooks(ctx context.Context, err interfaces.DomainErrorInterface) error <span class="cov0" title="0">{
+        return GlobalHookManager.ExecuteErrorHooks(ctx, err)
+}</span>
+
+func ExecuteGlobalI18nHooks(ctx context.Context, err interfaces.DomainErrorInterface, locale string) error <span class="cov0" title="0">{
+        return GlobalHookManager.ExecuteI18nHooks(ctx, err, locale)
+}</span>
+
+func GetGlobalHookCounts() (start, stop, error, i18n int) <span class="cov1" title="1">{
+        return GlobalHookManager.GetCounts()
+}</span>
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package hooks
+
+import (
+        "context"
+        "sync"
+
+        "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+        i18nLib "github.com/fsvxavier/nexs-lib/i18n"
+        i18nInterfaces "github.com/fsvxavier/nexs-lib/i18n/interfaces"
+)
+
+// I18nHookManager gerencia hooks de internacionalização usando nexs-lib/i18n
+type I18nHookManager struct {
+        hooks      []interfaces.I18nHookFunc
+        i18nClient i18nInterfaces.I18n
+        mu         sync.RWMutex
+}
+
+// NewI18nHookManager cria um novo gerenciador de hooks de i18n
+func NewI18nHookManager(i18nClient i18nInterfaces.I18n) *I18nHookManager <span class="cov8" title="1">{
+        return &amp;I18nHookManager{
+                hooks:      make([]interfaces.I18nHookFunc, 0),
+                i18nClient: i18nClient,
+        }
+}</span>
+
+// NewI18nHookManagerWithRegistry cria um novo gerenciador usando o registry do i18n
+func NewI18nHookManagerWithRegistry(registry *i18nLib.Registry, providerType string, config interface{}) (*I18nHookManager, error) <span class="cov0" title="0">{
+        provider, err := registry.CreateProvider(providerType, config)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return &amp;I18nHookManager{
+                hooks:      make([]interfaces.I18nHookFunc, 0),
+                i18nClient: provider,
+        }, nil</span>
+}
+
+// Register registra um hook de i18n
+func (m *I18nHookManager) Register(hook interfaces.I18nHookFunc) <span class="cov8" title="1">{
+        if hook == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov8" title="1">m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.hooks = append(m.hooks, hook)</span>
+}
+
+// Execute executa todos os hooks de i18n registrados
+func (m *I18nHookManager) Execute(ctx context.Context, err interfaces.DomainErrorInterface, locale string) error <span class="cov0" title="0">{
+        if err == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov0" title="0">m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        for _, hook := range m.hooks </span><span class="cov0" title="0">{
+                if hookErr := hook(ctx, err, locale); hookErr != nil </span><span class="cov0" title="0">{
+                        return hookErr
+                }</span>
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// Count retorna o número de hooks registrados
+func (m *I18nHookManager) Count() int <span class="cov8" title="1">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        return len(m.hooks)
+}</span>
+
+// Clear remove todos os hooks registrados
+func (m *I18nHookManager) Clear() <span class="cov0" title="0">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.hooks = make([]interfaces.I18nHookFunc, 0)
+}</span>
+
+// GetI18nClient retorna o cliente i18n utilizado
+func (m *I18nHookManager) GetI18nClient() i18nInterfaces.I18n <span class="cov0" title="0">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        return m.i18nClient
+}</span>
+
+// SetI18nClient define o cliente i18n
+func (m *I18nHookManager) SetI18nClient(client i18nInterfaces.I18n) <span class="cov0" title="0">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.i18nClient = client
+}</span>
+
+// Instância global para uso em toda a aplicação
+var GlobalI18nHookManager *I18nHookManager
+
+// InitializeGlobalI18nHookManager inicializa o gerenciador global com um cliente i18n
+func InitializeGlobalI18nHookManager(i18nClient i18nInterfaces.I18n) <span class="cov0" title="0">{
+        GlobalI18nHookManager = NewI18nHookManager(i18nClient)
+}</span>
+
+// InitializeGlobalI18nHookManagerWithRegistry inicializa o gerenciador global usando registry
+func InitializeGlobalI18nHookManagerWithRegistry(registry *i18nLib.Registry, providerType string, config interface{}) error <span class="cov0" title="0">{
+        manager, err := NewI18nHookManagerWithRegistry(registry, providerType, config)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">GlobalI18nHookManager = manager
+        return nil</span>
+}
+
+// RegisterI18nHook registra um hook de i18n globalmente
+func RegisterI18nHook(hook interfaces.I18nHookFunc) <span class="cov0" title="0">{
+        if GlobalI18nHookManager != nil </span><span class="cov0" title="0">{
+                GlobalI18nHookManager.Register(hook)
+        }</span>
+}
+
+// ExecuteI18nHooks executa todos os hooks de i18n globais
+func ExecuteI18nHooks(ctx context.Context, err interfaces.DomainErrorInterface, locale string) error <span class="cov0" title="0">{
+        if GlobalI18nHookManager != nil </span><span class="cov0" title="0">{
+                return GlobalI18nHookManager.Execute(ctx, err, locale)
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+// GetI18nHookCount retorna o número de hooks de i18n globais
+func GetI18nHookCount() int <span class="cov0" title="0">{
+        if GlobalI18nHookManager != nil </span><span class="cov0" title="0">{
+                return GlobalI18nHookManager.Count()
+        }</span>
+        <span class="cov0" title="0">return 0</span>
+}
+
+// ClearI18nHooks limpa todos os hooks de i18n globais
+func ClearI18nHooks() <span class="cov0" title="0">{
+        if GlobalI18nHookManager != nil </span><span class="cov0" title="0">{
+                GlobalI18nHookManager.Clear()
+        }</span>
+}
+
+// TranslateErrorMessageHook é um hook que traduz mensagens de erro usando nexs-lib/i18n
+func TranslateErrorMessageHook(ctx context.Context, err interfaces.DomainErrorInterface, locale string) error <span class="cov0" title="0">{
+        if GlobalI18nHookManager == nil || GlobalI18nHookManager.i18nClient == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        // Verifica se o locale é suportado
+        <span class="cov0" title="0">supportedLanguages := GlobalI18nHookManager.i18nClient.GetSupportedLanguages()
+        isSupported := false
+        for _, lang := range supportedLanguages </span><span class="cov0" title="0">{
+                if lang == locale </span><span class="cov0" title="0">{
+                        isSupported = true
+                        break</span>
+                }
+        }
+
+        // Se não suportado, usa o idioma padrão
+        <span class="cov0" title="0">targetLocale := locale
+        if !isSupported </span><span class="cov0" title="0">{
+                targetLocale = GlobalI18nHookManager.i18nClient.GetDefaultLanguage()
+        }</span>
+
+        // Tenta traduzir a mensagem de erro usando uma chave baseada no código do erro
+        <span class="cov0" title="0">translationKey := "error." + err.Code()
+        translatedMessage, translateErr := GlobalI18nHookManager.i18nClient.Translate(ctx, translationKey, targetLocale, nil)
+
+        if translateErr == nil &amp;&amp; translatedMessage != "" </span><span class="cov0" title="0">{
+                // Se conseguiu traduzir, adiciona como metadata
+                err.WithMetadata("translated_message", translatedMessage)
+                err.WithMetadata("translation_locale", targetLocale)
+                err.WithMetadata("original_message", err.Error())
+        }</span>
+
+        // Adiciona informações de processamento i18n
+        <span class="cov0" title="0">err.WithMetadata("i18n_processed", true)
+        err.WithMetadata("requested_locale", locale)
+        err.WithMetadata("locale_supported", isSupported)
+
+        return nil</span>
+}
+
+// LoggingI18nHook é um hook de exemplo que registra informações de i18n usando nexs-lib/i18n
+func LoggingI18nHook(ctx context.Context, err interfaces.DomainErrorInterface, locale string) error <span class="cov0" title="0">{
+        if GlobalI18nHookManager == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        // Adiciona informações de logging específicas para i18n
+        <span class="cov0" title="0">err.WithMetadata("i18n_hook_executed", true)
+        err.WithMetadata("i18n_provider_available", GlobalI18nHookManager.i18nClient != nil)
+
+        if GlobalI18nHookManager.i18nClient != nil </span><span class="cov0" title="0">{
+                err.WithMetadata("supported_languages", GlobalI18nHookManager.i18nClient.GetSupportedLanguages())
+                err.WithMetadata("default_language", GlobalI18nHookManager.i18nClient.GetDefaultLanguage())
+                err.WithMetadata("translation_count", GlobalI18nHookManager.i18nClient.GetTranslationCount())
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// FallbackLanguageHook define um idioma de fallback se o solicitado não for suportado
+func FallbackLanguageHook(ctx context.Context, err interfaces.DomainErrorInterface, locale string) error <span class="cov0" title="0">{
+        if GlobalI18nHookManager == nil || GlobalI18nHookManager.i18nClient == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        // Verifica se o locale é suportado
+        <span class="cov0" title="0">supportedLanguages := GlobalI18nHookManager.i18nClient.GetSupportedLanguages()
+        isSupported := false
+        for _, lang := range supportedLanguages </span><span class="cov0" title="0">{
+                if lang == locale </span><span class="cov0" title="0">{
+                        isSupported = true
+                        break</span>
+                }
+        }
+
+        <span class="cov0" title="0">if !isSupported </span><span class="cov0" title="0">{
+                fallbackLanguage := GlobalI18nHookManager.i18nClient.GetDefaultLanguage()
+                err.WithMetadata("fallback_language", fallbackLanguage)
+                err.WithMetadata("original_requested_locale", locale)
+                err.WithMetadata("locale_fallback_applied", true)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package hooks
+
+import (
+        "context"
+        "sync"
+
+        "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+)
+
+// StartHookManager gerencia hooks de inicialização
+type StartHookManager struct {
+        hooks []interfaces.StartHookFunc
+        mu    sync.RWMutex
+}
+
+// NewStartHookManager cria um novo gerenciador de hooks de start
+func NewStartHookManager() *StartHookManager <span class="cov9" title="7">{
+        return &amp;StartHookManager{
+                hooks: make([]interfaces.StartHookFunc, 0),
+        }
+}</span>
+
+// Register registra um hook de start
+func (m *StartHookManager) Register(hook interfaces.StartHookFunc) <span class="cov10" title="8">{
+        if hook == nil </span><span class="cov1" title="1">{
+                return
+        }</span>
+
+        <span class="cov9" title="7">m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.hooks = append(m.hooks, hook)</span>
+}
+
+// Execute executa todos os hooks de start registrados
+func (m *StartHookManager) Execute(ctx context.Context) error <span class="cov4" title="2">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        for _, hook := range m.hooks </span><span class="cov5" title="3">{
+                if err := hook(ctx); err != nil </span><span class="cov1" title="1">{
+                        return err
+                }</span>
+        }
+
+        <span class="cov1" title="1">return nil</span>
+}
+
+// Count retorna o número de hooks registrados
+func (m *StartHookManager) Count() int <span class="cov7" title="5">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        return len(m.hooks)
+}</span>
+
+// Clear remove todos os hooks registrados
+func (m *StartHookManager) Clear() <span class="cov1" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.hooks = make([]interfaces.StartHookFunc, 0)
+}</span>
+
+// Instância global para uso em toda a aplicação
+var GlobalStartHookManager = NewStartHookManager()
+
+// RegisterStartHook registra um hook de start globalmente
+func RegisterStartHook(hook interfaces.StartHookFunc) <span class="cov0" title="0">{
+        GlobalStartHookManager.Register(hook)
+}</span>
+
+// ExecuteStartHooks executa todos os hooks de start globais
+func ExecuteStartHooks(ctx context.Context) error <span class="cov0" title="0">{
+        return GlobalStartHookManager.Execute(ctx)
+}</span>
+
+// GetStartHookCount retorna o número de hooks de start globais
+func GetStartHookCount() int <span class="cov0" title="0">{
+        return GlobalStartHookManager.Count()
+}</span>
+
+// ClearStartHooks limpa todos os hooks de start globais
+func ClearStartHooks() <span class="cov0" title="0">{
+        GlobalStartHookManager.Clear()
+}</span>
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package hooks
+
+import (
+        "context"
+        "sync"
+
+        "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+)
+
+// StopHookManager gerencia hooks de parada
+type StopHookManager struct {
+        hooks []interfaces.StopHookFunc
+        mu    sync.RWMutex
+}
+
+// NewStopHookManager cria um novo gerenciador de hooks de stop
+func NewStopHookManager() *StopHookManager <span class="cov10" title="3">{
+        return &amp;StopHookManager{
+                hooks: make([]interfaces.StopHookFunc, 0),
+        }
+}</span>
+
+// Register registra um hook de stop
+func (m *StopHookManager) Register(hook interfaces.StopHookFunc) <span class="cov6" title="2">{
+        if hook == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov6" title="2">m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.hooks = append(m.hooks, hook)</span>
+}
+
+// Execute executa todos os hooks de stop registrados
+func (m *StopHookManager) Execute(ctx context.Context) error <span class="cov1" title="1">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        for _, hook := range m.hooks </span><span class="cov6" title="2">{
+                if err := hook(ctx); err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+        }
+
+        <span class="cov1" title="1">return nil</span>
+}
+
+// Count retorna o número de hooks registrados
+func (m *StopHookManager) Count() int <span class="cov1" title="1">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        return len(m.hooks)
+}</span>
+
+// Clear remove todos os hooks registrados
+func (m *StopHookManager) Clear() <span class="cov0" title="0">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.hooks = make([]interfaces.StopHookFunc, 0)
+}</span>
+
+// Instância global para uso em toda a aplicação
+var GlobalStopHookManager = NewStopHookManager()
+
+// RegisterStopHook registra um hook de stop globalmente
+func RegisterStopHook(hook interfaces.StopHookFunc) <span class="cov0" title="0">{
+        GlobalStopHookManager.Register(hook)
+}</span>
+
+// ExecuteStopHooks executa todos os hooks de stop globais
+func ExecuteStopHooks(ctx context.Context) error <span class="cov0" title="0">{
+        return GlobalStopHookManager.Execute(ctx)
+}</span>
+
+// GetStopHookCount retorna o número de hooks de stop globais
+func GetStopHookCount() int <span class="cov0" title="0">{
+        return GlobalStopHookManager.Count()
+}</span>
+
+// ClearStopHooks limpa todos os hooks de stop globais
+func ClearStopHooks() <span class="cov0" title="0">{
+        GlobalStopHookManager.Clear()
+}</span>
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package internal
+
+import (
+        "fmt"
+        "path/filepath"
+        "runtime"
+        "strings"
+        "time"
+
+        "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+)
+
+// StackTraceCapture implementa a captura de stack trace
+type StackTraceCapture struct {
+        withStackTrace bool
+}
+
+// NewStackTraceCapture cria uma nova instância de StackTraceCapture
+func NewStackTraceCapture(withStackTrace bool) *StackTraceCapture <span class="cov0" title="0">{
+        return &amp;StackTraceCapture{
+                withStackTrace: withStackTrace,
+        }
+}</span>
+
+// CaptureStackTrace captura o stack trace atual
+func (s *StackTraceCapture) CaptureStackTrace(skip int) []interfaces.StackFrame <span class="cov0" title="0">{
+        if !s.withStackTrace </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov0" title="0">var frames []interfaces.StackFrame
+        pc := make([]uintptr, 32)
+        n := runtime.Callers(skip+2, pc)
+
+        if n == 0 </span><span class="cov0" title="0">{
+                return frames
+        }</span>
+
+        <span class="cov0" title="0">pc = pc[:n]
+        callersFrames := runtime.CallersFrames(pc)
+
+        timestamp := time.Now().Format(time.RFC3339)
+
+        for </span><span class="cov0" title="0">{
+                frame, more := callersFrames.Next()
+
+                // Filtra frames internos do Go runtime
+                if !s.shouldIncludeFrame(frame.Function) </span><span class="cov0" title="0">{
+                        if !more </span><span class="cov0" title="0">{
+                                break</span>
+                        }
+                        <span class="cov0" title="0">continue</span>
+                }
+
+                <span class="cov0" title="0">stackFrame := interfaces.StackFrame{
+                        Function: frame.Function,
+                        File:     filepath.Base(frame.File),
+                        Line:     frame.Line,
+                        Time:     timestamp,
+                }
+
+                frames = append(frames, stackFrame)
+
+                if !more </span><span class="cov0" title="0">{
+                        break</span>
+                }
+        }
+
+        <span class="cov0" title="0">return frames</span>
+}
+
+// FormatStackTrace formata o stack trace para exibição
+func (s *StackTraceCapture) FormatStackTrace(frames []interfaces.StackFrame) string <span class="cov0" title="0">{
+        if len(frames) == 0 </span><span class="cov0" title="0">{
+                return ""
+        }</span>
+
+        <span class="cov0" title="0">var builder strings.Builder
+        builder.WriteString("Stack trace:\n")
+
+        for i, frame := range frames </span><span class="cov0" title="0">{
+                builder.WriteString(fmt.Sprintf("  %d. %s\n", i+1, frame.Function))
+                builder.WriteString(fmt.Sprintf("     %s:%d\n", frame.File, frame.Line))
+                if frame.Message != "" </span><span class="cov0" title="0">{
+                        builder.WriteString(fmt.Sprintf("     Message: %s\n", frame.Message))
+                }</span>
+                <span class="cov0" title="0">builder.WriteString(fmt.Sprintf("     Time: %s\n", frame.Time))
+                if i &lt; len(frames)-1 </span><span class="cov0" title="0">{
+                        builder.WriteString("\n")
+                }</span>
+        }
+
+        <span class="cov0" title="0">return builder.String()</span>
+}
+
+// shouldIncludeFrame determina se um frame deve ser incluído no stack trace
+func (s *StackTraceCapture) shouldIncludeFrame(function string) bool <span class="cov0" title="0">{
+        // Filtra frames internos do runtime Go
+        excludedPrefixes := []string{
+                "runtime.",
+                "testing.",
+                "reflect.",
+                "syscall.",
+                "os.",
+        }
+
+        for _, prefix := range excludedPrefixes </span><span class="cov0" title="0">{
+                if strings.HasPrefix(function, prefix) </span><span class="cov0" title="0">{
+                        return false
+                }</span>
+        }
+
+        <span class="cov0" title="0">return true</span>
+}
+
+// DefaultStackTraceCapture cria uma instância padrão com stack trace habilitado
+func DefaultStackTraceCapture() *StackTraceCapture <span class="cov0" title="0">{
+        return NewStackTraceCapture(true)
+}</span>
+
+// NoStackTraceCapture cria uma instância sem captura de stack trace
+func NoStackTraceCapture() *StackTraceCapture <span class="cov0" title="0">{
+        return NewStackTraceCapture(false)
+}</span>
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">package middlewares
+
+import (
+        "context"
+        "sync"
+
+        "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+        i18nLib "github.com/fsvxavier/nexs-lib/i18n"
+        i18nInterfaces "github.com/fsvxavier/nexs-lib/i18n/interfaces"
+)
+
+// I18nMiddleware gerencia middlewares de internacionalização usando nexs-lib/i18n
+type I18nMiddleware struct {
+        middlewares []interfaces.I18nMiddlewareFunc
+        i18nClient  i18nInterfaces.I18n
+        mu          sync.RWMutex
+}
+
+// NewI18nMiddleware cria um novo gerenciador de middlewares de i18n
+func NewI18nMiddleware(i18nClient i18nInterfaces.I18n) *I18nMiddleware <span class="cov0" title="0">{
+        return &amp;I18nMiddleware{
+                middlewares: make([]interfaces.I18nMiddlewareFunc, 0),
+                i18nClient:  i18nClient,
+        }
+}</span>
+
+// NewI18nMiddlewareWithRegistry cria um novo middleware usando o registry do i18n
+func NewI18nMiddlewareWithRegistry(registry *i18nLib.Registry, providerType string, config interface{}) (*I18nMiddleware, error) <span class="cov0" title="0">{
+        provider, err := registry.CreateProvider(providerType, config)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return &amp;I18nMiddleware{
+                middlewares: make([]interfaces.I18nMiddlewareFunc, 0),
+                i18nClient:  provider,
+        }, nil</span>
+}
+
+// Register registra um middleware de i18n
+func (m *I18nMiddleware) Register(middleware interfaces.I18nMiddlewareFunc) <span class="cov0" title="0">{
+        if middleware == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.middlewares = append(m.middlewares, middleware)</span>
+}
+
+// Execute executa todos os middlewares de i18n registrados
+func (m *I18nMiddleware) Execute(ctx context.Context, err interfaces.DomainErrorInterface, locale string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if err == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov0" title="0">m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        result := err
+
+        // Executa os middlewares em sequência
+        for _, middleware := range m.middlewares </span><span class="cov0" title="0">{
+                result = middleware(ctx, result, locale, func(e interfaces.DomainErrorInterface) interfaces.DomainErrorInterface </span><span class="cov0" title="0">{
+                        return e
+                }</span>)
+        }
+
+        <span class="cov0" title="0">return result</span>
+}
+
+// Count retorna o número de middlewares registrados
+func (m *I18nMiddleware) Count() int <span class="cov0" title="0">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        return len(m.middlewares)
+}</span>
+
+// Clear remove todos os middlewares registrados
+func (m *I18nMiddleware) Clear() <span class="cov0" title="0">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.middlewares = make([]interfaces.I18nMiddlewareFunc, 0)
+}</span>
+
+// GetI18nClient retorna o cliente i18n utilizado
+func (m *I18nMiddleware) GetI18nClient() i18nInterfaces.I18n <span class="cov0" title="0">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        return m.i18nClient
+}</span>
+
+// SetI18nClient define o cliente i18n
+func (m *I18nMiddleware) SetI18nClient(client i18nInterfaces.I18n) <span class="cov0" title="0">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.i18nClient = client
+}</span>
+
+// Instância global para uso em toda a aplicação
+var GlobalI18nMiddleware *I18nMiddleware
+
+// InitializeGlobalI18nMiddleware inicializa o middleware global com um cliente i18n
+func InitializeGlobalI18nMiddleware(i18nClient i18nInterfaces.I18n) <span class="cov0" title="0">{
+        GlobalI18nMiddleware = NewI18nMiddleware(i18nClient)
+}</span>
+
+// InitializeGlobalI18nMiddlewareWithRegistry inicializa o middleware global usando registry
+func InitializeGlobalI18nMiddlewareWithRegistry(registry *i18nLib.Registry, providerType string, config interface{}) error <span class="cov0" title="0">{
+        middleware, err := NewI18nMiddlewareWithRegistry(registry, providerType, config)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">GlobalI18nMiddleware = middleware
+        return nil</span>
+}
+
+// RegisterI18nMiddleware registra um middleware de i18n globalmente
+func RegisterI18nMiddleware(middleware interfaces.I18nMiddlewareFunc) <span class="cov0" title="0">{
+        if GlobalI18nMiddleware != nil </span><span class="cov0" title="0">{
+                GlobalI18nMiddleware.Register(middleware)
+        }</span>
+}
+
+// ExecuteI18nMiddlewares executa todos os middlewares de i18n globais
+func ExecuteI18nMiddlewares(ctx context.Context, err interfaces.DomainErrorInterface, locale string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if GlobalI18nMiddleware != nil </span><span class="cov0" title="0">{
+                return GlobalI18nMiddleware.Execute(ctx, err, locale)
+        }</span>
+        <span class="cov0" title="0">return err</span>
+}
+
+// GetI18nMiddlewareCount retorna o número de middlewares de i18n globais
+func GetI18nMiddlewareCount() int <span class="cov0" title="0">{
+        if GlobalI18nMiddleware != nil </span><span class="cov0" title="0">{
+                return GlobalI18nMiddleware.Count()
+        }</span>
+        <span class="cov0" title="0">return 0</span>
+}
+
+// ClearI18nMiddlewares limpa todos os middlewares de i18n globais
+func ClearI18nMiddlewares() <span class="cov0" title="0">{
+        if GlobalI18nMiddleware != nil </span><span class="cov0" title="0">{
+                GlobalI18nMiddleware.Clear()
+        }</span>
+}
+
+// TranslationMiddleware é um middleware que traduz mensagens de erro usando nexs-lib/i18n
+func TranslationMiddleware(ctx context.Context, err interfaces.DomainErrorInterface, locale string, next func(interfaces.DomainErrorInterface) interfaces.DomainErrorInterface) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if err == nil || GlobalI18nMiddleware == nil || GlobalI18nMiddleware.i18nClient == nil </span><span class="cov0" title="0">{
+                return next(err)
+        }</span>
+
+        // Verifica se o locale é suportado
+        <span class="cov0" title="0">supportedLanguages := GlobalI18nMiddleware.i18nClient.GetSupportedLanguages()
+        isSupported := false
+        for _, lang := range supportedLanguages </span><span class="cov0" title="0">{
+                if lang == locale </span><span class="cov0" title="0">{
+                        isSupported = true
+                        break</span>
+                }
+        }
+
+        // Se não suportado, usa o idioma padrão
+        <span class="cov0" title="0">targetLocale := locale
+        if !isSupported </span><span class="cov0" title="0">{
+                targetLocale = GlobalI18nMiddleware.i18nClient.GetDefaultLanguage()
+        }</span>
+
+        // Enriquece o erro com informações de tradução
+        <span class="cov0" title="0">enrichedErr := err.WithMetadata("middleware_translation_processed", true)
+        enrichedErr = enrichedErr.WithMetadata("target_locale", targetLocale)
+        enrichedErr = enrichedErr.WithMetadata("locale_supported", isSupported)
+
+        // Tenta traduzir a mensagem
+        translationKey := "error." + err.Code()
+        translatedMessage, translateErr := GlobalI18nMiddleware.i18nClient.Translate(ctx, translationKey, targetLocale, nil)
+
+        if translateErr == nil &amp;&amp; translatedMessage != "" </span><span class="cov0" title="0">{
+                enrichedErr = enrichedErr.WithMetadata("translated_message", translatedMessage)
+                enrichedErr = enrichedErr.WithMetadata("translation_successful", true)
+        }</span> else<span class="cov0" title="0"> {
+                enrichedErr = enrichedErr.WithMetadata("translation_successful", false)
+                if translateErr != nil </span><span class="cov0" title="0">{
+                        enrichedErr = enrichedErr.WithMetadata("translation_error", translateErr.Error())
+                }</span>
+        }
+
+        <span class="cov0" title="0">return next(enrichedErr)</span>
+}
+
+// LocaleValidationMiddleware valida se o locale é suportado usando nexs-lib/i18n
+func LocaleValidationMiddleware(ctx context.Context, err interfaces.DomainErrorInterface, locale string, next func(interfaces.DomainErrorInterface) interfaces.DomainErrorInterface) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if err == nil || GlobalI18nMiddleware == nil || GlobalI18nMiddleware.i18nClient == nil </span><span class="cov0" title="0">{
+                return next(err)
+        }</span>
+
+        // Obter idiomas suportados do cliente i18n
+        <span class="cov0" title="0">supportedLanguages := GlobalI18nMiddleware.i18nClient.GetSupportedLanguages()
+
+        // Verifica se o locale é suportado
+        isSupported := false
+        for _, supported := range supportedLanguages </span><span class="cov0" title="0">{
+                if supported == locale </span><span class="cov0" title="0">{
+                        isSupported = true
+                        break</span>
+                }
+        }
+
+        <span class="cov0" title="0">processedErr := err.WithMetadata("locale_validation_processed", true)
+        processedErr = processedErr.WithMetadata("locale_supported", isSupported)
+        processedErr = processedErr.WithMetadata("supported_locales", supportedLanguages)
+
+        if !isSupported </span><span class="cov0" title="0">{
+                fallbackLocale := GlobalI18nMiddleware.i18nClient.GetDefaultLanguage()
+                processedErr = processedErr.WithMetadata("fallback_locale", fallbackLocale)
+                processedErr = processedErr.WithMetadata("locale_validation_failed", true)
+        }</span>
+
+        <span class="cov0" title="0">return next(processedErr)</span>
+}
+
+// EnrichmentI18nMiddleware adiciona informações contextuais de i18n ao erro
+func EnrichmentI18nMiddleware(ctx context.Context, err interfaces.DomainErrorInterface, locale string, next func(interfaces.DomainErrorInterface) interfaces.DomainErrorInterface) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if err == nil || GlobalI18nMiddleware == nil || GlobalI18nMiddleware.i18nClient == nil </span><span class="cov0" title="0">{
+                return next(err)
+        }</span>
+
+        // Adiciona informações contextuais do sistema i18n
+        <span class="cov0" title="0">enrichedErr := err.WithMetadata("i18n_middleware_enriched", true)
+        enrichedErr = enrichedErr.WithMetadata("i18n_provider_type", "nexs-lib/i18n")
+        enrichedErr = enrichedErr.WithMetadata("default_language", GlobalI18nMiddleware.i18nClient.GetDefaultLanguage())
+        enrichedErr = enrichedErr.WithMetadata("total_translations", GlobalI18nMiddleware.i18nClient.GetTranslationCount())
+        enrichedErr = enrichedErr.WithMetadata("loaded_languages", GlobalI18nMiddleware.i18nClient.GetLoadedLanguages())
+        enrichedErr = enrichedErr.WithMetadata("requested_locale", locale)
+
+        // Verifica se existe tradução para este erro específico
+        translationKey := "error." + err.Code()
+        hasTranslation := GlobalI18nMiddleware.i18nClient.HasTranslation(translationKey, locale)
+        enrichedErr = enrichedErr.WithMetadata("has_translation_for_locale", hasTranslation)
+
+        if !hasTranslation </span><span class="cov0" title="0">{
+                // Verifica se existe no idioma padrão
+                defaultLang := GlobalI18nMiddleware.i18nClient.GetDefaultLanguage()
+                hasDefaultTranslation := GlobalI18nMiddleware.i18nClient.HasTranslation(translationKey, defaultLang)
+                enrichedErr = enrichedErr.WithMetadata("has_default_translation", hasDefaultTranslation)
+        }</span>
+
+        <span class="cov0" title="0">return next(enrichedErr)</span>
+}
+
+// FallbackLanguageMiddleware aplica um idioma de fallback se necessário
+func FallbackLanguageMiddleware(ctx context.Context, err interfaces.DomainErrorInterface, locale string, next func(interfaces.DomainErrorInterface) interfaces.DomainErrorInterface) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if err == nil || GlobalI18nMiddleware == nil || GlobalI18nMiddleware.i18nClient == nil </span><span class="cov0" title="0">{
+                return next(err)
+        }</span>
+
+        // Verifica se o locale é suportado
+        <span class="cov0" title="0">supportedLanguages := GlobalI18nMiddleware.i18nClient.GetSupportedLanguages()
+        isSupported := false
+        for _, lang := range supportedLanguages </span><span class="cov0" title="0">{
+                if lang == locale </span><span class="cov0" title="0">{
+                        isSupported = true
+                        break</span>
+                }
+        }
+
+        <span class="cov0" title="0">processedErr := err.WithMetadata("fallback_middleware_processed", true)
+
+        if !isSupported </span><span class="cov0" title="0">{
+                fallbackLanguage := GlobalI18nMiddleware.i18nClient.GetDefaultLanguage()
+                processedErr = processedErr.WithMetadata("fallback_language", fallbackLanguage)
+                processedErr = processedErr.WithMetadata("original_requested_locale", locale)
+                processedErr = processedErr.WithMetadata("fallback_applied", true)
+
+                // Tenta traduzir usando o idioma de fallback
+                translationKey := "error." + err.Code()
+                fallbackMessage, translateErr := GlobalI18nMiddleware.i18nClient.Translate(ctx, translationKey, fallbackLanguage, nil)
+
+                if translateErr == nil &amp;&amp; fallbackMessage != "" </span><span class="cov0" title="0">{
+                        processedErr = processedErr.WithMetadata("fallback_translation", fallbackMessage)
+                        processedErr = processedErr.WithMetadata("fallback_translation_successful", true)
+                }</span>
+        } else<span class="cov0" title="0"> {
+                processedErr = processedErr.WithMetadata("fallback_applied", false)
+        }</span>
+
+        <span class="cov0" title="0">return next(processedErr)</span>
+}
+
+// CreateCustomI18nMiddleware cria um middleware customizado com parâmetros específicos
+func CreateCustomI18nMiddleware(translationPrefix string, includeMetadata bool) interfaces.I18nMiddlewareFunc <span class="cov0" title="0">{
+        return func(ctx context.Context, err interfaces.DomainErrorInterface, locale string, next func(interfaces.DomainErrorInterface) interfaces.DomainErrorInterface) interfaces.DomainErrorInterface </span><span class="cov0" title="0">{
+                if err == nil || GlobalI18nMiddleware == nil || GlobalI18nMiddleware.i18nClient == nil </span><span class="cov0" title="0">{
+                        return next(err)
+                }</span>
+
+                <span class="cov0" title="0">processedErr := err
+
+                if includeMetadata </span><span class="cov0" title="0">{
+                        processedErr = processedErr.WithMetadata("custom_i18n_middleware", true)
+                        processedErr = processedErr.WithMetadata("translation_prefix", translationPrefix)
+                }</span>
+
+                // Usa o prefixo customizado para a chave de tradução
+                <span class="cov0" title="0">translationKey := translationPrefix + "." + err.Code()
+                translatedMessage, translateErr := GlobalI18nMiddleware.i18nClient.Translate(ctx, translationKey, locale, nil)
+
+                if translateErr == nil &amp;&amp; translatedMessage != "" </span><span class="cov0" title="0">{
+                        processedErr = processedErr.WithMetadata("custom_translated_message", translatedMessage)
+                }</span>
+
+                <span class="cov0" title="0">return next(processedErr)</span>
+        }
+}
+</pre>
+		
+		<pre class="file" id="file9" style="display: none">package middlewares
+
+import (
+        "context"
+        "sync"
+
+        "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+)
+
+// MiddlewareManager implementa a interface interfaces.MiddlewareManager
+type MiddlewareManager struct {
+        middlewares     []interfaces.MiddlewareFunc
+        i18nMiddlewares []interfaces.I18nMiddlewareFunc
+        mu              sync.RWMutex
+}
+
+// NewMiddlewareManager cria um novo gerenciador de middlewares completo
+func NewMiddlewareManager() *MiddlewareManager <span class="cov9" title="8">{
+        return &amp;MiddlewareManager{
+                middlewares:     make([]interfaces.MiddlewareFunc, 0),
+                i18nMiddlewares: make([]interfaces.I18nMiddlewareFunc, 0),
+        }
+}</span>
+
+// RegisterMiddleware registra um middleware
+func (m *MiddlewareManager) RegisterMiddleware(middleware interfaces.MiddlewareFunc) <span class="cov10" title="10">{
+        if middleware == nil </span><span class="cov1" title="1">{
+                return
+        }</span>
+
+        <span class="cov9" title="9">m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.middlewares = append(m.middlewares, middleware)</span>
+}
+
+// RegisterI18nMiddleware registra um middleware de i18n
+func (m *MiddlewareManager) RegisterI18nMiddleware(middleware interfaces.I18nMiddlewareFunc) <span class="cov1" title="1">{
+        if middleware == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov1" title="1">m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.i18nMiddlewares = append(m.i18nMiddlewares, middleware)</span>
+}
+
+// ExecuteMiddlewares executa todos os middlewares registrados
+func (m *MiddlewareManager) ExecuteMiddlewares(ctx context.Context, err interfaces.DomainErrorInterface) interfaces.DomainErrorInterface <span class="cov6" title="4">{
+        if err == nil </span><span class="cov1" title="1">{
+                return nil
+        }</span>
+
+        <span class="cov5" title="3">m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        result := err
+
+        // Executa os middlewares em sequência
+        for _, middleware := range m.middlewares </span><span class="cov8" title="6">{
+                result = middleware(ctx, result, func(e interfaces.DomainErrorInterface) interfaces.DomainErrorInterface </span><span class="cov8" title="6">{
+                        return e
+                }</span>)
+        }
+
+        <span class="cov5" title="3">return result</span>
+}
+
+// ExecuteI18nMiddlewares executa todos os middlewares de i18n registrados
+func (m *MiddlewareManager) ExecuteI18nMiddlewares(ctx context.Context, err interfaces.DomainErrorInterface, locale string) interfaces.DomainErrorInterface <span class="cov1" title="1">{
+        if err == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov1" title="1">m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        result := err
+
+        // Executa os middlewares de i18n em sequência
+        for _, middleware := range m.i18nMiddlewares </span><span class="cov1" title="1">{
+                result = middleware(ctx, result, locale, func(e interfaces.DomainErrorInterface) interfaces.DomainErrorInterface </span><span class="cov1" title="1">{
+                        return e
+                }</span>)
+        }
+
+        <span class="cov1" title="1">return result</span>
+}
+
+// Clear limpa todos os middlewares registrados
+func (m *MiddlewareManager) Clear() <span class="cov6" title="4">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.middlewares = make([]interfaces.MiddlewareFunc, 0)
+        m.i18nMiddlewares = make([]interfaces.I18nMiddlewareFunc, 0)
+}</span>
+
+// GetCounts retorna o número de middlewares registrados por tipo
+func (m *MiddlewareManager) GetCounts() (general, i18n int) <span class="cov6" title="4">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        return len(m.middlewares), len(m.i18nMiddlewares)
+}</span>
+
+// Instância global do MiddlewareManager
+var GlobalMiddlewareManager = NewMiddlewareManager()
+
+// Funções globais de conveniência
+func RegisterGlobalMiddleware(middleware interfaces.MiddlewareFunc) <span class="cov3" title="2">{
+        GlobalMiddlewareManager.RegisterMiddleware(middleware)
+}</span>
+
+func RegisterGlobalI18nMiddleware(middleware interfaces.I18nMiddlewareFunc) <span class="cov0" title="0">{
+        GlobalMiddlewareManager.RegisterI18nMiddleware(middleware)
+}</span>
+
+func ExecuteGlobalMiddlewares(ctx context.Context, err interfaces.DomainErrorInterface) interfaces.DomainErrorInterface <span class="cov1" title="1">{
+        return GlobalMiddlewareManager.ExecuteMiddlewares(ctx, err)
+}</span>
+
+func ExecuteGlobalI18nMiddlewares(ctx context.Context, err interfaces.DomainErrorInterface, locale string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        return GlobalMiddlewareManager.ExecuteI18nMiddlewares(ctx, err, locale)
+}</span>
+
+func GetGlobalMiddlewareCounts() (general, i18n int) <span class="cov1" title="1">{
+        return GlobalMiddlewareManager.GetCounts()
+}</span>
+
+func ClearGlobalMiddlewares() <span class="cov6" title="4">{
+        GlobalMiddlewareManager.Clear()
+}</span>
+
+// Middlewares padrão
+
+// LoggingMiddleware é um middleware de exemplo para logging
+func LoggingMiddleware(ctx context.Context, err interfaces.DomainErrorInterface, next func(interfaces.DomainErrorInterface) interfaces.DomainErrorInterface) interfaces.DomainErrorInterface <span class="cov3" title="2">{
+        if err == nil </span><span class="cov1" title="1">{
+                return next(nil)
+        }</span>
+
+        // Adiciona informações de logging
+        <span class="cov1" title="1">enrichedErr := err.WithMetadata("middleware_logged", true)
+        enrichedErr = enrichedErr.WithMetadata("log_level", "error")
+
+        return next(enrichedErr)</span>
+}
+
+// MetricsMiddleware é um middleware de exemplo para métricas
+func MetricsMiddleware(ctx context.Context, err interfaces.DomainErrorInterface, next func(interfaces.DomainErrorInterface) interfaces.DomainErrorInterface) interfaces.DomainErrorInterface <span class="cov1" title="1">{
+        if err == nil </span><span class="cov0" title="0">{
+                return next(nil)
+        }</span>
+
+        // Adiciona informações de métricas
+        <span class="cov1" title="1">enrichedErr := err.WithMetadata("metrics_collected", true)
+        enrichedErr = enrichedErr.WithMetadata("metric_type", string(err.Type()))
+
+        return next(enrichedErr)</span>
+}
+
+// EnrichmentMiddleware adiciona informações contextuais ao erro
+func EnrichmentMiddleware(ctx context.Context, err interfaces.DomainErrorInterface, next func(interfaces.DomainErrorInterface) interfaces.DomainErrorInterface) interfaces.DomainErrorInterface <span class="cov3" title="2">{
+        if err == nil </span><span class="cov0" title="0">{
+                return next(nil)
+        }</span>
+
+        // Adiciona informações do contexto
+        <span class="cov3" title="2">enrichedErr := err.WithMetadata("context_enriched", true)
+
+        // Pode adicionar informações do contexto como user_id, request_id, etc.
+        if ctx != nil </span><span class="cov1" title="1">{
+                if userID := ctx.Value("user_id"); userID != nil </span><span class="cov1" title="1">{
+                        enrichedErr = enrichedErr.WithMetadata("user_id", userID)
+                }</span>
+                <span class="cov1" title="1">if requestID := ctx.Value("request_id"); requestID != nil </span><span class="cov1" title="1">{
+                        enrichedErr = enrichedErr.WithMetadata("request_id", requestID)
+                }</span>
+        }
+
+        <span class="cov3" title="2">return next(enrichedErr)</span>
+}
+</pre>
+		
+		<pre class="file" id="file10" style="display: none">// Code generated manually. DO NOT EDIT.
+package mocks
+
+import (
+        "context"
+        "time"
+
+        "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+)
+
+// MockDomainErrorInterface is a mock implementation of interfaces.DomainErrorInterface
+type MockDomainErrorInterface struct {
+        ErrorFunc        func() string
+        UnwrapFunc       func() error
+        TypeFunc         func() interfaces.ErrorType
+        MetadataFunc     func() map[string]interface{}
+        HTTPStatusFunc   func() int
+        StackTraceFunc   func() string
+        WithContextFunc  func(ctx context.Context) interfaces.DomainErrorInterface
+        WrapFunc         func(err error) interfaces.DomainErrorInterface
+        WithMetadataFunc func(key string, value interface{}) interfaces.DomainErrorInterface
+        CodeFunc         func() string
+        TimestampFunc    func() time.Time
+        ToJSONFunc       func() ([]byte, error)
+}
+
+func (m *MockDomainErrorInterface) Error() string <span class="cov0" title="0">{
+        if m.ErrorFunc != nil </span><span class="cov0" title="0">{
+                return m.ErrorFunc()
+        }</span>
+        <span class="cov0" title="0">return "mock error"</span>
+}
+
+func (m *MockDomainErrorInterface) Unwrap() error <span class="cov0" title="0">{
+        if m.UnwrapFunc != nil </span><span class="cov0" title="0">{
+                return m.UnwrapFunc()
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (m *MockDomainErrorInterface) Type() interfaces.ErrorType <span class="cov0" title="0">{
+        if m.TypeFunc != nil </span><span class="cov0" title="0">{
+                return m.TypeFunc()
+        }</span>
+        <span class="cov0" title="0">return interfaces.ValidationError</span>
+}
+
+func (m *MockDomainErrorInterface) Metadata() map[string]interface{} <span class="cov0" title="0">{
+        if m.MetadataFunc != nil </span><span class="cov0" title="0">{
+                return m.MetadataFunc()
+        }</span>
+        <span class="cov0" title="0">return make(map[string]interface{})</span>
+}
+
+func (m *MockDomainErrorInterface) HTTPStatus() int <span class="cov0" title="0">{
+        if m.HTTPStatusFunc != nil </span><span class="cov0" title="0">{
+                return m.HTTPStatusFunc()
+        }</span>
+        <span class="cov0" title="0">return 400</span>
+}
+
+func (m *MockDomainErrorInterface) StackTrace() string <span class="cov0" title="0">{
+        if m.StackTraceFunc != nil </span><span class="cov0" title="0">{
+                return m.StackTraceFunc()
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (m *MockDomainErrorInterface) WithContext(ctx context.Context) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if m.WithContextFunc != nil </span><span class="cov0" title="0">{
+                return m.WithContextFunc(ctx)
+        }</span>
+        <span class="cov0" title="0">return m</span>
+}
+
+func (m *MockDomainErrorInterface) Wrap(err error) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if m.WrapFunc != nil </span><span class="cov0" title="0">{
+                return m.WrapFunc(err)
+        }</span>
+        <span class="cov0" title="0">return m</span>
+}
+
+func (m *MockDomainErrorInterface) WithMetadata(key string, value interface{}) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if m.WithMetadataFunc != nil </span><span class="cov0" title="0">{
+                return m.WithMetadataFunc(key, value)
+        }</span>
+        <span class="cov0" title="0">return m</span>
+}
+
+func (m *MockDomainErrorInterface) Code() string <span class="cov0" title="0">{
+        if m.CodeFunc != nil </span><span class="cov0" title="0">{
+                return m.CodeFunc()
+        }</span>
+        <span class="cov0" title="0">return "MOCK001"</span>
+}
+
+func (m *MockDomainErrorInterface) Timestamp() time.Time <span class="cov0" title="0">{
+        if m.TimestampFunc != nil </span><span class="cov0" title="0">{
+                return m.TimestampFunc()
+        }</span>
+        <span class="cov0" title="0">return time.Now()</span>
+}
+
+func (m *MockDomainErrorInterface) ToJSON() ([]byte, error) <span class="cov0" title="0">{
+        if m.ToJSONFunc != nil </span><span class="cov0" title="0">{
+                return m.ToJSONFunc()
+        }</span>
+        <span class="cov0" title="0">return []byte(`{"code":"MOCK001","message":"mock error"}`), nil</span>
+}
+
+// MockErrorFactory is a mock implementation of interfaces.ErrorFactory
+type MockErrorFactory struct {
+        NewFunc             func(errorType interfaces.ErrorType, code, message string) interfaces.DomainErrorInterface
+        NewWithMetadataFunc func(errorType interfaces.ErrorType, code, message string, metadata map[string]interface{}) interfaces.DomainErrorInterface
+        WrapFunc            func(err error, errorType interfaces.ErrorType, code, message string) interfaces.DomainErrorInterface
+}
+
+func (m *MockErrorFactory) New(errorType interfaces.ErrorType, code, message string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if m.NewFunc != nil </span><span class="cov0" title="0">{
+                return m.NewFunc(errorType, code, message)
+        }</span>
+        <span class="cov0" title="0">return &amp;MockDomainErrorInterface{
+                ErrorFunc: func() string </span><span class="cov0" title="0">{ return message }</span>,
+                TypeFunc:  func() interfaces.ErrorType <span class="cov0" title="0">{ return errorType }</span>,
+                CodeFunc:  func() string <span class="cov0" title="0">{ return code }</span>,
+        }
+}
+
+func (m *MockErrorFactory) NewWithMetadata(errorType interfaces.ErrorType, code, message string, metadata map[string]interface{}) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if m.NewWithMetadataFunc != nil </span><span class="cov0" title="0">{
+                return m.NewWithMetadataFunc(errorType, code, message, metadata)
+        }</span>
+        <span class="cov0" title="0">return &amp;MockDomainErrorInterface{
+                ErrorFunc:    func() string </span><span class="cov0" title="0">{ return message }</span>,
+                TypeFunc:     func() interfaces.ErrorType <span class="cov0" title="0">{ return errorType }</span>,
+                CodeFunc:     func() string <span class="cov0" title="0">{ return code }</span>,
+                MetadataFunc: func() map[string]interface{} <span class="cov0" title="0">{ return metadata }</span>,
+        }
+}
+
+func (m *MockErrorFactory) Wrap(err error, errorType interfaces.ErrorType, code, message string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if m.WrapFunc != nil </span><span class="cov0" title="0">{
+                return m.WrapFunc(err, errorType, code, message)
+        }</span>
+        <span class="cov0" title="0">return &amp;MockDomainErrorInterface{
+                ErrorFunc:  func() string </span><span class="cov0" title="0">{ return message }</span>,
+                TypeFunc:   func() interfaces.ErrorType <span class="cov0" title="0">{ return errorType }</span>,
+                CodeFunc:   func() string <span class="cov0" title="0">{ return code }</span>,
+                UnwrapFunc: func() error <span class="cov0" title="0">{ return err }</span>,
+        }
+}
+
+// MockErrorTypeChecker is a mock implementation of interfaces.ErrorTypeChecker
+type MockErrorTypeChecker struct {
+        IsTypeFunc func(err error, errorType interfaces.ErrorType) bool
+}
+
+func (m *MockErrorTypeChecker) IsType(err error, errorType interfaces.ErrorType) bool <span class="cov0" title="0">{
+        if m.IsTypeFunc != nil </span><span class="cov0" title="0">{
+                return m.IsTypeFunc(err, errorType)
+        }</span>
+        <span class="cov0" title="0">return false</span>
+}
+
+// MockObserver is a mock implementation of interfaces.Observer
+type MockObserver struct {
+        OnErrorFunc func(ctx context.Context, err interfaces.DomainErrorInterface) error
+}
+
+func (m *MockObserver) OnError(ctx context.Context, err interfaces.DomainErrorInterface) error <span class="cov0" title="0">{
+        if m.OnErrorFunc != nil </span><span class="cov0" title="0">{
+                return m.OnErrorFunc(ctx, err)
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+// MockStackTraceCapture is a mock implementation of interfaces.StackTraceCapture
+type MockStackTraceCapture struct {
+        CaptureStackTraceFunc func(skip int) []interfaces.StackFrame
+        FormatStackTraceFunc  func(frames []interfaces.StackFrame) string
+}
+
+func (m *MockStackTraceCapture) CaptureStackTrace(skip int) []interfaces.StackFrame <span class="cov0" title="0">{
+        if m.CaptureStackTraceFunc != nil </span><span class="cov0" title="0">{
+                return m.CaptureStackTraceFunc(skip)
+        }</span>
+        <span class="cov0" title="0">return []interfaces.StackFrame{
+                {
+                        Function: "test.function",
+                        File:     "test.go",
+                        Line:     42,
+                        Time:     time.Now().Format(time.RFC3339),
+                },
+        }</span>
+}
+
+func (m *MockStackTraceCapture) FormatStackTrace(frames []interfaces.StackFrame) string <span class="cov0" title="0">{
+        if m.FormatStackTraceFunc != nil </span><span class="cov0" title="0">{
+                return m.FormatStackTraceFunc(frames)
+        }</span>
+        <span class="cov0" title="0">return "Stack trace:\n  1. test.function\n     test.go:42"</span>
+}
+
+// MockHookManager is a mock implementation of interfaces.HookManager
+type MockHookManager struct {
+        RegisterStartHookFunc func(hook interfaces.StartHookFunc)
+        RegisterStopHookFunc  func(hook interfaces.StopHookFunc)
+        RegisterErrorHookFunc func(hook interfaces.ErrorHookFunc)
+        RegisterI18nHookFunc  func(hook interfaces.I18nHookFunc)
+        ExecuteStartHooksFunc func(ctx context.Context) error
+        ExecuteStopHooksFunc  func(ctx context.Context) error
+        ExecuteErrorHooksFunc func(ctx context.Context, err interfaces.DomainErrorInterface) error
+        ExecuteI18nHooksFunc  func(ctx context.Context, err interfaces.DomainErrorInterface, locale string) error
+}
+
+func (m *MockHookManager) RegisterStartHook(hook interfaces.StartHookFunc) <span class="cov0" title="0">{
+        if m.RegisterStartHookFunc != nil </span><span class="cov0" title="0">{
+                m.RegisterStartHookFunc(hook)
+        }</span>
+}
+
+func (m *MockHookManager) RegisterStopHook(hook interfaces.StopHookFunc) <span class="cov0" title="0">{
+        if m.RegisterStopHookFunc != nil </span><span class="cov0" title="0">{
+                m.RegisterStopHookFunc(hook)
+        }</span>
+}
+
+func (m *MockHookManager) RegisterErrorHook(hook interfaces.ErrorHookFunc) <span class="cov0" title="0">{
+        if m.RegisterErrorHookFunc != nil </span><span class="cov0" title="0">{
+                m.RegisterErrorHookFunc(hook)
+        }</span>
+}
+
+func (m *MockHookManager) RegisterI18nHook(hook interfaces.I18nHookFunc) <span class="cov0" title="0">{
+        if m.RegisterI18nHookFunc != nil </span><span class="cov0" title="0">{
+                m.RegisterI18nHookFunc(hook)
+        }</span>
+}
+
+func (m *MockHookManager) ExecuteStartHooks(ctx context.Context) error <span class="cov0" title="0">{
+        if m.ExecuteStartHooksFunc != nil </span><span class="cov0" title="0">{
+                return m.ExecuteStartHooksFunc(ctx)
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (m *MockHookManager) ExecuteStopHooks(ctx context.Context) error <span class="cov0" title="0">{
+        if m.ExecuteStopHooksFunc != nil </span><span class="cov0" title="0">{
+                return m.ExecuteStopHooksFunc(ctx)
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (m *MockHookManager) ExecuteErrorHooks(ctx context.Context, err interfaces.DomainErrorInterface) error <span class="cov0" title="0">{
+        if m.ExecuteErrorHooksFunc != nil </span><span class="cov0" title="0">{
+                return m.ExecuteErrorHooksFunc(ctx, err)
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (m *MockHookManager) ExecuteI18nHooks(ctx context.Context, err interfaces.DomainErrorInterface, locale string) error <span class="cov0" title="0">{
+        if m.ExecuteI18nHooksFunc != nil </span><span class="cov0" title="0">{
+                return m.ExecuteI18nHooksFunc(ctx, err, locale)
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+// MockMiddlewareManager is a mock implementation of interfaces.MiddlewareManager
+type MockMiddlewareManager struct {
+        RegisterMiddlewareFunc     func(middleware interfaces.MiddlewareFunc)
+        RegisterI18nMiddlewareFunc func(middleware interfaces.I18nMiddlewareFunc)
+        ExecuteMiddlewaresFunc     func(ctx context.Context, err interfaces.DomainErrorInterface) interfaces.DomainErrorInterface
+        ExecuteI18nMiddlewaresFunc func(ctx context.Context, err interfaces.DomainErrorInterface, locale string) interfaces.DomainErrorInterface
+}
+
+func (m *MockMiddlewareManager) RegisterMiddleware(middleware interfaces.MiddlewareFunc) <span class="cov0" title="0">{
+        if m.RegisterMiddlewareFunc != nil </span><span class="cov0" title="0">{
+                m.RegisterMiddlewareFunc(middleware)
+        }</span>
+}
+
+func (m *MockMiddlewareManager) RegisterI18nMiddleware(middleware interfaces.I18nMiddlewareFunc) <span class="cov0" title="0">{
+        if m.RegisterI18nMiddlewareFunc != nil </span><span class="cov0" title="0">{
+                m.RegisterI18nMiddlewareFunc(middleware)
+        }</span>
+}
+
+func (m *MockMiddlewareManager) ExecuteMiddlewares(ctx context.Context, err interfaces.DomainErrorInterface) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if m.ExecuteMiddlewaresFunc != nil </span><span class="cov0" title="0">{
+                return m.ExecuteMiddlewaresFunc(ctx, err)
+        }</span>
+        <span class="cov0" title="0">return err</span>
+}
+
+func (m *MockMiddlewareManager) ExecuteI18nMiddlewares(ctx context.Context, err interfaces.DomainErrorInterface, locale string) interfaces.DomainErrorInterface <span class="cov0" title="0">{
+        if m.ExecuteI18nMiddlewaresFunc != nil </span><span class="cov0" title="0">{
+                return m.ExecuteI18nMiddlewaresFunc(ctx, err, locale)
+        }</span>
+        <span class="cov0" title="0">return err</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

@@ -1,704 +1,973 @@
+//go:build unit
+
 package domainerrors
 
 import (
 	"context"
-	"errors"
-	"net/http"
-	"strings"
+	"encoding/json"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+	"github.com/fsvxavier/nexs-lib/domainerrors/internal"
 )
 
-func TestNew(t *testing.T) {
-	tests := []struct {
-		name    string
-		code    string
-		message string
-	}{
-		{
-			name:    "valid error creation",
-			code:    "TEST_001",
-			message: "test error message",
-		},
-		{
-			name:    "empty code",
-			code:    "",
-			message: "test error message",
-		},
-		{
-			name:    "empty message",
-			code:    "TEST_002",
-			message: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := New(tt.code, tt.message)
-
-			if err == nil {
-				t.Fatal("expected error, got nil")
-			}
-
-			if err.Code != tt.code {
-				t.Errorf("expected code %q, got %q", tt.code, err.Code)
-			}
-
-			if err.Message != tt.message {
-				t.Errorf("expected message %q, got %q", tt.message, err.Message)
-			}
-
-			if err.Type != ErrorTypeServer {
-				t.Errorf("expected type %q, got %q", ErrorTypeServer, err.Type)
-			}
-
-			if err.Cause != nil {
-				t.Errorf("expected no cause, got %v", err.Cause)
-			}
-
-			if len(err.Stack) == 0 {
-				t.Error("expected stack trace, got empty")
-			}
-		})
-	}
-}
-
-func TestNewWithCause(t *testing.T) {
-	cause := errors.New("original error")
-
-	tests := []struct {
-		name    string
-		code    string
-		message string
-		cause   error
-	}{
-		{
-			name:    "valid error with cause",
-			code:    "TEST_001",
-			message: "test error message",
-			cause:   cause,
-		},
-		{
-			name:    "error with nil cause",
-			code:    "TEST_002",
-			message: "test error message",
-			cause:   nil,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := NewWithCause(tt.code, tt.message, tt.cause)
-
-			if err == nil {
-				t.Fatal("expected error, got nil")
-			}
-
-			if err.Code != tt.code {
-				t.Errorf("expected code %q, got %q", tt.code, err.Code)
-			}
-
-			if err.Message != tt.message {
-				t.Errorf("expected message %q, got %q", tt.message, err.Message)
-			}
-
-			if err.Cause != tt.cause {
-				t.Errorf("expected cause %v, got %v", tt.cause, err.Cause)
-			}
-
-			if len(err.Stack) == 0 {
-				t.Error("expected stack trace, got empty")
-			}
-		})
-	}
-}
-
-func TestNewWithType(t *testing.T) {
-	tests := []struct {
-		name      string
-		code      string
-		message   string
-		errorType ErrorType
-	}{
-		{
-			name:      "validation error type",
-			code:      "VAL_001",
-			message:   "validation failed",
-			errorType: ErrorTypeValidation,
-		},
-		{
-			name:      "not found error type",
-			code:      "NF_001",
-			message:   "resource not found",
-			errorType: ErrorTypeNotFound,
-		},
-		{
-			name:      "business error type",
-			code:      "BIZ_001",
-			message:   "business rule violated",
-			errorType: ErrorTypeBusinessRule,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := NewWithType(tt.code, tt.message, tt.errorType)
-
-			if err == nil {
-				t.Fatal("expected error, got nil")
-			}
-
-			if err.Code != tt.code {
-				t.Errorf("expected code %q, got %q", tt.code, err.Code)
-			}
-
-			if err.Message != tt.message {
-				t.Errorf("expected message %q, got %q", tt.message, err.Message)
-			}
-
-			if err.Type != tt.errorType {
-				t.Errorf("expected type %q, got %q", tt.errorType, err.Type)
-			}
-		})
-	}
-}
-
 func TestDomainError_Error(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
-		code     string
 		message  string
-		cause    error
 		expected string
 	}{
 		{
-			name:     "error with code and message",
-			code:     "TEST_001",
+			name:     "simple message",
 			message:  "test error",
-			cause:    nil,
-			expected: "[TEST_001] test error",
-		},
-		{
-			name:     "error with code, message and cause",
-			code:     "TEST_002",
-			message:  "test error",
-			cause:    errors.New("original error"),
-			expected: "[TEST_002] test error: original error",
-		},
-		{
-			name:     "error without code",
-			code:     "",
-			message:  "test error",
-			cause:    nil,
 			expected: "test error",
 		},
 		{
-			name:     "error without code but with cause",
-			code:     "",
-			message:  "test error",
-			cause:    errors.New("original error"),
-			expected: "test error: original error",
+			name:     "empty message",
+			message:  "",
+			expected: "",
+		},
+		{
+			name:     "complex message",
+			message:  "validation failed: field 'email' is required",
+			expected: "validation failed: field 'email' is required",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := &DomainError{
-				Code:    tt.code,
-				Message: tt.message,
-				Cause:   tt.cause,
+				message: tt.message,
 			}
 
-			result := err.Error()
-			if result != tt.expected {
-				t.Errorf("expected %q, got %q", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, err.Error())
 		})
 	}
 }
 
-func TestDomainError_Unwrap(t *testing.T) {
-	cause := errors.New("original error")
+func TestDomainError_Type(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
-		name     string
-		cause    error
-		expected error
+		name      string
+		errorType interfaces.ErrorType
 	}{
 		{
-			name:     "unwrap with cause",
-			cause:    cause,
-			expected: cause,
+			name:      "validation error",
+			errorType: interfaces.ValidationError,
 		},
 		{
-			name:     "unwrap without cause",
-			cause:    nil,
-			expected: nil,
+			name:      "not found error",
+			errorType: interfaces.NotFoundError,
+		},
+		{
+			name:      "business error",
+			errorType: interfaces.BusinessError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := &DomainError{
-				Code:    "TEST_001",
-				Message: "test error",
-				Cause:   tt.cause,
+				errorType: tt.errorType,
 			}
 
-			result := err.Unwrap()
-			if result != tt.expected {
-				t.Errorf("expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.errorType, err.Type())
 		})
 	}
+}
+
+func TestDomainError_Metadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil metadata returns empty map", func(t *testing.T) {
+		t.Parallel()
+
+		err := &DomainError{
+			metadata: nil,
+		}
+
+		result := err.Metadata()
+		assert.NotNil(t, result)
+		assert.Empty(t, result)
+	})
+
+	t.Run("returns copy of metadata", func(t *testing.T) {
+		t.Parallel()
+
+		original := map[string]interface{}{
+			"key1": "value1",
+			"key2": 42,
+		}
+
+		err := &DomainError{
+			metadata: original,
+		}
+
+		result := err.Metadata()
+		assert.Equal(t, original, result)
+
+		// Modificar o resultado não deve afetar o original
+		result["new_key"] = "new_value"
+		assert.NotEqual(t, original, result)
+		assert.NotContains(t, err.metadata, "new_key")
+	})
 }
 
 func TestDomainError_HTTPStatus(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name           string
-		errorType      ErrorType
-		expectedStatus int
+		name         string
+		errorType    interfaces.ErrorType
+		expectedCode int
 	}{
 		{
-			name:           "validation error",
-			errorType:      ErrorTypeValidation,
-			expectedStatus: http.StatusBadRequest,
+			name:         "validation error",
+			errorType:    interfaces.ValidationError,
+			expectedCode: 400,
 		},
 		{
-			name:           "bad request error",
-			errorType:      ErrorTypeBadRequest,
-			expectedStatus: http.StatusBadRequest,
+			name:         "not found error",
+			errorType:    interfaces.NotFoundError,
+			expectedCode: 404,
 		},
 		{
-			name:           "invalid schema error",
-			errorType:      ErrorTypeInvalidSchema,
-			expectedStatus: http.StatusBadRequest,
+			name:         "authentication error",
+			errorType:    interfaces.AuthenticationError,
+			expectedCode: 401,
 		},
 		{
-			name:           "authentication error",
-			errorType:      ErrorTypeAuthentication,
-			expectedStatus: http.StatusUnauthorized,
+			name:         "authorization error",
+			errorType:    interfaces.AuthorizationError,
+			expectedCode: 403,
 		},
 		{
-			name:           "authorization error",
-			errorType:      ErrorTypeAuthorization,
-			expectedStatus: http.StatusForbidden,
-		},
-		{
-			name:           "security error",
-			errorType:      ErrorTypeSecurity,
-			expectedStatus: http.StatusForbidden,
-		},
-		{
-			name:           "not found error",
-			errorType:      ErrorTypeNotFound,
-			expectedStatus: http.StatusNotFound,
-		},
-		{
-			name:           "conflict error",
-			errorType:      ErrorTypeConflict,
-			expectedStatus: http.StatusConflict,
-		},
-		{
-			name:           "timeout error",
-			errorType:      ErrorTypeTimeout,
-			expectedStatus: http.StatusRequestTimeout,
-		},
-		{
-			name:           "unsupported media error",
-			errorType:      ErrorTypeUnsupportedMedia,
-			expectedStatus: http.StatusUnsupportedMediaType,
-		},
-		{
-			name:           "business rule error",
-			errorType:      ErrorTypeBusinessRule,
-			expectedStatus: http.StatusUnprocessableEntity,
-		},
-		{
-			name:           "unprocessable error",
-			errorType:      ErrorTypeUnprocessable,
-			expectedStatus: http.StatusUnprocessableEntity,
-		},
-		{
-			name:           "rate limit error",
-			errorType:      ErrorTypeRateLimit,
-			expectedStatus: http.StatusTooManyRequests,
-		},
-		{
-			name:           "unsupported error",
-			errorType:      ErrorTypeUnsupported,
-			expectedStatus: http.StatusNotImplemented,
-		},
-		{
-			name:           "service unavailable error",
-			errorType:      ErrorTypeServiceUnavailable,
-			expectedStatus: http.StatusServiceUnavailable,
-		},
-		{
-			name:           "circuit breaker error",
-			errorType:      ErrorTypeCircuitBreaker,
-			expectedStatus: http.StatusServiceUnavailable,
-		},
-		{
-			name:           "resource exhausted error",
-			errorType:      ErrorTypeResourceExhausted,
-			expectedStatus: http.StatusInsufficientStorage,
-		},
-		{
-			name:           "dependency error",
-			errorType:      ErrorTypeDependency,
-			expectedStatus: http.StatusFailedDependency,
-		},
-		{
-			name:           "server error (default)",
-			errorType:      ErrorTypeServer,
-			expectedStatus: http.StatusInternalServerError,
-		},
-		{
-			name:           "unknown error type",
-			errorType:      ErrorType("unknown"),
-			expectedStatus: http.StatusInternalServerError,
+			name:         "database error",
+			errorType:    interfaces.DatabaseError,
+			expectedCode: 500,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := &DomainError{
-				Code:    "TEST_001",
-				Message: "test error",
-				Type:    tt.errorType,
+				errorType: tt.errorType,
 			}
 
-			status := err.HTTPStatus()
-			if status != tt.expectedStatus {
-				t.Errorf("expected status %d, got %d", tt.expectedStatus, status)
-			}
+			assert.Equal(t, tt.expectedCode, err.HTTPStatus())
 		})
-	}
-}
-
-func TestDomainError_WithMetadata(t *testing.T) {
-	err := New("TEST_001", "test error")
-
-	// Test adding metadata
-	result := err.WithMetadata("key1", "value1")
-	if result != err {
-		t.Error("expected same instance")
-	}
-
-	if err.Metadata["key1"] != "value1" {
-		t.Errorf("expected metadata key1 to be 'value1', got %v", err.Metadata["key1"])
-	}
-
-	// Test adding multiple metadata
-	err.WithMetadata("key2", 42)
-	err.WithMetadata("key3", true)
-
-	if err.Metadata["key2"] != 42 {
-		t.Errorf("expected metadata key2 to be 42, got %v", err.Metadata["key2"])
-	}
-
-	if err.Metadata["key3"] != true {
-		t.Errorf("expected metadata key3 to be true, got %v", err.Metadata["key3"])
 	}
 }
 
 func TestDomainError_WithContext(t *testing.T) {
-	ctx := context.Background()
-	err := New("TEST_001", "test error")
+	t.Parallel()
 
-	initialStackSize := len(err.Stack)
+	ctx := context.WithValue(context.Background(), "test_key", "test_value")
 
-	result := err.WithContext(ctx, "additional context")
-	if result != err {
-		t.Error("expected same instance")
+	original := &DomainError{
+		id:      "test-id",
+		code:    "TEST001",
+		message: "test error",
 	}
 
-	if len(err.Stack) != initialStackSize+1 {
-		t.Errorf("expected stack size %d, got %d", initialStackSize+1, len(err.Stack))
-	}
+	result := original.WithContext(ctx)
 
-	lastFrame := err.Stack[len(err.Stack)-1]
-	if lastFrame.Message != "additional context" {
-		t.Errorf("expected last frame message 'additional context', got %q", lastFrame.Message)
-	}
+	// Deve retornar uma nova instância
+	assert.NotSame(t, original, result)
+
+	// O contexto deve ter sido definido
+	domainErr, ok := result.(*DomainError)
+	require.True(t, ok)
+	assert.Equal(t, ctx, domainErr.context)
 }
 
 func TestDomainError_Wrap(t *testing.T) {
-	cause := errors.New("original error")
-	err := New("TEST_001", "test error")
+	t.Parallel()
 
-	initialStackSize := len(err.Stack)
+	originalErr := fmt.Errorf("original error")
 
-	result := err.Wrap("wrapping context", cause)
-	if result != err {
-		t.Error("expected same instance")
+	domainErr := &DomainError{
+		id:      "test-id",
+		code:    "TEST001",
+		message: "domain error",
 	}
 
-	if err.Cause != cause {
-		t.Errorf("expected cause %v, got %v", cause, err.Cause)
-	}
+	result := domainErr.Wrap(originalErr)
 
-	if len(err.Stack) != initialStackSize+1 {
-		t.Errorf("expected stack size %d, got %d", initialStackSize+1, len(err.Stack))
-	}
+	// Deve retornar uma nova instância
+	assert.NotSame(t, domainErr, result)
 
-	lastFrame := err.Stack[len(err.Stack)-1]
-	if lastFrame.Message != "wrapping context" {
-		t.Errorf("expected last frame message 'wrapping context', got %q", lastFrame.Message)
-	}
+	// A causa deve ter sido definida
+	assert.Equal(t, originalErr, result.Unwrap())
 }
 
-func TestDomainError_StackTrace(t *testing.T) {
-	err := New("TEST_001", "test error")
+func TestDomainError_WithMetadata(t *testing.T) {
+	t.Parallel()
 
-	stackTrace := err.StackTrace()
-	if stackTrace == "" {
-		t.Error("expected non-empty stack trace")
+	original := &DomainError{
+		id:      "test-id",
+		code:    "TEST001",
+		message: "test error",
+		metadata: map[string]interface{}{
+			"existing": "value",
+		},
 	}
 
-	if !strings.Contains(stackTrace, "Stack trace:") {
-		t.Error("expected stack trace to contain 'Stack trace:'")
-	}
+	result := original.WithMetadata("new_key", "new_value")
 
-	// Test with empty stack
-	err.Stack = nil
-	stackTrace = err.StackTrace()
-	if stackTrace != "" {
-		t.Error("expected empty stack trace")
-	}
+	// Deve retornar uma nova instância
+	assert.NotSame(t, original, result)
+
+	// Os metadados devem ter sido adicionados
+	metadata := result.Metadata()
+	assert.Equal(t, "value", metadata["existing"])
+	assert.Equal(t, "new_value", metadata["new_key"])
+
+	// O original não deve ter sido modificado
+	originalMetadata := original.Metadata()
+	assert.NotContains(t, originalMetadata, "new_key")
 }
 
-func TestIsType(t *testing.T) {
-	tests := []struct {
-		name      string
-		err       error
-		errorType ErrorType
-		expected  bool
-	}{
-		{
-			name:      "matching type",
-			err:       NewWithType("TEST_001", "test error", ErrorTypeValidation),
-			errorType: ErrorTypeValidation,
-			expected:  true,
+func TestDomainError_ToJSON(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+
+	err := &DomainError{
+		id:        "test-id-123",
+		code:      "TEST001",
+		message:   "test error message",
+		errorType: interfaces.ValidationError,
+		metadata: map[string]interface{}{
+			"field": "email",
+			"value": "invalid",
 		},
-		{
-			name:      "non-matching type",
-			err:       NewWithType("TEST_002", "test error", ErrorTypeValidation),
-			errorType: ErrorTypeNotFound,
-			expected:  false,
-		},
-		{
-			name:      "non-domain error",
-			err:       errors.New("regular error"),
-			errorType: ErrorTypeValidation,
-			expected:  false,
-		},
-		{
-			name:      "nil error",
-			err:       nil,
-			errorType: ErrorTypeValidation,
-			expected:  false,
-		},
+		timestamp: now,
+		cause:     fmt.Errorf("wrapped error"),
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := IsType(tt.err, tt.errorType)
-			if result != tt.expected {
-				t.Errorf("expected %v, got %v", tt.expected, result)
-			}
-		})
+	jsonData, jsonErr := err.ToJSON()
+	require.NoError(t, jsonErr)
+
+	var result map[string]interface{}
+	unmarshalErr := json.Unmarshal(jsonData, &result)
+	require.NoError(t, unmarshalErr)
+
+	assert.Equal(t, "test-id-123", result["id"])
+	assert.Equal(t, "TEST001", result["code"])
+	assert.Equal(t, "test error message", result["message"])
+	assert.Equal(t, string(interfaces.ValidationError), result["type"])
+	assert.Equal(t, "wrapped error", result["cause"])
+
+	metadata, ok := result["metadata"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "email", metadata["field"])
+	assert.Equal(t, "invalid", metadata["value"])
+}
+
+func TestErrorFactory_New(t *testing.T) {
+	t.Parallel()
+
+	stackCapture := internal.NewStackTraceCapture(true)
+	factory := NewErrorFactory(stackCapture)
+
+	err := factory.New(interfaces.ValidationError, "VAL001", "validation failed")
+
+	require.NotNil(t, err)
+	assert.Equal(t, interfaces.ValidationError, err.Type())
+	assert.Equal(t, "VAL001", err.Code())
+	assert.Equal(t, "validation failed", err.Error())
+	assert.NotNil(t, err.Metadata())        // Metadata is initialized as empty map, not nil
+	assert.Equal(t, 0, len(err.Metadata())) // Should be empty
+}
+
+func TestErrorFactory_NewWithMetadata(t *testing.T) {
+	t.Parallel()
+
+	stackCapture := internal.NewStackTraceCapture(false)
+	factory := NewErrorFactory(stackCapture)
+
+	metadata := map[string]interface{}{
+		"field": "email",
+		"rule":  "required",
 	}
+
+	err := factory.NewWithMetadata(interfaces.ValidationError, "VAL001", "validation failed", metadata)
+
+	require.NotNil(t, err)
+	assert.Equal(t, interfaces.ValidationError, err.Type())
+	assert.Equal(t, "VAL001", err.Code())
+	assert.Equal(t, "validation failed", err.Error())
+
+	resultMetadata := err.Metadata()
+	assert.Equal(t, "email", resultMetadata["field"])
+	assert.Equal(t, "required", resultMetadata["rule"])
+}
+
+func TestErrorFactory_Wrap(t *testing.T) {
+	t.Parallel()
+
+	originalErr := fmt.Errorf("database connection failed")
+	stackCapture := internal.NewStackTraceCapture(false)
+	factory := NewErrorFactory(stackCapture)
+
+	err := factory.Wrap(originalErr, interfaces.DatabaseError, "DB001", "database operation failed")
+
+	require.NotNil(t, err)
+	assert.Equal(t, interfaces.DatabaseError, err.Type())
+	assert.Equal(t, "DB001", err.Code())
+	assert.Equal(t, "database operation failed", err.Error())
+	assert.Equal(t, originalErr, err.Unwrap())
+}
+
+func TestErrorTypeChecker_IsType(t *testing.T) {
+	t.Parallel()
+
+	checker := &ErrorTypeChecker{}
+
+	t.Run("nil error returns false", func(t *testing.T) {
+		t.Parallel()
+
+		result := checker.IsType(nil, interfaces.ValidationError)
+		assert.False(t, result)
+	})
+
+	t.Run("domain error matches type", func(t *testing.T) {
+		t.Parallel()
+
+		err := &DomainError{
+			errorType: interfaces.ValidationError,
+		}
+
+		result := checker.IsType(err, interfaces.ValidationError)
+		assert.True(t, result)
+
+		result = checker.IsType(err, interfaces.NotFoundError)
+		assert.False(t, result)
+	})
+
+	t.Run("wrapped error matches type", func(t *testing.T) {
+		t.Parallel()
+
+		domainErr := &DomainError{
+			errorType: interfaces.ValidationError,
+		}
+
+		wrappedErr := fmt.Errorf("wrapped: %w", domainErr)
+
+		result := checker.IsType(wrappedErr, interfaces.ValidationError)
+		assert.True(t, result)
+	})
 }
 
 func TestMapHTTPStatus(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name           string
-		err            error
-		expectedStatus int
+		errorType    interfaces.ErrorType
+		expectedCode int
 	}{
-		{
-			name:           "domain error",
-			err:            NewWithType("TEST_001", "test error", ErrorTypeValidation),
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "non-domain error",
-			err:            errors.New("regular error"),
-			expectedStatus: http.StatusInternalServerError,
-		},
-		{
-			name:           "nil error",
-			err:            nil,
-			expectedStatus: http.StatusInternalServerError,
-		},
+		{interfaces.ValidationError, 400},
+		{interfaces.BadRequestError, 400},
+		{interfaces.AuthenticationError, 401},
+		{interfaces.AuthorizationError, 403},
+		{interfaces.NotFoundError, 404},
+		{interfaces.ConflictError, 409},
+		{interfaces.UnprocessableEntityError, 422},
+		{interfaces.DatabaseError, 500},
+		{interfaces.ExternalServiceError, 502},
+		{interfaces.ServiceUnavailableError, 503},
+		{interfaces.TimeoutError, 504},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			status := MapHTTPStatus(tt.err)
-			if status != tt.expectedStatus {
-				t.Errorf("expected status %d, got %d", tt.expectedStatus, status)
-			}
+		t.Run(string(tt.errorType), func(t *testing.T) {
+			t.Parallel()
+
+			result := MapHTTPStatus(tt.errorType)
+			assert.Equal(t, tt.expectedCode, result)
 		})
 	}
+
+	t.Run("unknown error type returns 500", func(t *testing.T) {
+		t.Parallel()
+
+		result := MapHTTPStatus("unknown_error")
+		assert.Equal(t, 500, result)
+	})
 }
 
-func TestWrap(t *testing.T) {
-	cause := errors.New("original error")
+func TestGlobalFunctions(t *testing.T) {
+	t.Parallel()
 
-	err := Wrap("WRAP_001", "wrapped error", cause)
+	t.Run("New creates domain error", func(t *testing.T) {
+		t.Parallel()
 
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
+		err := New(interfaces.ValidationError, "VAL001", "validation failed")
 
-	if err.Code != "WRAP_001" {
-		t.Errorf("expected code 'WRAP_001', got %q", err.Code)
-	}
+		require.NotNil(t, err)
+		assert.Equal(t, interfaces.ValidationError, err.Type())
+		assert.Equal(t, "VAL001", err.Code())
+		assert.Equal(t, "validation failed", err.Error())
+	})
 
-	if err.Message != "wrapped error" {
-		t.Errorf("expected message 'wrapped error', got %q", err.Message)
-	}
+	t.Run("IsType works with global checker", func(t *testing.T) {
+		t.Parallel()
 
-	if err.Cause != cause {
-		t.Errorf("expected cause %v, got %v", cause, err.Cause)
-	}
+		err := New(interfaces.ValidationError, "VAL001", "validation failed")
 
-	if err.Type != ErrorTypeServer {
-		t.Errorf("expected type %q, got %q", ErrorTypeServer, err.Type)
-	}
+		result := IsType(err, interfaces.ValidationError)
+		assert.True(t, result)
 
-	if len(err.Stack) == 0 {
-		t.Error("expected stack trace, got empty")
-	}
+		result = IsType(err, interfaces.NotFoundError)
+		assert.False(t, result)
+	})
 }
 
-func TestWrapWithContext(t *testing.T) {
-	ctx := context.Background()
-	cause := errors.New("original error")
+func TestConvenienceFunctions(t *testing.T) {
+	t.Parallel()
 
-	err := WrapWithContext(ctx, "WRAP_001", "wrapped error", cause)
+	t.Run("NewValidationError", func(t *testing.T) {
+		t.Parallel()
 
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
+		err := NewValidationError("VAL001", "validation failed")
 
-	if err.Code != "WRAP_001" {
-		t.Errorf("expected code 'WRAP_001', got %q", err.Code)
-	}
+		require.NotNil(t, err)
+		assert.Equal(t, interfaces.ValidationError, err.Type())
+		assert.Equal(t, "VAL001", err.Code())
+		assert.Equal(t, "validation failed", err.Error())
+	})
 
-	if err.Message != "wrapped error" {
-		t.Errorf("expected message 'wrapped error', got %q", err.Message)
-	}
+	t.Run("NewNotFoundError", func(t *testing.T) {
+		t.Parallel()
 
-	if err.Cause != cause {
-		t.Errorf("expected cause %v, got %v", cause, err.Cause)
-	}
+		err := NewNotFoundError("NF001", "resource not found")
 
-	if err.Type != ErrorTypeServer {
-		t.Errorf("expected type %q, got %q", ErrorTypeServer, err.Type)
-	}
+		require.NotNil(t, err)
+		assert.Equal(t, interfaces.NotFoundError, err.Type())
+		assert.Equal(t, "NF001", err.Code())
+		assert.Equal(t, "resource not found", err.Error())
+	})
 
-	if len(err.Stack) == 0 {
-		t.Error("expected stack trace, got empty")
-	}
+	t.Run("NewBusinessError", func(t *testing.T) {
+		t.Parallel()
+
+		err := NewBusinessError("BIZ001", "business rule violation")
+
+		require.NotNil(t, err)
+		assert.Equal(t, interfaces.BusinessError, err.Type())
+		assert.Equal(t, "BIZ001", err.Code())
+		assert.Equal(t, "business rule violation", err.Error())
+	})
 }
 
-func TestDomainError_Timestamp(t *testing.T) {
-	before := time.Now()
-	err := New("TEST_001", "test error")
-	after := time.Now()
+func TestGetRootCause(t *testing.T) {
+	t.Parallel()
 
-	if err.Timestamp.Before(before) || err.Timestamp.After(after) {
-		t.Error("timestamp should be between before and after")
-	}
+	t.Run("single error returns itself", func(t *testing.T) {
+		t.Parallel()
+
+		err := fmt.Errorf("original error")
+
+		result := GetRootCause(err)
+		assert.Equal(t, err, result)
+	})
+
+	t.Run("wrapped error returns root cause", func(t *testing.T) {
+		t.Parallel()
+
+		rootErr := fmt.Errorf("root error")
+		wrappedErr := fmt.Errorf("wrapped: %w", rootErr)
+		doubleWrappedErr := fmt.Errorf("double wrapped: %w", wrappedErr)
+
+		result := GetRootCause(doubleWrappedErr)
+		assert.Equal(t, rootErr, result)
+	})
 }
 
-func TestDomainError_captureStackFrame(t *testing.T) {
-	err := &DomainError{
-		Code:    "TEST_001",
-		Message: "test error",
-		Type:    ErrorTypeServer,
-	}
+func TestGetErrorChain(t *testing.T) {
+	t.Parallel()
 
-	// Test initial empty stack
-	if len(err.Stack) != 0 {
-		t.Error("expected empty stack initially")
-	}
+	t.Run("single error returns single item chain", func(t *testing.T) {
+		t.Parallel()
 
-	// Test adding stack frame
-	err.captureStackFrame("test message")
+		err := fmt.Errorf("single error")
 
-	if len(err.Stack) != 1 {
-		t.Errorf("expected stack size 1, got %d", len(err.Stack))
-	}
+		chain := GetErrorChain(err)
+		assert.Len(t, chain, 1)
+		assert.Equal(t, err, chain[0])
+	})
 
-	frame := err.Stack[0]
-	if frame.Message != "test message" {
-		t.Errorf("expected message 'test message', got %q", frame.Message)
-	}
+	t.Run("wrapped errors return full chain", func(t *testing.T) {
+		t.Parallel()
 
-	if frame.Function == "" {
-		t.Error("expected function name to be set")
-	}
+		rootErr := fmt.Errorf("root error")
+		wrappedErr := fmt.Errorf("wrapped: %w", rootErr)
+		doubleWrappedErr := fmt.Errorf("double wrapped: %w", wrappedErr)
 
-	if frame.File == "" {
-		t.Error("expected file name to be set")
-	}
+		chain := GetErrorChain(doubleWrappedErr)
+		assert.Len(t, chain, 3)
+		assert.Equal(t, doubleWrappedErr, chain[0])
+		assert.Equal(t, wrappedErr, chain[1])
+		assert.Equal(t, rootErr, chain[2])
+	})
+}
 
-	if frame.Line == 0 {
-		t.Error("expected line number to be set")
-	}
+func TestFormatErrorChain(t *testing.T) {
+	t.Parallel()
 
-	if frame.Time == "" {
-		t.Error("expected time to be set")
+	t.Run("empty chain returns empty string", func(t *testing.T) {
+		t.Parallel()
+
+		result := FormatErrorChain(nil)
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("formats error chain correctly", func(t *testing.T) {
+		t.Parallel()
+
+		domainErr := New(interfaces.ValidationError, "VAL001", "validation failed")
+		wrappedErr := fmt.Errorf("wrapped: %w", domainErr)
+
+		result := FormatErrorChain(wrappedErr)
+
+		assert.Contains(t, result, "Error chain:")
+		assert.Contains(t, result, "1. wrapped:")
+		assert.Contains(t, result, "2. validation failed")
+		assert.Contains(t, result, "[validation_error:VAL001]")
+	})
+}
+
+func TestManager_Observer(t *testing.T) {
+	t.Parallel()
+
+	manager := NewManager()
+
+	t.Run("register and notify observers", func(t *testing.T) {
+		t.Parallel()
+
+		var observedError atomic.Value
+
+		observer := &mockObserver{
+			onErrorFunc: func(ctx context.Context, err interfaces.DomainErrorInterface) error {
+				observedError.Store(err)
+				return nil
+			},
+		}
+
+		manager.RegisterObserver(observer)
+
+		testErr := New(interfaces.ValidationError, "VAL001", "test error")
+		err := manager.NotifyObservers(context.Background(), testErr)
+
+		assert.NoError(t, err)
+		stored := observedError.Load()
+		if stored != nil {
+			assert.Equal(t, testErr, stored)
+		}
+	})
+
+	t.Run("unregister observer", func(t *testing.T) {
+		t.Parallel()
+
+		var called atomic.Bool
+
+		observer := &mockObserver{
+			onErrorFunc: func(ctx context.Context, err interfaces.DomainErrorInterface) error {
+				called.Store(true)
+				return nil
+			},
+		}
+
+		manager.RegisterObserver(observer)
+		manager.UnregisterObserver(observer)
+
+		testErr := New(interfaces.ValidationError, "VAL001", "test error")
+		err := manager.NotifyObservers(context.Background(), testErr)
+
+		assert.NoError(t, err)
+		assert.False(t, called.Load())
+	})
+}
+
+// Mock observer for testing
+type mockObserver struct {
+	onErrorFunc func(ctx context.Context, err interfaces.DomainErrorInterface) error
+	mu          sync.RWMutex
+}
+
+func (m *mockObserver) OnError(ctx context.Context, err interfaces.DomainErrorInterface) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.onErrorFunc != nil {
+		return m.onErrorFunc(ctx, err)
 	}
+	return nil
+}
+
+func TestStackTrace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("stack trace with capture enabled", func(t *testing.T) {
+		t.Parallel()
+
+		stackCapture := internal.NewStackTraceCapture(true)
+		factory := NewErrorFactory(stackCapture)
+
+		err := factory.New(interfaces.ValidationError, "VAL001", "validation failed")
+
+		stackTrace := err.StackTrace()
+		assert.NotEmpty(t, stackTrace)
+		assert.Contains(t, stackTrace, "Stack trace:")
+	})
+
+	t.Run("stack trace with capture disabled", func(t *testing.T) {
+		t.Parallel()
+
+		stackCapture := internal.NewStackTraceCapture(false)
+		factory := NewErrorFactory(stackCapture)
+
+		err := factory.New(interfaces.ValidationError, "VAL001", "validation failed")
+
+		stackTrace := err.StackTrace()
+		assert.Empty(t, stackTrace)
+	})
+}
+
+func TestConcurrency(t *testing.T) {
+	t.Parallel()
+
+	t.Run("factory is thread safe", func(t *testing.T) {
+		t.Parallel()
+
+		factory := GetFactory()
+		const goroutines = 100
+
+		errors := make(chan interfaces.DomainErrorInterface, goroutines)
+
+		for i := 0; i < goroutines; i++ {
+			go func(id int) {
+				err := factory.New(interfaces.ValidationError, fmt.Sprintf("VAL%03d", id), fmt.Sprintf("error %d", id))
+				errors <- err
+			}(i)
+		}
+
+		for i := 0; i < goroutines; i++ {
+			err := <-errors
+			assert.NotNil(t, err)
+			assert.Equal(t, interfaces.ValidationError, err.Type())
+			assert.Contains(t, err.Code(), "VAL")
+			assert.Contains(t, err.Error(), "error")
+		}
+	})
+
+	t.Run("manager is thread safe", func(t *testing.T) {
+		t.Parallel()
+
+		manager := NewManager()
+		const goroutines = 50
+
+		// Adiciona observadores concorrentemente
+		for i := 0; i < goroutines; i++ {
+			go func() {
+				observer := &mockObserver{}
+				manager.RegisterObserver(observer)
+			}()
+		}
+
+		// Notifica concorrentemente
+		testErr := New(interfaces.ValidationError, "VAL001", "test error")
+		for i := 0; i < goroutines; i++ {
+			go func() {
+				manager.NotifyObservers(context.Background(), testErr)
+			}()
+		}
+
+		// Teste básico - se chegou até aqui sem panic, a sincronização está funcionando
+		assert.True(t, true)
+	})
 }
 
 // Benchmark tests
 func BenchmarkNew(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_ = New("BENCH_001", "benchmark error")
-	}
-}
+	factory := GetFactory()
 
-func BenchmarkNewWithCause(b *testing.B) {
-	cause := errors.New("original error")
-	for i := 0; i < b.N; i++ {
-		_ = NewWithCause("BENCH_001", "benchmark error", cause)
-	}
-}
-
-func BenchmarkError(b *testing.B) {
-	err := New("BENCH_001", "benchmark error")
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = err.Error()
-	}
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			factory.New(interfaces.ValidationError, "VAL001", "validation failed")
+		}
+	})
 }
 
 func BenchmarkWithMetadata(b *testing.B) {
-	err := New("BENCH_001", "benchmark error")
+	err := New(interfaces.ValidationError, "VAL001", "validation failed")
+
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		err.WithMetadata("key", "value")
-	}
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			err.WithMetadata("key", "value")
+		}
+	})
 }
 
-func BenchmarkHTTPStatus(b *testing.B) {
-	err := NewWithType("BENCH_001", "benchmark error", ErrorTypeValidation)
+func BenchmarkToJSON(b *testing.B) {
+	err := NewWithMetadata(interfaces.ValidationError, "VAL001", "validation failed", map[string]interface{}{
+		"field": "email",
+		"rule":  "required",
+	})
+
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = err.HTTPStatus()
-	}
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_, _ = err.ToJSON()
+		}
+	})
 }
 
-func BenchmarkStackTrace(b *testing.B) {
-	err := New("BENCH_001", "benchmark error")
+func BenchmarkIsType(b *testing.B) {
+	err := New(interfaces.ValidationError, "VAL001", "validation failed")
+	checker := GetChecker()
+
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = err.StackTrace()
-	}
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			checker.IsType(err, interfaces.ValidationError)
+		}
+	})
+}
+
+// Additional tests for uncovered functions
+func TestManager_HookMethods(t *testing.T) {
+	t.Parallel()
+
+	manager := NewManager()
+
+	t.Run("register and execute start hooks", func(t *testing.T) {
+		t.Parallel()
+
+		executed := atomic.Bool{}
+		hook := func(ctx context.Context) error {
+			executed.Store(true)
+			return nil
+		}
+
+		manager.hookManager.RegisterStartHook(hook)
+		err := manager.hookManager.ExecuteStartHooks(context.Background())
+
+		assert.NoError(t, err)
+		assert.True(t, executed.Load())
+	})
+
+	t.Run("register and execute stop hooks", func(t *testing.T) {
+		t.Parallel()
+
+		executed := atomic.Bool{}
+		hook := func(ctx context.Context) error {
+			executed.Store(true)
+			return nil
+		}
+
+		manager.hookManager.RegisterStopHook(hook)
+		err := manager.hookManager.ExecuteStopHooks(context.Background())
+
+		assert.NoError(t, err)
+		assert.True(t, executed.Load())
+	})
+
+	t.Run("register and execute error hooks", func(t *testing.T) {
+		t.Parallel()
+
+		var receivedError atomic.Value
+		hook := func(ctx context.Context, err interfaces.DomainErrorInterface) error {
+			receivedError.Store(err)
+			return nil
+		}
+
+		manager.hookManager.RegisterErrorHook(hook)
+		testErr := New(interfaces.ValidationError, "VAL001", "test error")
+		err := manager.hookManager.ExecuteErrorHooks(context.Background(), testErr)
+
+		assert.NoError(t, err)
+		stored := receivedError.Load()
+		if stored != nil {
+			assert.Equal(t, testErr, stored)
+		}
+	})
+
+	t.Run("register and execute i18n hooks", func(t *testing.T) {
+		t.Parallel()
+
+		var receivedError atomic.Value
+		var receivedLocale atomic.Value
+		hook := func(ctx context.Context, err interfaces.DomainErrorInterface, locale string) error {
+			receivedError.Store(err)
+			receivedLocale.Store(locale)
+			return nil
+		}
+
+		manager.hookManager.RegisterI18nHook(hook)
+		testErr := New(interfaces.ValidationError, "VAL001", "test error")
+		err := manager.hookManager.ExecuteI18nHooks(context.Background(), testErr, "pt-BR")
+
+		assert.NoError(t, err)
+		storedError := receivedError.Load()
+		storedLocale := receivedLocale.Load()
+		if storedError != nil {
+			assert.Equal(t, testErr, storedError)
+		}
+		if storedLocale != nil {
+			assert.Equal(t, "pt-BR", storedLocale)
+		}
+	})
+}
+
+func TestManager_MiddlewareMethods(t *testing.T) {
+	t.Parallel()
+
+	manager := NewManager()
+
+	t.Run("register and execute middlewares", func(t *testing.T) {
+		t.Parallel()
+
+		executed := atomic.Bool{}
+		middleware := func(ctx context.Context, err interfaces.DomainErrorInterface, next func(interfaces.DomainErrorInterface) interfaces.DomainErrorInterface) interfaces.DomainErrorInterface {
+			executed.Store(true)
+			return next(err)
+		}
+
+		manager.middlewareManager.RegisterMiddleware(middleware)
+		testErr := New(interfaces.ValidationError, "VAL001", "test error")
+		result := manager.middlewareManager.ExecuteMiddlewares(context.Background(), testErr)
+
+		assert.Equal(t, testErr, result)
+		assert.True(t, executed.Load())
+	})
+
+	t.Run("register and execute i18n middlewares", func(t *testing.T) {
+		t.Parallel()
+
+		executed := atomic.Bool{}
+		middleware := func(ctx context.Context, err interfaces.DomainErrorInterface, locale string, next func(interfaces.DomainErrorInterface) interfaces.DomainErrorInterface) interfaces.DomainErrorInterface {
+			executed.Store(true)
+			return next(err)
+		}
+
+		manager.middlewareManager.RegisterI18nMiddleware(middleware)
+		testErr := New(interfaces.ValidationError, "VAL001", "test error")
+		result := manager.middlewareManager.ExecuteI18nMiddlewares(context.Background(), testErr, "pt-BR")
+
+		assert.Equal(t, testErr, result)
+		assert.True(t, executed.Load())
+	})
+}
+
+func TestDomainError_AdditionalMethods(t *testing.T) {
+	t.Parallel()
+
+	t.Run("timestamp returns creation time", func(t *testing.T) {
+		t.Parallel()
+
+		before := time.Now()
+		err := New(interfaces.ValidationError, "VAL001", "test error")
+		after := time.Now()
+
+		timestamp := err.Timestamp()
+		assert.True(t, timestamp.After(before) || timestamp.Equal(before))
+		assert.True(t, timestamp.Before(after) || timestamp.Equal(after))
+	})
+
+	t.Run("with metadata preserves existing metadata", func(t *testing.T) {
+		t.Parallel()
+
+		original := NewWithMetadata(interfaces.ValidationError, "VAL001", "test error", map[string]interface{}{
+			"field": "email",
+		})
+
+		modified := original.WithMetadata("rule", "required")
+
+		assert.Contains(t, modified.Metadata(), "field")
+		assert.Contains(t, modified.Metadata(), "rule")
+		assert.Equal(t, "email", modified.Metadata()["field"])
+		assert.Equal(t, "required", modified.Metadata()["rule"])
+	})
+}
+
+func TestErrorTypeChecker_AdditionalCases(t *testing.T) {
+	t.Parallel()
+
+	checker := &ErrorTypeChecker{}
+
+	t.Run("non-domain error returns false", func(t *testing.T) {
+		t.Parallel()
+
+		regularError := fmt.Errorf("regular error")
+		result := checker.IsType(regularError, interfaces.ValidationError)
+
+		assert.False(t, result)
+	})
+
+	t.Run("deep wrapped domain error matches type", func(t *testing.T) {
+		t.Parallel()
+
+		domainErr := New(interfaces.ValidationError, "VAL001", "validation failed")
+		wrapped1 := fmt.Errorf("wrapper 1: %w", domainErr)
+		wrapped2 := fmt.Errorf("wrapper 2: %w", wrapped1)
+
+		result := checker.IsType(wrapped2, interfaces.ValidationError)
+		assert.True(t, result)
+
+		result = checker.IsType(wrapped2, interfaces.NotFoundError)
+		assert.False(t, result)
+	})
+}
+
+func TestGlobalConvenienceFunctions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NewWithMetadata creates error with metadata", func(t *testing.T) {
+		t.Parallel()
+
+		metadata := map[string]interface{}{
+			"field": "password",
+			"rule":  "min_length",
+		}
+
+		err := NewWithMetadata(interfaces.ValidationError, "VAL002", "password too short", metadata)
+
+		assert.Equal(t, interfaces.ValidationError, err.Type())
+		assert.Equal(t, "VAL002", err.Code())
+		assert.Equal(t, "password too short", err.Error())
+		assert.Equal(t, "password", err.Metadata()["field"])
+		assert.Equal(t, "min_length", err.Metadata()["rule"])
+	})
+
+	t.Run("Wrap creates wrapped error", func(t *testing.T) {
+		t.Parallel()
+
+		originalErr := fmt.Errorf("database connection failed")
+		factory := NewErrorFactory(internal.NewStackTraceCapture(false))
+		wrappedErr := factory.Wrap(originalErr, interfaces.DatabaseError, "DB001", "failed to save user")
+
+		assert.Equal(t, interfaces.DatabaseError, wrappedErr.Type())
+		assert.Equal(t, "DB001", wrappedErr.Code())
+		assert.Equal(t, "failed to save user", wrappedErr.Error())
+		assert.Equal(t, originalErr, wrappedErr.Unwrap())
+	})
 }

@@ -2,137 +2,123 @@ package internal
 
 import (
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
 )
 
-// StackFrame representa informações de um frame do stack trace
-type StackFrame struct {
-	Function string    `json:"function"`
-	File     string    `json:"file"`
-	Line     int       `json:"line"`
-	Message  string    `json:"message,omitempty"`
-	Time     time.Time `json:"time"`
+// StackTraceCapture implementa a captura de stack trace
+type StackTraceCapture struct {
+	withStackTrace bool
+}
+
+// NewStackTraceCapture cria uma nova instância de StackTraceCapture
+func NewStackTraceCapture(withStackTrace bool) *StackTraceCapture {
+	return &StackTraceCapture{
+		withStackTrace: withStackTrace,
+	}
 }
 
 // CaptureStackTrace captura o stack trace atual
-func CaptureStackTrace(skip int, message string) []StackFrame {
-	var frames []StackFrame
+func (s *StackTraceCapture) CaptureStackTrace(skip int) []interfaces.StackFrame {
+	if !s.withStackTrace {
+		return nil
+	}
 
-	// Captura até 50 frames do stack trace
-	for i := skip; i < skip+50; i++ {
-		pc, file, line, ok := runtime.Caller(i)
-		if !ok {
+	var frames []interfaces.StackFrame
+	pc := make([]uintptr, 32)
+	n := runtime.Callers(skip+2, pc)
+
+	if n == 0 {
+		return frames
+	}
+
+	pc = pc[:n]
+	callersFrames := runtime.CallersFrames(pc)
+
+	timestamp := time.Now().Format(time.RFC3339)
+
+	for {
+		frame, more := callersFrames.Next()
+
+		// Filtra frames internos do Go runtime
+		if !s.shouldIncludeFrame(frame.Function) {
+			if !more {
+				break
+			}
+			continue
+		}
+
+		stackFrame := interfaces.StackFrame{
+			Function: frame.Function,
+			File:     filepath.Base(frame.File),
+			Line:     frame.Line,
+			Time:     timestamp,
+		}
+
+		frames = append(frames, stackFrame)
+
+		if !more {
 			break
 		}
-
-		fn := runtime.FuncForPC(pc)
-		fnName := "unknown"
-		if fn != nil {
-			fnName = fn.Name()
-		}
-
-		frame := StackFrame{
-			Function: fnName,
-			File:     file,
-			Line:     line,
-			Message:  message,
-			Time:     time.Now(),
-		}
-
-		frames = append(frames, frame)
 	}
 
 	return frames
 }
 
 // FormatStackTrace formata o stack trace para exibição
-// Baseado nas linhas 252-269 do arquivo de referência
-func FormatStackTrace(frames []StackFrame) string {
+func (s *StackTraceCapture) FormatStackTrace(frames []interfaces.StackFrame) string {
 	if len(frames) == 0 {
 		return ""
 	}
 
-	var b strings.Builder
-	b.WriteString("Error Stack Trace:\n")
+	var builder strings.Builder
+	builder.WriteString("Stack trace:\n")
 
-	for i, st := range frames {
-		b.WriteString(fmt.Sprintf("%d: [%s] in %s (%s:%d)\n",
-			i+1, st.Message, st.Function, st.File, st.Line))
-	}
-
-	return b.String()
-}
-
-// GetCallerInfo retorna informações sobre o chamador
-func GetCallerInfo(skip int) (function, file string, line int, ok bool) {
-	pc, file, line, ok := runtime.Caller(skip)
-	if !ok {
-		return "", "", 0, false
-	}
-
-	fn := runtime.FuncForPC(pc)
-	if fn == nil {
-		return "unknown", file, line, true
-	}
-
-	return fn.Name(), file, line, true
-}
-
-// TrimStackTrace remove frames desnecessários do stack trace
-func TrimStackTrace(frames []StackFrame, maxFrames int) []StackFrame {
-	if len(frames) <= maxFrames {
-		return frames
-	}
-
-	// Mantém os primeiros frames (mais relevantes)
-	return frames[:maxFrames]
-}
-
-// FilterStackTrace filtra frames do stack trace baseado em critérios
-func FilterStackTrace(frames []StackFrame, filter func(StackFrame) bool) []StackFrame {
-	var filtered []StackFrame
-
-	for _, frame := range frames {
-		if filter(frame) {
-			filtered = append(filtered, frame)
+	for i, frame := range frames {
+		builder.WriteString(fmt.Sprintf("  %d. %s\n", i+1, frame.Function))
+		builder.WriteString(fmt.Sprintf("     %s:%d\n", frame.File, frame.Line))
+		if frame.Message != "" {
+			builder.WriteString(fmt.Sprintf("     Message: %s\n", frame.Message))
+		}
+		builder.WriteString(fmt.Sprintf("     Time: %s\n", frame.Time))
+		if i < len(frames)-1 {
+			builder.WriteString("\n")
 		}
 	}
 
-	return filtered
+	return builder.String()
 }
 
-// IsSystemFrame verifica se o frame é do sistema (runtime, etc.)
-func IsSystemFrame(frame StackFrame) bool {
-	systemPrefixes := []string{
+// shouldIncludeFrame determina se um frame deve ser incluído no stack trace
+func (s *StackTraceCapture) shouldIncludeFrame(function string) bool {
+	// Filtra frames internos do runtime Go
+	excludedPrefixes := []string{
 		"runtime.",
 		"testing.",
 		"reflect.",
-		"sync.",
-		"os.",
 		"syscall.",
+		"os.",
 	}
 
-	for _, prefix := range systemPrefixes {
-		if strings.HasPrefix(frame.Function, prefix) {
-			return true
+	for _, prefix := range excludedPrefixes {
+		if strings.HasPrefix(function, prefix) {
+			return false
 		}
 	}
 
-	return false
+	return true
 }
 
-// IsTestFrame verifica se o frame é de teste
-func IsTestFrame(frame StackFrame) bool {
-	return strings.Contains(frame.Function, "Test") ||
-		strings.Contains(frame.File, "_test.go") ||
-		strings.Contains(frame.Function, "Benchmark")
+// DefaultStackTraceCapture cria uma instância padrão com stack trace habilitado
+func DefaultStackTraceCapture() *StackTraceCapture {
+	return NewStackTraceCapture(true)
 }
 
-// GetUserFrames retorna apenas frames do código do usuário
-func GetUserFrames(frames []StackFrame) []StackFrame {
-	return FilterStackTrace(frames, func(frame StackFrame) bool {
-		return !IsSystemFrame(frame) && !IsTestFrame(frame)
-	})
+// NoStackTraceCapture cria uma instância sem captura de stack trace
+func NoStackTraceCapture() *StackTraceCapture {
+	return NewStackTraceCapture(false)
 }

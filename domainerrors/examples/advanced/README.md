@@ -1,115 +1,196 @@
-# Advanced Domain Errors Examples
+# Exemplo Avançado - Domain Errors
 
-Este exemplo demonstra o uso avançado da biblioteca de erros de domínio, incluindo tipos específicos de erro, encadeamento complexo e padrões de recuperação.
+Este exemplo demonstra padrões avançados e funcionalidades empresariais do sistema de domainerrors, incluindo métricas, audit, circuit breakers e processamento complexo de middlewares.
 
-## Executar o Exemplo
+## Funcionalidades Demonstradas
+
+### 1. Componentes Avançados
+
+#### ErrorMetrics
+- Sistema thread-safe de métricas de erro
+- Contadores por tipo de erro
+- Análise estatística em tempo real
+
+#### AuditLogger
+- Sistema de audit trail para compliance
+- Registro detalhado com contexto
+- Armazenamento thread-safe de logs
+
+#### CircuitBreaker
+- Implementação de circuit breaker pattern
+- Proteção contra falhas em cascata
+- Estados: closed, open, half-open
+
+### 2. Hooks Avançados
+
+#### Hook de Inicialização
+```go
+hooks.RegisterGlobalStartHook(func(ctx context.Context) error {
+    // Verificação de dependências
+    // Validação de configuração
+    // Inicialização de componentes
+})
+```
+
+#### Hook de Finalização
+```go
+hooks.RegisterGlobalStopHook(func(ctx context.Context) error {
+    // Cleanup de recursos
+    // Relatórios finais
+    // Graceful shutdown
+})
+```
+
+#### Hook de Erro com Métricas
+```go
+hooks.RegisterGlobalErrorHook(func(ctx context.Context, err interfaces.DomainErrorInterface) error {
+    // Incrementar métricas
+    // Atualizar circuit breaker
+    // Log com severity
+})
+```
+
+### 3. Middlewares Avançados
+
+#### Context Enrichment Middleware
+- Adiciona request_id, user_id, correlation_id
+- Enriquece com metadados de ambiente
+- Timestamp de processamento
+
+#### Rate Limiting Middleware
+- Aplica rate limiting por tipo de erro
+- Transforma erros quando limite excedido
+- Políticas configuráveis
+
+#### Audit Middleware
+- Registra todos os erros em audit trail
+- Contextualização completa
+- Compliance e rastreabilidade
+
+#### I18n Avançado
+- Tradução com fallback
+- Confiança na tradução
+- Detecção automática de locale
+
+### 4. Classificação de Erros
+
+#### Por Criticidade
+- **LOW**: Validation, BadRequest
+- **MEDIUM**: NotFound, Authentication  
+- **HIGH**: Business, Authorization
+- **CRITICAL**: Database, ExternalService, Security
+
+#### Por Impacto no Circuit Breaker
+Erros críticos contribuem para abertura do circuit breaker:
+- DatabaseError
+- ExternalServiceError
+- InfrastructureError
+- SecurityError
+
+### 5. Funcionalidades Empresariais
+
+#### Correlation IDs
+Cada erro recebe um correlation ID único para rastreamento distribuído.
+
+#### Multi-tenancy
+Suporte para user_id e context segregation.
+
+#### Observability
+- Métricas detalhadas
+- Logs estruturados
+- Tracing distribuído
+
+#### Compliance
+- Audit trail completo
+- Retenção de logs
+- Contexto regulatório
+
+## Como Executar
 
 ```bash
 cd examples/advanced
 go run main.go
 ```
 
-## Exemplos Incluídos
+Ou compile primeiro:
 
-### 1. Tipos Específicos de Erro
-- **ValidationError**: Erro de validação com campos específicos
-- **BusinessError**: Erro de regra de negócio com regras violadas
-- **DatabaseError**: Erro de banco de dados com operação e query
-- **ExternalServiceError**: Erro de serviço externo com endpoint e resposta
-
-### 2. Encadeamento com Contexto
-- Como usar `WithContext()` para adicionar informações contextuais
-- Propagação de informações de request através da cadeia de erros
-- Stack trace detalhado mostrando toda a cadeia
-
-### 3. Cadeias de Erro Complexas
-- Simulação de erro em múltiplas camadas (database → repository → service → controller)
-- Como cada camada adiciona seu próprio contexto
-- Navegação através da cadeia de erros para análise
-
-### 4. Tratamento de Erro em Camadas
-- Padrão de erro em arquitetura em camadas
-- Como diferentes camadas lidam com erros
-- Mapeamento automático de tipos de erro para códigos HTTP
-
-### 5. Metadados Personalizados
-- Uso de `UnprocessableEntityError` com informações detalhadas
-- Metadados customizados para contexto adicional
-- Análise de erro com verificação de tipos
-
-## Padrões Demonstrados
-
-### Encadeamento de Erro
-```go
-// Erro base
-originalErr := errors.New("network connection failed")
-
-// Camada de infraestrutura
-infraErr := domainerrors.NewinfraestructureError("redis", "Cache operation failed", originalErr)
-
-// Camada de serviço
-serviceErr := domainerrors.NewServerError("User service failed", infraErr)
-serviceErr.WithContext(ctx, "processing user registration")
+```bash
+go build -o advanced-example main.go
+./advanced-example
 ```
 
-### Metadados Ricos
+## Saída Esperada
+
+O exemplo processará 5 tipos diferentes de erro, demonstrando:
+
+1. **Inicialização**: Verificação de dependências
+2. **Processamento**: Middlewares em cadeia
+3. **Métricas**: Contadores por tipo
+4. **Circuit Breaker**: Estado e falhas
+5. **Audit**: Trail completo
+6. **I18n**: Tradução para múltiplos locales
+7. **Finalização**: Cleanup e estatísticas
+
+## Casos de Uso Reais
+
+### 1. Sistema de E-commerce
 ```go
-err := domainerrors.NewUnprocessableEntityError("User entity validation failed")
-err.WithEntityInfo("User", "user-12345")
-err.WithValidationErrors(map[string][]string{
-    "email": {"invalid format", "already exists"},
-    "age":   {"must be 18 or older"},
+// Middleware para tracking de transações
+middlewares.RegisterGlobalMiddleware(func(ctx context.Context, err interfaces.DomainErrorInterface, next func(interfaces.DomainErrorInterface) interfaces.DomainErrorInterface) interfaces.DomainErrorInterface {
+    if err.Type() == interfaces.BusinessError {
+        transactionService.RecordError(ctx, err.Code())
+    }
+    return next(err)
 })
-err.WithBusinessRuleViolation("User must be verified")
 ```
 
-### Análise de Erro
+### 2. API Gateway
 ```go
-// Verificar tipo de erro
-if domainerrors.IsType(err, domainerrors.ErrorTypeTimeout) {
-    // Implementar retry
-}
-
-// Mapear para HTTP status
-statusCode := domainerrors.MapHTTPStatus(err)
+// Hook para rate limiting global
+hooks.RegisterGlobalErrorHook(func(ctx context.Context, err interfaces.DomainErrorInterface) error {
+    if rateLimiter.ShouldBlock(ctx, err) {
+        // Aplicar penalidade
+        rateLimiter.ApplyPenalty(ctx)
+    }
+    return nil
+})
 ```
 
-## Padrões de Recuperação
+### 3. Sistema Bancário
+```go
+// Middleware para compliance financeira
+middlewares.RegisterGlobalMiddleware(func(ctx context.Context, err interfaces.DomainErrorInterface, next func(interfaces.DomainErrorInterface) interfaces.DomainErrorInterface) interfaces.DomainErrorInterface {
+    if isFinancialOperation(ctx) {
+        complianceLogger.RecordFinancialError(ctx, err)
+    }
+    return next(err)
+})
+```
 
-### Retry Pattern
-- Verificação se o erro é retryável
-- Implementação de backoff exponencial
-- Limite de tentativas
+### 4. Sistema de Saúde
+```go
+// Hook para HIPAA compliance
+hooks.RegisterGlobalErrorHook(func(ctx context.Context, err interfaces.DomainErrorInterface) error {
+    if containsPHI(err) {
+        hipaaLogger.RecordPHIAccess(ctx, err)
+    }
+    return nil
+})
+```
 
-### Circuit Breaker
-- Detecção de falhas consecutivas
-- Abertura do circuito para proteção
-- Recuperação gradual
+## Padrões Implementados
 
-### Fallback
-- Alternativas quando serviços falham
-- Degradação graceful
-- Resiliência da aplicação
+- **Observer Pattern**: Para hooks e notificações
+- **Chain of Responsibility**: Para middlewares
+- **Circuit Breaker**: Para resiliência
+- **Strategy Pattern**: Para diferentes tipos de erro
+- **Decorator Pattern**: Para enriquecimento de contexto
 
-## Integração com Observabilidade
+## Métricas e Observabilidade
 
-### Logging Estruturado
-- Metadados para correlação
-- Stack traces para debugging
-- Contexto de request
-
-### Métricas
+O exemplo coleta e exibe:
 - Contadores por tipo de erro
-- Latência e timeout
-- Taxa de erro por serviço
-
-### Tracing
-- Propagação de erro através de spans
-- Correlação de traces
-- Análise de performance
-
-## Próximos Passos
-
-- Veja exemplos específicos por tipo em `../types/`
-- Explore integração com APIs em `../api/`
-- Aprenda sobre observabilidade em `../observability/`
+- Estado do circuit breaker
+- Logs de audit com contexto
+- Estatísticas de tradução
+- Tempos de processamento

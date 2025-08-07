@@ -1,254 +1,201 @@
-# Domain Errors Examples
+# Exemplos - Domain Errors
 
-This directory contains comprehensive examples demonstrating how to use the Domain Errors library in various scenarios. Each example focuses on different aspects of error handling in domain-driven design.
+Esta pasta contém exemplos práticos demonstrando diferentes aspectos e casos de uso do sistema de domain errors.
 
-## Available Examples
+## Estrutura dos Exemplos
 
-### 1. Basic Usage (`basic/`)
-**Purpose**: Introduction to basic domain error usage
-**Key Features**:
-- Creating different types of domain errors
-- Basic error handling patterns
-- Error code and message usage
-- Simple error type demonstrations
+### 📁 basic/
+Exemplo básico demonstrando funcionalidades fundamentais:
+- Criação de diferentes tipos de erro
+- Uso de metadados
+- Serialização JSON
+- Mapeamento para códigos HTTP
+- Stack traces
+- Encadeamento de erros (wrapping)
 
-**Best For**: Getting started with the library, understanding basic concepts
+**Funcionalidades**: Introdução aos conceitos básicos
+**Arquivo**: `basic/main.go`
+**README**: `basic/README.md`
 
-### 2. Advanced Usage (`advanced/`)
-**Purpose**: Complex error handling scenarios
-**Key Features**:
-- Error composition and chaining
-- Context-aware error handling
-- Custom error types and patterns
-- Error aggregation and collection
+### 📁 global/
+Exemplo de hooks e middlewares globais:
+- Registro de hooks globais (start, stop, error, i18n)
+- Middlewares globais para processamento
+- Sistema de tradução automática
+- Estatísticas de hooks e middlewares
+- Processamento em cadeia
 
-**Best For**: Production applications requiring sophisticated error handling
+**Funcionalidades**: Hooks, middlewares, i18n global
+**Arquivo**: `global/main.go`
+**README**: `global/README.md`
 
-### 3. Specific Errors (`specific-errors/`)
-**Purpose**: Comprehensive demonstration of all 26 error types
-**Key Features**:
-- All error types with real-world examples
-- Proper error construction with context
-- Error-specific method usage
-- Complete error type coverage
+### 📁 advanced/
+Exemplo avançado com padrões empresariais:
+- Sistema de métricas thread-safe
+- Audit trail para compliance
+- Circuit breaker pattern
+- Classificação de erros por criticidade
+- Context enrichment
+- Rate limiting
+- Observabilidade completa
 
-**Best For**: Understanding all available error types and their use cases
+**Funcionalidades**: Métricas, audit, circuit breaker, observability
+**Arquivo**: `advanced/main.go`
+**README**: `advanced/README.md`
 
-### 4. HTTP Integration (`http-integration/`)
-**Purpose**: Web API error handling
-**Key Features**:
-- HTTP status code mapping
-- JSON error responses
-- REST API error handling
-- Structured error responses
+### 📁 outros/
+Casos de uso práticos e integrações:
+- Validação de formulários complexos
+- Sistema bancário com transações
+- API REST com tratamento de erros
+- Autenticação multi-modal
+- Integração com serviços externos
+- Sistema de cache com fallback
 
-**Best For**: Web applications, REST APIs, HTTP services
+**Funcionalidades**: Validação, transações, REST API, auth, cache
+**Arquivo**: `outros/main.go`
+**README**: `outros/README.md`
 
-### 5. Error Recovery (`error-recovery/`)
-**Purpose**: Resilient error handling patterns
-**Key Features**:
-- Retry mechanisms with backoff
-- Circuit breaker patterns
-- Fallback strategies
-- Bulk operation error handling
+## Como Executar os Exemplos
 
-**Best For**: Microservices, distributed systems, resilient applications
+Cada exemplo pode ser executado individualmente:
 
-### 7. **Hooks and Middleware (`hooks-middleware/`)**
-**Purpose**: Advanced error processing with hooks and middleware systems
-**Key Features**:
-- Event-driven error processing with hooks
-- Chain of responsibility pattern with middleware
-- Real-world logging and audit scenarios
-- Error enrichment pipelines
-- Circuit breaker, rate limiting, and security patterns
-
-**Best For**: Production applications requiring sophisticated error processing, monitoring, and transformation
-
-### 8. Serialization (`serialization/`)
-**Purpose**: Cross-system error communication
-**Key Features**:
-- JSON and XML serialization
-- Error reconstruction
-- Error collections
-- Compact serialization formats
-
-**Best For**: Cross-service communication, logging, monitoring
-
-## Quick Start
-
-1. **Clone the repository**:
 ```bash
-git clone https://github.com/fsvxavier/nexs-lib.git
-cd nexs-lib/domainerrors/examples
-```
-
-2. **Run any example**:
-```bash
-# Basic usage
+# Exemplo básico
 cd basic && go run main.go
 
-# HTTP integration
-cd http-integration && go run main.go
+# Exemplo global
+cd global && go run main.go
 
-# Error recovery patterns
-cd error-recovery && go run main.go
+# Exemplo avançado
+cd advanced && go run main.go
+
+# Outros casos de uso
+cd outros && go run main.go
 ```
 
-3. **Run all examples**:
+Ou compile primeiro:
+
 ```bash
-./run_all_examples.sh
+cd [exemplo]
+go build -o example main.go
+./example
 ```
 
-## Example Structure
+## Progressão Recomendada
 
-Each example directory contains:
-- `main.go` - Main example code
-- `README.md` - Detailed documentation
-- Additional files as needed
+1. **basic/**: Comece aqui para entender os conceitos fundamentais
+2. **global/**: Aprenda sobre hooks e middlewares globais
+3. **advanced/**: Explore padrões empresariais avançados
+4. **outros/**: Veja casos de uso práticos e integrações
 
-## Error Types Covered
+## Dependências
 
-All examples demonstrate various combinations of these error types:
-
-| Error Type | HTTP Status | Description |
-|-----------|-------------|-------------|
-| ValidationError | 400 | Input validation failures |
-| BusinessError | 422 | Business rule violations |
-| NotFoundError | 404 | Resource not found |
-| ConflictError | 409 | Resource conflicts |
-| TimeoutError | 504 | Operation timeouts |
-| RateLimitError | 429 | Rate limit exceeded |
-| ExternalServiceError | 502 | External service failures |
-| DatabaseError | 500 | Database operation errors |
-| AuthenticationError | 401 | Authentication failures |
-| AuthorizationError | 403 | Authorization failures |
-| ServerError | 500 | Internal server errors |
-| NetworkError | 503 | Network-related errors |
-| SecurityError | 403 | Security violations |
-| ConfigurationError | 500 | Configuration errors |
-| DependencyError | 503 | Dependency failures |
-| ResourceExhaustedError | 429 | Resource exhaustion |
-| CircuitBreakerError | 503 | Circuit breaker open |
-| SerializationError | 400 | Serialization failures |
-| MigrationError | 500 | Database migration errors |
-| UnsupportedOperationError | 501 | Unsupported operations |
-| PerformanceError | 503 | Performance degradation |
-| DataIntegrityError | 409 | Data integrity violations |
-| UnprocessableEntityError | 422 | Unprocessable entities |
-| PreconditionFailedError | 412 | Precondition failures |
-| ServiceUnavailableError | 503 | Service unavailable |
-| CacheError | 503 | Cache operation errors |
-
-## Common Patterns
-
-### 1. Error Creation
+Todos os exemplos dependem apenas do módulo principal:
 ```go
-// Basic error
-err := domainerrors.NewValidationError("INVALID_EMAIL", "Invalid email format", nil)
-
-// With context
-err.WithField("email", "must be a valid email address")
+import "github.com/fsvxavier/nexs-lib/domainerrors"
 ```
 
-### 2. Error Handling
+Alguns exemplos específicos também importam subpacotes:
 ```go
-if err != nil {
-    if domainErr, ok := err.(*domainerrors.DomainError); ok {
-        // Handle based on error type
-        switch domainErr.Type {
-        case domainerrors.ErrorTypeValidation:
-            // Handle validation error
-        case domainerrors.ErrorTypeNotFound:
-            // Handle not found error
-        }
-    }
-}
+import (
+    "github.com/fsvxavier/nexs-lib/domainerrors/hooks"
+    "github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
+    "github.com/fsvxavier/nexs-lib/domainerrors/middlewares"
+)
 ```
 
-### 3. HTTP Response
-```go
-func handleError(w http.ResponseWriter, err error) {
-    if domainErr, ok := err.(*domainerrors.DomainError); ok {
-        statusCode := domainErr.HTTPStatus()
-        w.WriteHeader(statusCode)
-        json.NewEncoder(w).Encode(map[string]interface{}{
-            "error": domainErr.Code,
-            "message": domainErr.Message,
-        })
-    }
-}
-```
+## Funcionalidades por Exemplo
 
-## Integration Guidelines
+| Funcionalidade | basic | global | advanced | outros |
+|---------------|-------|--------|----------|--------|
+| Criação de erros | ✅ | ✅ | ✅ | ✅ |
+| Metadados | ✅ | ✅ | ✅ | ✅ |
+| Stack traces | ✅ | ✅ | ✅ | ✅ |
+| JSON serialization | ✅ | ✅ | ✅ | ✅ |
+| HTTP mapping | ✅ | ✅ | ✅ | ✅ |
+| Hooks globais | ❌ | ✅ | ✅ | ❌ |
+| Middlewares globais | ❌ | ✅ | ✅ | ❌ |
+| I18n | ❌ | ✅ | ✅ | ❌ |
+| Métricas | ❌ | ❌ | ✅ | ❌ |
+| Audit trail | ❌ | ❌ | ✅ | ❌ |
+| Circuit breaker | ❌ | ❌ | ✅ | ❌ |
+| Validação complexa | ❌ | ❌ | ❌ | ✅ |
+| Sistema bancário | ❌ | ❌ | ❌ | ✅ |
+| API REST | ❌ | ❌ | ❌ | ✅ |
+| Autenticação | ❌ | ❌ | ❌ | ✅ |
+| Cache + Fallback | ❌ | ❌ | ❌ | ✅ |
 
-### 1. Web Applications
-- Use HTTP integration example as base
-- Map errors to appropriate HTTP status codes
-- Return structured JSON error responses
-- Include request tracing information
+## Padrões Demonstrados
 
-### 2. Microservices
-- Use error recovery patterns
-- Implement circuit breakers
-- Use serialization for cross-service communication
-- Include correlation IDs for tracing
+### Design Patterns
+- **Observer Pattern**: Hooks para notificações
+- **Chain of Responsibility**: Middlewares em cadeia
+- **Strategy Pattern**: Diferentes tipos de erro
+- **Decorator Pattern**: Enriquecimento de contexto
+- **Circuit Breaker**: Resiliência de sistema
 
-### 3. Database Applications
-- Use specific database error types
-- Implement retry mechanisms
-- Handle connection failures gracefully
-- Use proper error context
+### Architectural Patterns
+- **Error Handling**: Tratamento consistente
+- **Context Propagation**: Contexto através da aplicação
+- **Audit Trail**: Rastreabilidade completa
+- **Observability**: Métricas e monitoring
+- **Fallback Strategy**: Recuperação de falhas
 
-### 4. API Clients
-- Use external service error types
-- Implement timeout handling
-- Use rate limiting error handling
-- Provide fallback mechanisms
+### Enterprise Patterns
+- **Domain Driven Design**: Erros como parte do domínio
+- **Clean Architecture**: Separação de responsabilidades
+- **CQRS**: Diferentes tratamentos para command/query
+- **Event Sourcing**: Auditoria através de eventos
 
-## Testing
+## Casos de Uso Cobertos
 
-Each example includes test scenarios and validation:
-- Error creation and validation
-- HTTP response testing
-- Serialization round-trip testing
-- Error recovery validation
+### Web Applications
+- Validação de formulários
+- APIs REST
+- Autenticação/autorização
+- Tratamento de erros HTTP
 
-## Performance Considerations
+### Microservices
+- Integração entre serviços
+- Circuit breakers
+- Rate limiting
+- Distributed tracing
 
-- **Error Creation**: Minimal overhead for error creation
-- **Serialization**: Efficient JSON/XML serialization
-- **HTTP Integration**: Fast error response generation
-- **Memory Usage**: Optimized error structures
+### Financial Systems
+- Transações bancárias
+- Validação de negócio
+- Audit compliance
+- Risk management
 
-## Best Practices
+### Enterprise Systems
+- Sistema de métricas
+- Audit trail
+- Context enrichment
+- Multi-tenancy
 
-1. **Use Specific Error Types**: Choose the most appropriate error type
-2. **Include Context**: Add relevant context information
-3. **Consistent Codes**: Use consistent error codes across services
-4. **Proper HTTP Status**: Map to appropriate HTTP status codes
-5. **Structured Responses**: Use consistent error response format
-6. **Logging**: Log errors with appropriate detail level
-7. **Monitoring**: Track error rates and types
-8. **Testing**: Test error scenarios thoroughly
+## Métricas de Cobertura
 
-## Contributing
+Cada exemplo cobre diferentes aspectos:
+- **basic/**: ~30% das funcionalidades (fundamentos)
+- **global/**: ~50% das funcionalidades (hooks + middlewares)
+- **advanced/**: ~80% das funcionalidades (empresarial)
+- **outros/**: ~60% das funcionalidades (casos práticos)
 
-To add new examples:
-1. Create a new directory with descriptive name
-2. Include `main.go` with working code
-3. Add comprehensive `README.md`
-4. Update this main README
-5. Add to `run_all_examples.sh`
+## Próximos Passos
 
-## Dependencies
+Após estudar os exemplos, você pode:
+1. Implementar o sistema em seu projeto
+2. Customizar os tipos de erro para seu domínio
+3. Criar hooks específicos para suas necessidades
+4. Implementar middlewares customizados
+5. Integrar com suas ferramentas de observabilidade
 
-All examples use:
-- Go 1.23+
-- Domain Errors library
-- Standard library packages
-- No external dependencies (except for specific examples)
+## Contribuição
 
-## License
-
-These examples are part of the nexs-lib project and follow the same license terms.
+Para adicionar novos exemplos:
+1. Crie uma nova pasta com nome descritivo
+2. Implemente o exemplo em `main.go`
+3. Crie um `README.md` detalhado
+4. Atualize este README principal
+5. Execute os testes para garantir funcionamento

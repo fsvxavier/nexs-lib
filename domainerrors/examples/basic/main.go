@@ -1,209 +1,117 @@
 package main
 
 import (
-	"errors"
+	"context"
 	"fmt"
-	"log"
 
 	"github.com/fsvxavier/nexs-lib/domainerrors"
+	"github.com/fsvxavier/nexs-lib/domainerrors/interfaces"
 )
 
 func main() {
-	fmt.Println("=== Domain Errors - Basic Examples ===")
+	fmt.Println("=== Exemplo Básico de Domain Errors ===")
 	fmt.Println()
 
-	// Example 1: Basic error creation
-	basicErrorExample()
+	// 1. Criando erros básicos
+	fmt.Println("1. Criando erros básicos:")
 
-	// Example 2: Error with cause
-	errorWithCauseExample()
+	// Erro de validação
+	validationErr := domainerrors.NewValidationError("VAL001", "Campo 'email' é obrigatório")
+	fmt.Printf("   Validation Error: %s [%s] - HTTP Status: %d\n", validationErr.Error(), validationErr.Code(), validationErr.HTTPStatus())
 
-	// Example 3: Error with metadata
-	errorWithMetadataExample()
+	// Erro de não encontrado
+	notFoundErr := domainerrors.NewNotFoundError("NF001", "Usuário não encontrado")
+	fmt.Printf("   NotFound Error: %s [%s] - HTTP Status: %d\n", notFoundErr.Error(), notFoundErr.Code(), notFoundErr.HTTPStatus())
 
-	// Example 4: Error chaining
-	errorChainingExample()
+	// Erro de negócio
+	businessErr := domainerrors.NewBusinessError("BIZ001", "Saldo insuficiente para a operação")
+	fmt.Printf("   Business Error: %s [%s] - HTTP Status: %d\n\n", businessErr.Error(), businessErr.Code(), businessErr.HTTPStatus())
 
-	// Example 5: HTTP status mapping
-	httpStatusMappingExample()
+	// 2. Adicionando metadados
+	fmt.Println("2. Adicionando metadados:")
 
-	// Example 6: Error type checking
-	demonstrateErrorChecking()
+	enrichedErr := validationErr.WithMetadata("field", "email").
+		WithMetadata("value", "invalid-email").
+		WithMetadata("rule", "required")
 
-	// Example 7: Standard error interface
-	demonstrateStandardErrorInterface()
-
-	// Example 8: Specific error types
-	specificErrorTypesExample()
-}
-
-func basicErrorExample() {
-	fmt.Println("1. Basic Error Creation:")
-
-	// Create a simple domain error
-	err := domainerrors.New("USR_001", "User validation failed")
-
-	fmt.Printf("   Error: %s\n", err.Error())
-	fmt.Printf("   Code: %s\n", err.Code)
-	fmt.Printf("   Type: %s\n", err.Type)
-	fmt.Printf("   HTTP Status: %d\n", err.HTTPStatus())
+	fmt.Printf("   Error with metadata: %s\n", enrichedErr.Error())
+	metadata := enrichedErr.Metadata()
+	for key, value := range metadata {
+		fmt.Printf("     %s: %v\n", key, value)
+	}
 	fmt.Println()
-}
 
-func errorWithCauseExample() {
-	fmt.Println("2. Error with Cause:")
+	// 3. Encapsulando erros
+	fmt.Println("3. Encapsulando erros:")
 
-	// Create an error with an underlying cause
-	originalErr := errors.New("database connection timeout")
-	err := domainerrors.NewWithCause("DB_001", "Failed to save user", originalErr)
+	originalErr := fmt.Errorf("conexão com banco de dados falhou")
+	wrappedErr := domainerrors.Wrap(originalErr, interfaces.DatabaseError, "DB001", "Falha ao acessar dados do usuário")
 
-	fmt.Printf("   Error: %s\n", err.Error())
-	fmt.Printf("   Root Cause: %v\n", err.Unwrap())
-	fmt.Println()
-}
+	fmt.Printf("   Wrapped Error: %s\n", wrappedErr.Error())
+	fmt.Printf("   Root Cause: %s\n\n", wrappedErr.Unwrap().Error())
 
-func errorWithMetadataExample() {
-	fmt.Println("3. Error with Metadata:")
+	// 4. Verificação de tipos
+	fmt.Println("4. Verificação de tipos:")
 
-	// Create error with additional metadata
-	err := domainerrors.New("API_001", "Request processing failed")
-	err.WithMetadata("request_id", "req-12345")
-	err.WithMetadata("user_id", "user-789")
-	err.WithMetadata("timestamp", "2025-01-18T10:30:00Z")
+	isValidation := domainerrors.IsType(validationErr, interfaces.ValidationError)
+	isDatabase := domainerrors.IsType(validationErr, interfaces.DatabaseError)
 
-	fmt.Printf("   Error: %s\n", err.Error())
-	fmt.Printf("   Metadata: %+v\n", err.Metadata)
-	fmt.Println()
-}
+	fmt.Printf("   validationErr é ValidationError? %t\n", isValidation)
+	fmt.Printf("   validationErr é DatabaseError? %t\n\n", isDatabase)
 
-func errorChainingExample() {
-	fmt.Println("4. Error Chaining:")
+	// 5. Análise de cadeia de erros
+	fmt.Println("5. Análise de cadeia de erros:")
 
-	// Create a chain of errors
-	dbErr := errors.New("connection refused")
-	infraErr := domainerrors.NewWithCause("INFRA_001", "Database unavailable", dbErr)
+	// Criando uma cadeia de erros
+	layer1 := fmt.Errorf("erro na camada de persistência")
+	layer2 := domainerrors.Wrap(layer1, interfaces.DatabaseError, "DB002", "erro na camada de serviço")
+	layer3 := fmt.Errorf("erro na camada de apresentação: %w", layer2)
 
-	serviceErr := domainerrors.New("SVC_001", "User service failed")
-	serviceErr.Wrap("processing user request", infraErr)
+	fmt.Println("   Cadeia de erros:")
+	fmt.Println(domainerrors.FormatErrorChain(layer3))
 
-	fmt.Printf("   Error: %s\n", serviceErr.Error())
-	fmt.Printf("   Root Cause: %v\n", serviceErr.Unwrap())
-	fmt.Printf("   Stack Trace:\n%s\n", serviceErr.StackTrace())
-	fmt.Println()
-}
+	fmt.Printf("   Causa raiz: %s\n\n", domainerrors.GetRootCause(layer3).Error())
 
-func httpStatusMappingExample() {
-	fmt.Println("5. HTTP Status Mapping:")
+	// 6. Serialização JSON
+	fmt.Println("6. Serialização JSON:")
 
-	// Different error types map to different HTTP status codes
-	errors := []struct {
-		name string
-		err  *domainerrors.DomainError
-	}{
-		{
-			name: "Validation Error",
-			err:  domainerrors.NewWithType("VAL_001", "Invalid input", domainerrors.ErrorTypeValidation),
+	jsonErr := domainerrors.NewWithMetadata(
+		interfaces.ValidationError,
+		"VAL002",
+		"Dados inválidos fornecidos",
+		map[string]interface{}{
+			"field": "age",
+			"value": -5,
+			"min":   0,
+			"max":   120,
 		},
-		{
-			name: "Not Found Error",
-			err:  domainerrors.NewWithType("NF_001", "Resource not found", domainerrors.ErrorTypeNotFound),
-		},
-		{
-			name: "Authentication Error",
-			err:  domainerrors.NewWithType("AUTH_001", "Invalid credentials", domainerrors.ErrorTypeAuthentication),
-		},
-		{
-			name: "Authorization Error",
-			err:  domainerrors.NewWithType("AUTHZ_001", "Insufficient permissions", domainerrors.ErrorTypeAuthorization),
-		},
-		{
-			name: "Rate Limit Error",
-			err:  domainerrors.NewWithType("RATE_001", "Too many requests", domainerrors.ErrorTypeRateLimit),
-		},
-		{
-			name: "Server Error",
-			err:  domainerrors.NewWithType("SRV_001", "Internal server error", domainerrors.ErrorTypeServer),
-		},
+	)
+
+	// Test serialization
+	jsonData, err := jsonErr.ToJSON()
+	if err != nil {
+		fmt.Printf("Failed to serialize error: %v\n", err)
+	} else {
+		fmt.Printf("Error JSON: %s\n", string(jsonData))
 	}
 
-	for _, errInfo := range errors {
-		fmt.Printf("   %s: %d\n", errInfo.name, errInfo.err.HTTPStatus())
-	}
+	// 7. Uso com context
+	fmt.Println("7. Uso com context:")
 
-	fmt.Println()
-}
+	ctx := context.WithValue(context.Background(), "request_id", "req-12345")
+	ctx = context.WithValue(ctx, "user_id", "user-67890")
 
-// Helper function to demonstrate error checking
-func demonstrateErrorChecking() {
-	fmt.Println("6. Error Type Checking:")
+	contextErr := businessErr.WithContext(ctx)
+	fmt.Printf("   Error com context: %s [%s]\n\n", contextErr.Error(), contextErr.Code())
 
-	validationErr := domainerrors.NewWithType("VAL_001", "Invalid data", domainerrors.ErrorTypeValidation)
+	// 8. Factory personalizada
+	fmt.Println("8. Factory personalizada:")
 
-	// Check if error is of specific type
-	if domainerrors.IsType(validationErr, domainerrors.ErrorTypeValidation) {
-		fmt.Println("   ✓ Error is a validation error")
-	}
+	factory := domainerrors.GetFactory()
+	customErr := factory.New(interfaces.TimeoutError, "TO001", "Operação expirou após 30 segundos")
 
-	if !domainerrors.IsType(validationErr, domainerrors.ErrorTypeNotFound) {
-		fmt.Println("   ✓ Error is NOT a not found error")
-	}
+	fmt.Printf("   Custom Error: %s [%s] - HTTP Status: %d\n", customErr.Error(), customErr.Code(), customErr.HTTPStatus())
+	fmt.Printf("   Timestamp: %s\n", customErr.Timestamp().Format("2006-01-02 15:04:05"))
 
-	// Map to HTTP status
-	status := domainerrors.MapHTTPStatus(validationErr)
-	fmt.Printf("   HTTP Status: %d\n", status)
-
-	fmt.Println()
-}
-
-// Example of using errors.Is and errors.As
-func demonstrateStandardErrorInterface() {
-	fmt.Println("7. Standard Error Interface Compatibility:")
-
-	originalErr := errors.New("original error")
-	wrappedErr := domainerrors.NewWithCause("WRAP_001", "Wrapped error", originalErr)
-
-	// Using errors.Is
-	if errors.Is(wrappedErr, originalErr) {
-		fmt.Println("   ✓ errors.Is works correctly")
-	}
-
-	// Using errors.As
-	var domainErr *domainerrors.DomainError
-	if errors.As(wrappedErr, &domainErr) {
-		fmt.Printf("   ✓ errors.As works correctly, code: %s\n", domainErr.Code)
-	}
-
-	fmt.Println()
-}
-
-// Example of specific error types with custom codes
-func specificErrorTypesExample() {
-	fmt.Println("8. Specific Error Types with Custom Codes:")
-
-	// Validation error with custom code
-	validationErr := domainerrors.NewValidationError("USER_EMAIL_INVALID", "Invalid email format", nil)
-	validationErr.WithField("email", "must be a valid email address")
-	fmt.Printf("   Validation Error: %s (Code: %s)\n", validationErr.Message, validationErr.Code)
-
-	// Business error with custom code
-	businessErr := domainerrors.NewBusinessError("INSUFFICIENT_BALANCE", "Account balance too low")
-	businessErr.WithRule("Minimum balance of $10 required")
-	fmt.Printf("   Business Error: %s (Code: %s)\n", businessErr.Message, businessErr.Code)
-
-	// Database error with custom code
-	dbErr := domainerrors.NewDatabaseError("DB_CONNECTION_FAILED", "Failed to connect to database", errors.New("connection timeout"))
-	dbErr.WithOperation("SELECT", "users")
-	fmt.Printf("   Database Error: %s (Code: %s)\n", dbErr.Message, dbErr.Code)
-
-	// External service error with custom code
-	extErr := domainerrors.NewExternalServiceError("PAYMENT_API_ERROR", "payment-service", "Payment processing failed", errors.New("timeout"))
-	extErr.WithEndpoint("/api/v1/payments")
-	extErr.WithResponse(503, "Service Unavailable")
-	fmt.Printf("   External Service Error: %s (Code: %s)\n", extErr.Message, extErr.Code)
-
-	fmt.Println()
-}
-
-func init() {
-	log.SetFlags(0) // Remove timestamp from logs for cleaner output
+	fmt.Println("\n=== Fim do Exemplo Básico ===")
 }
